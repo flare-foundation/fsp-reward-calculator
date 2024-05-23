@@ -1,0 +1,3 @@
+[submodule "fdc-client"]
+	path = fdc-client
+	url = git@gitlab.com:flarenetwork/fdc-client.git
