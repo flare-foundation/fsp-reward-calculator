@@ -17,11 +17,12 @@ var Coston = NetworkParameters{
 		FlareSystemsCalculator:  common.HexToAddress("0x43CBAB9C953F54533aadAf7ffCD13c30ec05Edc9"),
 		VoterRegistry:           common.HexToAddress("0x051E9Cb16A8676C011faa10efA1ABE95372e7825"),
 	},
+
 	InitialRewardEpochId: 1,
 
 	Epoch: EpochParameters{
 		FirstVotingRoundStartTs:            1658430000,
-		VotingEpochDurationSeconds:         90,
+		VotingRoundDurationSeconds:         90,
 		FirstRewardEpochStartVotingRoundId: 0,
 		RewardEpochDurationInVotingEpochs:  240,
 		RevealDeadlineSeconds:              45,
@@ -37,7 +38,6 @@ var Coston = NetworkParameters{
 		GracePeriodForFinalizationDurationSec: 20,
 		SigningBips:                           big.NewInt(1000),
 		FinalizationBips:                      big.NewInt(1000),
-
 		MinimalRewardedNonConsensusDepositedSignaturesPerHashBips: 3000,
 		FinalizationVoterSelectionThresholdWeightBips:             500,
 		CappedStakingFeeBips: 2000,
