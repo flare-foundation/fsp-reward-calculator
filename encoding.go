@@ -75,7 +75,13 @@ func DecodeReveal(message string, feeds []Feed) (Reveal, error) {
 const (
 	FeedValueBytes = 4
 	FeedIdBytes    = 21
+	NoValue        = 0
 )
+
+var EmptyFeedValue = FeedValue{
+	isEmpty: true,
+	Value:   NoValue,
+}
 
 func DecodeFeedValues(bytes []byte, feeds []Feed) ([]FeedValue, error) {
 	if (len(bytes) % FeedValueBytes) != 0 {
@@ -84,19 +90,23 @@ func DecodeFeedValues(bytes []byte, feeds []Feed) ([]FeedValue, error) {
 
 	var feedValues []FeedValue
 	for i := 0; i < len(bytes); i += FeedValueBytes {
-		rawValue := int(binary.BigEndian.Uint32(bytes[i : i+FeedValueBytes]))
-		feedValues = append(feedValues, FeedValue{
-			isEmpty: false,
-			Value:   int32(rawValue - 1<<31),
-		})
+		rawValue := binary.BigEndian.Uint32(bytes[i : i+FeedValueBytes])
+
+		var feedValue FeedValue
+		if rawValue == NoValue {
+			feedValue = EmptyFeedValue
+		} else {
+			feedValue = FeedValue{
+				isEmpty: false,
+				Value:   int32(rawValue - 1<<31), // Values encoded in Excess-2^31
+			}
+		}
+		feedValues = append(feedValues, feedValue)
 	}
 
 	// Fill in values for truncated empty feeds
 	for i := len(feedValues); i < len(feeds); i++ {
-		feedValues = append(feedValues, FeedValue{
-			isEmpty: true,
-			Value:   0,
-		})
+		feedValues = append(feedValues, EmptyFeedValue)
 	}
 
 	return feedValues, nil
