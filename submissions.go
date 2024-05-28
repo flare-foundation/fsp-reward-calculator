@@ -1,18 +1,17 @@
 package main
 
 import (
-	"flare-common/contracts/submission"
 	"flare-common/database"
 	"flare-common/payload"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
 var (
+	// TODO Read from config
 	SubmissionContractAddress = common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f") // Coston
 )
 
@@ -54,22 +53,11 @@ func getReveals(db *gorm.DB, feeds []Feed, searchIntervalStartSec int64, searchI
 		}
 
 		logger.Info("Values for all feeds: %v", values)
-		return nil
+
 	}
 
 	return nil
 
-}
-
-func parseCommit(msgs []payload.Message) {
-	sig := []byte("submit1()")
-	hash := crypto.Keccak256Hash(sig)
-
-	logger.Info("test")
-
-	logger.Info("sigs %v", submission.SubmissionMetaData.Sigs)
-
-	logger.Info("Hash: %s", hash)
 }
 
 func queryMessages(db *gorm.DB, searchIntervalStartSec int64, searchIntervalEndSec int64, signature string, contractAddress common.Address) ([]payload.Message, error) {

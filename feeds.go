@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"flare-common/contracts/offers"
+	"ftsov2-rewarding/logger"
+	"golang.org/x/exp/maps"
 	"math/big"
 	"sort"
 )
@@ -15,7 +17,7 @@ func GetOrderedFeeds(of RewardOffers) []Feed {
 
 func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 	var communityFeeds []Feed
-	var amountPerFeed map[FeedId]*big.Int
+	amountPerFeed := make(map[FeedId]*big.Int)
 
 	for _, offer := range offers {
 		communityFeeds = append(communityFeeds, Feed{
@@ -45,19 +47,26 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 }
 
 func getInflationFeeds(offers []*offers.OffersInflationRewardsOffered) []Feed {
-	var inflationFeeds []Feed
+	feedById := make(map[FeedId]Feed)
 
 	for _, offer := range offers {
 		feedCount := len(offer.FeedIds) / FeedIdBytes
 		for j := 0; j < feedCount; j++ {
-			inflationFeeds = append(inflationFeeds, Feed{
-				Id:       FeedId(offer.FeedIds[j*FeedIdBytes : (j+1)*FeedIdBytes]),
-				Decimals: int8(offer.Decimals[j]),
-			})
+			id := FeedId(offer.FeedIds[j*FeedIdBytes : (j+1)*FeedIdBytes])
+			if _, ok := feedById[id]; !ok {
+				feedById[id] = Feed{
+					Id:       id,
+					Decimals: int8(offer.Decimals[j]),
+				}
+			} else {
+				logger.Fatal("More than one inflation offer contains feed %s", id.String())
+			}
 		}
 	}
-	sort.Slice(inflationFeeds, func(i, j int) bool {
-		return bytes.Compare(inflationFeeds[i].Id[:], inflationFeeds[j].Id[:]) < 0
+
+	feeds := maps.Values(feedById)
+	sort.Slice(feeds, func(i, j int) bool {
+		return bytes.Compare(feeds[i].Id[:], feeds[j].Id[:]) < 0
 	})
-	return inflationFeeds
+	return feeds
 }

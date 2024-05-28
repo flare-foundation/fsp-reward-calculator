@@ -63,7 +63,6 @@ func getRewardEpoch(epoch int, db *gorm.DB) (RewardEpoch, error) {
 	currentTimestamp := time.Now().Unix()
 
 	// TODO: Use lowest index in indexer db as start
-
 	expectedStartSec := parameters.Coston.Epoch.ExpectedRewardEpochStartTimeSec(int64(epoch))
 	epochDuration := parameters.Coston.Epoch.RewardEpochDurationInVotingEpochs * parameters.Coston.Epoch.VotingRoundDurationSeconds
 
@@ -108,8 +107,7 @@ func getRewardEpoch(epoch int, db *gorm.DB) (RewardEpoch, error) {
 	feeds := GetOrderedFeeds(rewardEpoch.Offers)
 	logger.Info("Feeds: %v", len(feeds))
 	for _, f := range feeds {
-		feedName := string(f.Id[1:])
-		logger.Info("Feed: %s, Decimals: %d", feedName, f.Decimals)
+		logger.Info("Feed: %s, Decimals: %d", f.String(), f.Decimals)
 	}
 
 	err = getReveals(db, feeds, actualStartSec, actualEndSec)

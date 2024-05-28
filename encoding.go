@@ -7,19 +7,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Commit struct {
-	Hash common.Hash
-}
+const (
+	FeedValueBytes = 4
+	FeedIdBytes    = 21
+	NoValue        = 0
+)
 
-func DecodeCommit(message string) (Commit, error) {
-	if len(message) != 64 {
-		return Commit{}, errors.New("invalid message length")
-	}
-	hash := common.HexToHash(message)
-	return Commit{
-		Hash: hash,
-	}, nil
-
+var EmptyFeedValue = FeedValue{
+	isEmpty: true,
+	Value:   NoValue,
 }
 
 type FeedId [FeedIdBytes]byte
@@ -29,8 +25,16 @@ type Feed struct {
 	Decimals int8
 }
 
-func (f Feed) String() string {
-	return string(f.Id[1:])
+func (f *Feed) String() string {
+	return f.Id.String()
+}
+
+func (f *FeedId) String() string {
+	return string(f[1:])
+}
+
+type Commit struct {
+	Hash common.Hash
 }
 
 type Reveal struct {
@@ -44,6 +48,17 @@ type FeedValue struct {
 	isEmpty bool
 	Value   int32
 	//Decimals int
+}
+
+func DecodeCommit(message string) (Commit, error) {
+	if len(message) != 64 {
+		return Commit{}, errors.New("invalid message length")
+	}
+	hash := common.HexToHash(message)
+	return Commit{
+		Hash: hash,
+	}, nil
+
 }
 
 func DecodeReveal(message string, feeds []Feed) (Reveal, error) {
@@ -70,17 +85,6 @@ func DecodeReveal(message string, feeds []Feed) (Reveal, error) {
 		EncodedValues: bytes,
 	}, nil
 
-}
-
-const (
-	FeedValueBytes = 4
-	FeedIdBytes    = 21
-	NoValue        = 0
-)
-
-var EmptyFeedValue = FeedValue{
-	isEmpty: true,
-	Value:   NoValue,
 }
 
 func DecodeFeedValues(bytes []byte, feeds []Feed) ([]FeedValue, error) {
