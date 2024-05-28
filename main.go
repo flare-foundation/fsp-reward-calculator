@@ -1,15 +1,12 @@
 package main
 
 import (
-	"flare-common/contracts/registry"
+	"flare-common/contracts/offers"
 	"flare-common/contracts/relay"
 	"flare-common/database"
-	"flare-common/events"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/parameters"
 	"ftsov2-rewarding/utils"
-	"strings"
-
 	"time"
 
 	"github.com/pkg/errors"
@@ -45,12 +42,18 @@ type RewardEpoch struct {
 	StartRound int
 	EndRound   int
 	Policy     *relay.RelaySigningPolicyInitialized
+	Offers     RewardOffers
+}
+
+type RewardOffers struct {
+	community []*offers.OffersRewardsOffered
+	inflation []*offers.OffersInflationRewardsOffered
 }
 
 func calculateRewards(db *gorm.DB, epoch int) (RewardClaim, error) {
-	_, error := getRewardEpoch(epoch, db)
-	if error != nil {
-		return RewardClaim{}, errors.Errorf("error fetching reward epoch: %s", error)
+	_, err := getRewardEpoch(epoch, db)
+	if err != nil {
+		return RewardClaim{}, errors.Errorf("err fetching reward epoch: %s", err)
 	}
 
 	return RewardClaim{}, nil
@@ -68,12 +71,12 @@ func getRewardEpoch(epoch int, db *gorm.DB) (RewardEpoch, error) {
 	searchIntervalEndSec := min(expectedStartSec+(epochDuration*2), currentTimestamp)
 
 	relayInst, _ := relay.NewRelay(common.Address{}, nil)
-	persePolicyInitialized := func(log types.Log) (*relay.RelaySigningPolicyInitialized, error) {
+	parsePolicyInitialized := func(log types.Log) (*relay.RelaySigningPolicyInitialized, error) {
 		return relayInst.RelayFilterer.ParseSigningPolicyInitialized(log)
 	}
-	policies, error := queryEvents(db, searchIntervalStartSec, searchIntervalEndSec, parameters.Coston.Contracts.Relay, utils.EventTopic0.SigningPolicyInitialized, persePolicyInitialized)
-	if error != nil {
-		return RewardEpoch{}, errors.Errorf("Error fetching signing policy events: %s", error)
+	policies, err := QueryEvents(db, searchIntervalStartSec, searchIntervalEndSec, parameters.Coston.Contracts.Relay, utils.EventTopic0.SigningPolicyInitialized, parsePolicyInitialized)
+	if err != nil {
+		return RewardEpoch{}, errors.Errorf("Error fetching signing policy events: %s", err)
 	}
 
 	var rewardEpoch = RewardEpoch{}
@@ -94,59 +97,41 @@ func getRewardEpoch(epoch int, db *gorm.DB) (RewardEpoch, error) {
 		return RewardEpoch{}, errors.Errorf("Unable to determine last voting round for epoch %d: no signing policy found for next epoch %d. It may not have been indexed yet or the current epoch is not finished", epoch, epoch+1)
 	}
 
-	// actualStartSec := parameters.Coston.Epoch.VotingEpochStartSec(int64(rewardEpoch.StartRound))
-	// actualEndSec := parameters.Coston.Epoch.VotingEpochEndSec(int64(rewardEpoch.EndRound))
+	actualStartSec := parameters.Coston.Epoch.VotingRoundStartSec(int64(rewardEpoch.StartRound))
+	actualEndSec := parameters.Coston.Epoch.VotingRoundEndSec(int64(rewardEpoch.EndRound))
+
+	rewardEpoch.Offers, err = getRewardOffers(db, actualStartSec, actualEndSec)
+	if err != nil {
+		return RewardEpoch{}, errors.Errorf("Error fetching reward offers: %s", err)
+	}
+
+	feeds := GetOrderedFeeds(rewardEpoch.Offers)
+	logger.Info("Feeds: %v", len(feeds))
+	for _, f := range feeds {
+		feedName := string(f.Id[1:])
+		logger.Info("Feed: %s, Decimals: %d", feedName, f.Decimals)
+	}
+
+	err = getReveals(db, feeds, actualStartSec, actualEndSec)
+	if err != nil {
+		return RewardEpoch{}, err
+	}
 
 	return rewardEpoch, nil
 }
 
-func queryEvents[T interface{}](
-	db *gorm.DB,
-	searchIntervalStartSec int64,
-	searchIntervalEndSec int64,
-	contractAddress common.Address,
-	topic0 string,
-	parseEvent func(types.Log) (T, error),
-) ([]T, error) {
-	var logs []database.Log
-	err := db.Where(
-		"address = ? AND topic0 = ? AND timestamp > ? AND timestamp <= ?",
-		strings.ToLower(strings.TrimPrefix(contractAddress.String(), "0x")),
-		strings.ToLower(strings.TrimPrefix(topic0, "0x")),
-		searchIntervalStartSec, searchIntervalEndSec,
-	).Order("timestamp").Find(&logs).Error
+func getRewardOffers(db *gorm.DB, epochStartSec int64, epochEndSec int64) (RewardOffers, error) {
+	community, err := GetRewardOfferEvents(db, epochStartSec, epochEndSec)
 	if err != nil {
-		return nil, errors.Errorf("error fetching logs from DB: %s", err)
+		return RewardOffers{}, errors.Errorf("error fetching reward offer events: %s", err)
+	}
+	inflation, err := GetInflationRewardOfferEvents(db, epochStartSec, epochEndSec)
+	if err != nil {
+		return RewardOffers{}, errors.Errorf("error fetching inflation reward offer events: %s", err)
 	}
 
-	var parsedEvents []T
-	for _, log := range logs {
-		chainLog, err := events.ConvertDatabaseLogToChainLog(log)
-		if err != nil {
-			logger.Error("error converting database log to chain log: %s", err)
-			continue
-		}
-		parsed, err := parseEvent(*chainLog)
-		if err != nil {
-			logger.Error("error parsing event, ignoring: %s", err)
-			continue
-		}
-		parsedEvents = append(parsedEvents, parsed)
-	}
-	return parsedEvents, nil
-}
-
-func getVoterRegistered(db *gorm.DB, from int64, to int64, currentTimestamp int64) ([]*registry.RegistryVoterRegistered, error) {
-	registryInstance, _ := registry.NewRegistry(common.Address{}, nil)
-	parse := func(log types.Log) (*registry.RegistryVoterRegistered, error) {
-		return registryInstance.RegistryFilterer.ParseVoterRegistered(log)
-	}
-
-	regInfo, error := queryEvents(db, from, to, parameters.Coston.Contracts.VoterRegistry,
-		utils.EventTopic0.VoterRegistered, parse)
-	if error != nil {
-		return nil, errors.Errorf("error fetching voter registry events: %s", error)
-	}
-
-	return regInfo, nil
+	return RewardOffers{
+		community,
+		inflation,
+	}, nil
 }

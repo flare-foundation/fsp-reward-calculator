@@ -1,0 +1,103 @@
+package main
+
+import (
+	"encoding/binary"
+	"encoding/hex"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/pkg/errors"
+)
+
+type Commit struct {
+	Hash common.Hash
+}
+
+func DecodeCommit(message string) (Commit, error) {
+	if len(message) != 64 {
+		return Commit{}, errors.New("invalid message length")
+	}
+	hash := common.HexToHash(message)
+	return Commit{
+		Hash: hash,
+	}, nil
+
+}
+
+type FeedId [FeedIdBytes]byte
+
+type Feed struct {
+	Id       FeedId
+	Decimals int8
+}
+
+func (f Feed) String() string {
+	return string(f.Id[1:])
+}
+
+type Reveal struct {
+	Random        common.Hash
+	Feeds         []Feed
+	Values        []FeedValue
+	EncodedValues []byte
+}
+
+type FeedValue struct {
+	isEmpty bool
+	Value   int32
+	//Decimals int
+}
+
+func DecodeReveal(message string, feeds []Feed) (Reveal, error) {
+	bytes, err := hex.DecodeString(message)
+	if err != nil {
+		return Reveal{}, errors.Wrap(err, "message is not a valid hex string")
+	}
+
+	// The message should be long enough to contain the random and at least one feed value
+	if len(bytes) < (common.HashLength + FeedValueBytes) {
+		return Reveal{}, errors.New("message too short")
+	}
+
+	random := common.BytesToHash(bytes[:common.HashLength])
+	values, err := DecodeFeedValues(bytes[common.HashLength:], feeds)
+	if err != nil {
+		return Reveal{}, errors.Wrap(err, "failed to decode feed values")
+	}
+
+	return Reveal{
+		Random:        random,
+		Feeds:         feeds,
+		Values:        values,
+		EncodedValues: bytes,
+	}, nil
+
+}
+
+const (
+	FeedValueBytes = 4
+	FeedIdBytes    = 21
+)
+
+func DecodeFeedValues(bytes []byte, feeds []Feed) ([]FeedValue, error) {
+	if (len(bytes) % FeedValueBytes) != 0 {
+		return nil, errors.New("invalid message length for feed values")
+	}
+
+	var feedValues []FeedValue
+	for i := 0; i < len(bytes); i += FeedValueBytes {
+		rawValue := int(binary.BigEndian.Uint32(bytes[i : i+FeedValueBytes]))
+		feedValues = append(feedValues, FeedValue{
+			isEmpty: false,
+			Value:   int32(rawValue - 1<<31),
+		})
+	}
+
+	// Fill in values for truncated empty feeds
+	for i := len(feedValues); i < len(feeds); i++ {
+		feedValues = append(feedValues, FeedValue{
+			isEmpty: true,
+			Value:   0,
+		})
+	}
+
+	return feedValues, nil
+}

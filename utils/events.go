@@ -1,13 +1,14 @@
 package utils
 
 import (
+	"encoding/hex"
 	"flare-common/contracts/calculator"
 	"flare-common/contracts/offers"
 	"flare-common/contracts/registry"
 	"flare-common/contracts/relay"
+	"flare-common/contracts/submission"
 	"flare-common/contracts/system"
 	"ftsov2-rewarding/logger"
-
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 )
 
@@ -24,7 +25,32 @@ type EventIds struct {
 	VoterRegistrationInfo    string
 }
 
-func EventIDFromMetadata(metaData *bind.MetaData, eventName string) string {
+type FunctionSigs struct {
+	Submit1          string
+	Submit2          string
+	SubmitSignatures string
+}
+
+var EventTopic0 = EventIds{
+	RewardsOffered:          eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
+	InflationRewardsOffered: eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
+
+	RewardEpochStarted:       eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RewardEpochStarted"),
+	RandomAcquisitionStarted: eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RandomAcquisitionStarted"),
+	VotePowerBlockSelected:   eventIDFromMetadata(system.FlareSystemsManagerMetaData, "VotePowerBlockSelected"),
+
+	SigningPolicyInitialized: eventIDFromMetadata(relay.RelayMetaData, "SigningPolicyInitialized"),
+	VoterRegistered:          eventIDFromMetadata(registry.RegistryMetaData, "VoterRegistered"),
+	VoterRegistrationInfo:    eventIDFromMetadata(calculator.CalculatorMetaData, "VoterRegistrationInfo"),
+}
+
+var FunctionSignatures = FunctionSigs{
+	Submit1:          functionSigFromMetadata(submission.SubmissionMetaData, "submit1"),
+	Submit2:          functionSigFromMetadata(submission.SubmissionMetaData, "submit2"),
+	SubmitSignatures: functionSigFromMetadata(submission.SubmissionMetaData, "submitSignatures"),
+}
+
+func eventIDFromMetadata(metaData *bind.MetaData, eventName string) string {
 	abi, err := metaData.GetAbi()
 	if err != nil {
 		logger.Fatal("Error getting abi for event %s: %s", eventName, err)
@@ -39,15 +65,17 @@ func EventIDFromMetadata(metaData *bind.MetaData, eventName string) string {
 	return event.ID.String()
 }
 
-var EventTopic0 = EventIds{
-	RewardsOffered:          EventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
-	InflationRewardsOffered: EventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
+func functionSigFromMetadata(metaData *bind.MetaData, functionName string) string {
+	abi, err := metaData.GetAbi()
+	if err != nil {
+		logger.Fatal("Error getting abi for function %s: %s", functionName, err)
+		return ""
+	}
 
-	RewardEpochStarted:       EventIDFromMetadata(system.FlareSystemsManagerMetaData, "RewardEpochStarted"),
-	RandomAcquisitionStarted: EventIDFromMetadata(system.FlareSystemsManagerMetaData, "RandomAcquisitionStarted"),
-	VotePowerBlockSelected:   EventIDFromMetadata(system.FlareSystemsManagerMetaData, "VotePowerBlockSelected"),
+	method, ok := abi.Methods[functionName]
+	if !ok {
+		logger.Fatal("Error getting signature for function %s", functionName)
+	}
 
-	SigningPolicyInitialized: EventIDFromMetadata(relay.RelayMetaData, "SigningPolicyInitialized"),
-	VoterRegistered:          EventIDFromMetadata(registry.RegistryMetaData, "VoterRegistered"),
-	VoterRegistrationInfo:    EventIDFromMetadata(calculator.CalculatorMetaData, "VoterRegistrationInfo"),
+	return hex.EncodeToString(method.ID)
 }
