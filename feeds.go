@@ -15,9 +15,10 @@ func GetOrderedFeeds(of RewardOffers) []Feed {
 	return append(inflationFeeds, communityFeeds...)
 }
 
+// getCommunityFeeds returns a list of feeds first ordered by total amount of rewards offered, then feed id.
 func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 	var communityFeeds []Feed
-	amountPerFeed := make(map[FeedId]*big.Int)
+	amountPerFeed := map[FeedId]*big.Int{}
 
 	for _, offer := range offers {
 		communityFeeds = append(communityFeeds, Feed{
@@ -47,7 +48,7 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 }
 
 func getInflationFeeds(offers []*offers.OffersInflationRewardsOffered) []Feed {
-	feedById := make(map[FeedId]Feed)
+	feedById := map[FeedId]Feed{}
 
 	for _, offer := range offers {
 		feedCount := len(offer.FeedIds) / FeedIdBytes
