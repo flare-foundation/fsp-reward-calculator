@@ -6,7 +6,7 @@ import (
 	"flare-common/database"
 	"flare-common/events"
 	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/parameters"
+	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/utils"
 	"strings"
 
@@ -19,8 +19,8 @@ import (
 
 func QueryEvents[T interface{}](
 	db *gorm.DB,
-	searchIntervalStartSec int64,
-	searchIntervalEndSec int64,
+	searchIntervalStartSec uint64,
+	searchIntervalEndSec uint64,
 	contractAddress common.Address,
 	topic0 string,
 	parseEvent func(types.Log) (T, error),
@@ -53,7 +53,7 @@ func QueryEvents[T interface{}](
 	return parsedEvents, nil
 }
 
-func GetVoterRegisteredEvents(db *gorm.DB, from int64, to int64) ([]*registry.RegistryVoterRegistered, error) {
+func GetVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]*registry.RegistryVoterRegistered, error) {
 	instance, _ := registry.NewRegistry(common.Address{}, nil)
 	parse := func(log types.Log) (*registry.RegistryVoterRegistered, error) {
 		return instance.RegistryFilterer.ParseVoterRegistered(log)
@@ -63,7 +63,7 @@ func GetVoterRegisteredEvents(db *gorm.DB, from int64, to int64) ([]*registry.Re
 		db,
 		from,
 		to,
-		parameters.Coston.Contracts.VoterRegistry,
+		params.Coston.Contracts.VoterRegistry,
 		utils.EventTopic0.VoterRegistered,
 		parse,
 	)
@@ -74,7 +74,7 @@ func GetVoterRegisteredEvents(db *gorm.DB, from int64, to int64) ([]*registry.Re
 	return events, nil
 }
 
-func GetRewardOfferEvents(db *gorm.DB, from int64, to int64) ([]*offers.OffersRewardsOffered, error) {
+func GetRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offers.OffersRewardsOffered, error) {
 	instance, _ := offers.NewOffers(common.Address{}, nil)
 	parse := func(log types.Log) (*offers.OffersRewardsOffered, error) {
 		return instance.OffersFilterer.ParseRewardsOffered(log)
@@ -84,7 +84,7 @@ func GetRewardOfferEvents(db *gorm.DB, from int64, to int64) ([]*offers.OffersRe
 		db,
 		from,
 		to,
-		parameters.Coston.Contracts.FtsoRewardOffersManager,
+		params.Coston.Contracts.FtsoRewardOffersManager,
 		utils.EventTopic0.RewardsOffered,
 		parse,
 	)
@@ -95,7 +95,7 @@ func GetRewardOfferEvents(db *gorm.DB, from int64, to int64) ([]*offers.OffersRe
 	return events, nil
 }
 
-func GetInflationRewardOfferEvents(db *gorm.DB, from int64, to int64) ([]*offers.OffersInflationRewardsOffered, error) {
+func GetInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offers.OffersInflationRewardsOffered, error) {
 	instance, _ := offers.NewOffers(common.Address{}, nil)
 	parse := func(log types.Log) (*offers.OffersInflationRewardsOffered, error) {
 		return instance.OffersFilterer.ParseInflationRewardsOffered(log)
@@ -105,7 +105,7 @@ func GetInflationRewardOfferEvents(db *gorm.DB, from int64, to int64) ([]*offers
 		db,
 		from,
 		to,
-		parameters.Coston.Contracts.FtsoRewardOffersManager,
+		params.Coston.Contracts.FtsoRewardOffersManager,
 		utils.EventTopic0.InflationRewardsOffered,
 		parse,
 	)

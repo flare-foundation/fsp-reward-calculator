@@ -1,4 +1,4 @@
-package parameters
+package params
 
 import (
 	"math/big"
@@ -6,11 +6,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type NetworkParameters struct {
+type Network struct {
 	Contracts            ContractAddresses
 	InitialRewardEpochId int
-	Epoch                EpochParameters
-	Ftso                 FtsoParameters
+	Epoch                Epoch
+	Ftso                 Ftso
 }
 
 type ContractAddresses struct {
@@ -23,7 +23,7 @@ type ContractAddresses struct {
 	VoterRegistry           common.Address
 }
 
-type FtsoParameters struct {
+type Ftso struct {
 	ProtocolId  byte
 	BurnAddress common.Address
 

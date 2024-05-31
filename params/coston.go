@@ -1,4 +1,4 @@
-package parameters
+package params
 
 import (
 	"math/big"
@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-var Coston = NetworkParameters{
+var Coston = Network{
 
 	Contracts: ContractAddresses{
 		FlareSystemsManager:     common.HexToAddress("0x85680Dd93755Fe5d0789773fd0896cEE51F9e358"),
@@ -20,7 +20,7 @@ var Coston = NetworkParameters{
 
 	InitialRewardEpochId: 1,
 
-	Epoch: EpochParameters{
+	Epoch: Epoch{
 		FirstVotingRoundStartTs:            1658430000,
 		VotingRoundDurationSeconds:         90,
 		FirstRewardEpochStartVotingRoundId: 0,
@@ -28,7 +28,7 @@ var Coston = NetworkParameters{
 		RevealDeadlineSeconds:              45,
 	},
 
-	Ftso: FtsoParameters{
+	Ftso: Ftso{
 		ProtocolId:                            100,
 		BurnAddress:                           common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 		RandomGenerationBenchingWindow:        20,

@@ -47,8 +47,8 @@ func createSugaredLogger(config config.LoggerConfig) *zap.SugaredLogger {
 	defer func() {
 		err := logger.Sync()
 
-		if err != nil && !errors.Is(err, syscall.ENOTTY) {
-			log.Print("Failed to sync logger", err)
+		if err != nil && (!errors.Is(err, syscall.EBADF) && !errors.Is(err, syscall.ENOTTY)) {
+			log.Print("Failed to sync logger:", err)
 		}
 	}()
 
