@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"encoding/hex"
 	"flare-common/contracts/calculator"
 	"flare-common/contracts/offers"
 	"flare-common/contracts/registry"
@@ -26,9 +25,9 @@ type EventIds struct {
 }
 
 type FunctionSigs struct {
-	Submit1          string
-	Submit2          string
-	SubmitSignatures string
+	Submit1          [4]byte
+	Submit2          [4]byte
+	SubmitSignatures [4]byte
 }
 
 var EventTopic0 = EventIds{
@@ -65,11 +64,11 @@ func eventIDFromMetadata(metaData *bind.MetaData, eventName string) string {
 	return event.ID.String()
 }
 
-func functionSigFromMetadata(metaData *bind.MetaData, functionName string) string {
+func functionSigFromMetadata(metaData *bind.MetaData, functionName string) [4]byte {
 	abi, err := metaData.GetAbi()
 	if err != nil {
 		logger.Fatal("Error getting abi for function %s: %s", functionName, err)
-		return ""
+		return [4]byte{}
 	}
 
 	method, ok := abi.Methods[functionName]
@@ -77,5 +76,5 @@ func functionSigFromMetadata(metaData *bind.MetaData, functionName string) strin
 		logger.Fatal("Error getting signature for function %s", functionName)
 	}
 
-	return hex.EncodeToString(method.ID)
+	return [4]byte(method.ID)
 }

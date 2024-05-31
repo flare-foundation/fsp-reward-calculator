@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"math/big"
 	"slices"
 	"sort"
 	"time"
@@ -32,8 +33,8 @@ type RewardOffers struct {
 }
 
 type VoterAddresses struct {
-	Identity         common.Address
-	Submit           common.Address
+	Identity         VoterId
+	Submit           VoterSubmit
 	SubmitSignatures common.Address
 	SigningPolicy    common.Address
 }
@@ -79,11 +80,9 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 	}
 
 	actualStartSec := params.Coston.Epoch.VotingRoundStartSec(startRound)
-	actualEndSec := params.Coston.Epoch.VotingRoundEndSec(endRound)
+	//actualEndSec := params.Coston.Epoch.VotingRoundEndSec(endRound)
 
-	// TODO: voters and offers should be queried from prev epoch
-
-	rewardOffers, err := getRewardOffers(db, epoch, actualStartSec-epochDuration-10000, actualEndSec-epochDuration)
+	rewardOffers, err := getRewardOffers(db, epoch, actualStartSec-(epochDuration+epochDuration/2), actualStartSec)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching reward rewardOffers: %s", err)
 	}
@@ -94,9 +93,9 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 		logger.Info("Feed: %s, Decimals: %d", f.String(), f.Decimals)
 	}
 
-	voters, err := getVoterAddresses(db, epoch, actualStartSec-epochDuration, actualEndSec-epochDuration)
+	voters, err := getVoters(db, epoch, actualStartSec-(epochDuration+epochDuration/2), actualStartSec)
 	if err != nil {
-		return RewardEpoch{}, errors.Errorf("error fetching voter addresses: %s", err)
+		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
 
 	return RewardEpoch{
@@ -106,7 +105,7 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 		Policy:       policy,
 		Offers:       rewardOffers,
 		OrderedFeeds: feeds,
-		Voters:       NewVoterIndex(voters),
+		Voters:       voters,
 	}, nil
 }
 
@@ -187,41 +186,69 @@ func getRewardOffers(db *gorm.DB, epoch, epochStartSec, epochEndSec uint64) (Rew
 	}, nil
 }
 
-func getVoterAddresses(db *gorm.DB, epoch, epochStartSec, epochEndSec uint64) ([]VoterAddresses, error) {
-	events, err := GetVoterRegisteredEvents(db, epochStartSec, epochEndSec)
+func getVoters(db *gorm.DB, epoch, fromSec, toSec uint64) (VoterIndex, error) {
+	regs, err := GetVoterRegisteredEvents(db, fromSec, toSec)
 	if err != nil {
-		return nil, errors.Errorf("error fetching voter registered events: %s", err)
+		return VoterIndex{}, errors.Errorf("error fetching voter registered regs: %s", err)
 	}
 
 	var addresses []VoterAddresses
-	for i := range events {
-		if events[i].RewardEpochId.Uint64() != epoch {
+	for i := range regs {
+		if regs[i].RewardEpochId.Uint64() != epoch {
 			continue
 		}
 
 		addresses = append(addresses, VoterAddresses{
-			Identity:         events[i].Voter,
-			Submit:           events[i].SubmitAddress,
-			SubmitSignatures: events[i].SubmitSignaturesAddress,
-			SigningPolicy:    events[i].SigningPolicyAddress,
+			Identity:         VoterId(regs[i].Voter),
+			Submit:           VoterSubmit(regs[i].SubmitAddress),
+			SubmitSignatures: regs[i].SubmitSignaturesAddress,
+			SigningPolicy:    regs[i].SigningPolicyAddress,
 		})
+
+		logger.Info("Voter %s, submit %s, submit signatures %s, signing policy %s", regs[i].Voter.String(), regs[i].SubmitAddress.String(), regs[i].SubmitSignaturesAddress.String(), regs[i].SigningPolicyAddress.String())
 	}
 
-	return addresses, nil
+	infos, err := GetVoterInfoEvents(db, fromSec, toSec)
+	if err != nil {
+		return VoterIndex{}, errors.Errorf("error fetching voter info events: %s", err)
+	}
+
+	if len(regs) != len(infos) {
+		return VoterIndex{}, errors.Errorf("mismatched voter registered and voter info events: %d != %d", len(regs), len(infos))
+
+	}
+
+	cappedWeight := map[VoterId]*big.Int{}
+	for i := range infos {
+		if infos[i].RewardEpochId.Uint64() != epoch {
+			continue
+		}
+		cappedWeight[VoterId(infos[i].Voter)] = infos[i].WNatCappedWeight
+		logger.Info("Voter %s, capped weight %s", infos[i].Voter.String(), infos[i].WNatCappedWeight.String())
+	}
+
+	return NewVoterIndex(addresses, cappedWeight), nil
 }
+
+type VoterId common.Address
+type VoterSubmit common.Address
 
 type VoterIndex struct {
-	voters   []VoterAddresses
-	bySubmit map[common.Address]common.Address
+	identityToAddrs  map[VoterId]VoterAddresses
+	submitToIdentity map[VoterSubmit]VoterId
+	cappedWeight     map[VoterId]*big.Int
 }
 
-func NewVoterIndex(voters []VoterAddresses) VoterIndex {
-	bySubmit := make(map[common.Address]common.Address)
+func NewVoterIndex(voters []VoterAddresses, cappedWeight map[VoterId]*big.Int) VoterIndex {
+	addrMap := make(map[VoterId]VoterAddresses)
+	submitToIdentity := make(map[VoterSubmit]VoterId)
 	for _, v := range voters {
-		bySubmit[v.Submit] = v.Identity
+		submitToIdentity[v.Submit] = v.Identity
+		addrMap[v.Identity] = v
 	}
 	return VoterIndex{
-		voters:   voters,
-		bySubmit: bySubmit,
+		identityToAddrs:  addrMap,
+		submitToIdentity: submitToIdentity,
+		cappedWeight:     cappedWeight,
 	}
 }

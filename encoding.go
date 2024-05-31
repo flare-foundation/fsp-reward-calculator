@@ -73,7 +73,8 @@ func DecodeReveal(message string, feeds []Feed) (Reveal, error) {
 	}
 
 	random := common.BytesToHash(bytes[:common.HashLength])
-	values, err := DecodeFeedValues(bytes[common.HashLength:], feeds)
+	encodedFeeds := bytes[common.HashLength:]
+	values, err := DecodeFeedValues(encodedFeeds, feeds)
 	if err != nil {
 		return Reveal{}, errors.Wrap(err, "failed to decode feed values")
 	}
@@ -82,7 +83,7 @@ func DecodeReveal(message string, feeds []Feed) (Reveal, error) {
 		Random:        random,
 		Feeds:         feeds,
 		Values:        values,
-		EncodedValues: bytes,
+		EncodedValues: encodedFeeds,
 	}, nil
 
 }

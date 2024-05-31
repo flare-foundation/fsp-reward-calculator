@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ftsov2-rewarding/logger"
 	"github.com/pkg/errors"
 	"math/big"
 	"sort"
@@ -13,7 +14,7 @@ type MedianResult struct {
 	TotalWeight *big.Int
 }
 
-type weightedValue struct {
+type WeightedValue struct {
 	value  int32
 	weight *big.Int
 }
@@ -22,26 +23,8 @@ type nullInt32 struct {
 	value int32
 }
 
-func CalculateFeedMedian(values []FeedValue, voterWeights []*big.Int) (MedianResult, error) {
-	if len(values) != len(voterWeights) || len(values) == 0 {
-		return MedianResult{}, errors.New("values and weights must have the same length and be non-empty")
-	}
-
-	var weightedValues []weightedValue
-	for i := 0; i < len(values); i++ {
-		if values[i].isEmpty {
-			continue
-		}
-		weightedValues = append(weightedValues, weightedValue{
-			value:  values[i].Value,
-			weight: voterWeights[i],
-		})
-	}
-
-	return calculateMedian(weightedValues)
-}
-
-func calculateMedian(weightedValues []weightedValue) (MedianResult, error) {
+func CalculateFeedMedian(weightedValues []WeightedValue) (MedianResult, error) {
+	logger.Info("Calculating median for %d values: %+v", len(weightedValues), weightedValues)
 	sort.Slice(weightedValues, func(i, j int) bool {
 		return weightedValues[i].value < weightedValues[j].value
 	})

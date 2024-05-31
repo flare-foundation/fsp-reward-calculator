@@ -29,12 +29,10 @@ var (
 	}
 )
 
-func HashForCommit(voter common.Address, round uint32, random common.Hash, feedValues []byte) (common.Hash, error) {
-	encoded, err := args.Pack(voter.String(), round, random.Big(), feedValues)
+func CommitHash(voter common.Address, round uint32, random common.Hash, feedValues []byte) (common.Hash, error) {
+	encoded, err := args.Pack(voter, round, random.Big(), feedValues)
 	if err != nil {
 		return common.Hash{}, errors.Wrap(err, "error packing arguments")
 	}
-
-	hash := crypto.Keccak256Hash(encoded)
-	return hash, nil
+	return crypto.Keccak256Hash(encoded), nil
 }

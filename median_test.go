@@ -9,13 +9,13 @@ import (
 func TestCalculateMedian(t *testing.T) {
 	tests := []struct {
 		name    string
-		arg     []weightedValue
+		arg     []WeightedValue
 		want    MedianResult
 		wantErr bool
 	}{
 		{
 			name: "Same weight",
-			arg: []weightedValue{
+			arg: []WeightedValue{
 				{value: 1, weight: big.NewInt(1)},
 				{value: 2, weight: big.NewInt(1)},
 				{value: 3, weight: big.NewInt(1)},
@@ -33,7 +33,7 @@ func TestCalculateMedian(t *testing.T) {
 		},
 		{
 			name: "Single value",
-			arg: []weightedValue{
+			arg: []WeightedValue{
 				{value: 1, weight: big.NewInt(1)},
 			},
 
@@ -47,7 +47,7 @@ func TestCalculateMedian(t *testing.T) {
 		},
 		{
 			name: "Two values",
-			arg: []weightedValue{
+			arg: []WeightedValue{
 				{value: 1, weight: big.NewInt(1)},
 				{value: 2, weight: big.NewInt(1)},
 			},
@@ -62,7 +62,7 @@ func TestCalculateMedian(t *testing.T) {
 		},
 		{
 			name: "Different weights",
-			arg: []weightedValue{
+			arg: []WeightedValue{
 				{value: 1, weight: big.NewInt(10)},
 				{value: 2, weight: big.NewInt(1)},
 				{value: 3, weight: big.NewInt(1)},
@@ -80,7 +80,7 @@ func TestCalculateMedian(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := calculateMedian(tt.arg)
+			got, err := CalculateFeedMedian(tt.arg)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CalculateFeedMedian() error = %v, wantErr %v", err, tt.wantErr)
 				return

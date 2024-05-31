@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flare-common/contracts/calculator"
 	"flare-common/contracts/offers"
 	"flare-common/contracts/registry"
 	"flare-common/database"
@@ -69,6 +70,27 @@ func GetVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]*registry.
 	)
 	if err != nil {
 		return nil, errors.Errorf("err fetching events: %s", err)
+	}
+
+	return events, nil
+}
+
+func GetVoterInfoEvents(db *gorm.DB, from uint64, to uint64) ([]*calculator.CalculatorVoterRegistrationInfo, error) {
+	instance, _ := calculator.NewCalculator(common.Address{}, nil)
+	parse := func(log types.Log) (*calculator.CalculatorVoterRegistrationInfo, error) {
+		return instance.CalculatorFilterer.ParseVoterRegistrationInfo(log)
+	}
+
+	events, err := QueryEvents(
+		db,
+		from,
+		to,
+		params.Coston.Contracts.FlareSystemsCalculator,
+		utils.EventTopic0.VoterRegistrationInfo,
+		parse,
+	)
+	if err != nil {
+		return nil, errors.Errorf("error fetching events: %s", err)
 	}
 
 	return events, nil

@@ -56,35 +56,71 @@ func calculateRewards(db *gorm.DB, epoch uint64) (RewardClaim, error) {
 
 		logger.Info("Round: %d, Commits: %d, Reveals: %d", round, len(commits), len(reveals))
 
-		var offenders []common.Address
-		var validReveals []Reveal
+		var offenders []VoterSubmit
+		validReveals := map[VoterSubmit]Reveal{}
 
 		for voter, commit := range commits {
 			reveal, ok := reveals[voter]
 			if !ok {
-				logger.Debug("Voter %s committed but did not reveal", voter.String())
+				logger.Debug("Voter %s committed but did not reveal", voter)
 				offenders = append(offenders, voter)
 				continue
 			}
 
-			revealHash, err := utils.HashForCommit(voter, uint32(round), reveal.Random, reveal.EncodedValues)
+			expected, err := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
 			if err != nil {
 				return RewardClaim{}, errors.Errorf("error computing reveal hash: %s", err)
 			}
 
-			if revealHash.Cmp(commit.Hash) != 0 {
-				logger.Debug("Voter %s reveal hash did not match commit: %s != %s", voter, revealHash.String(), commit.Hash.String())
+			if expected.Cmp(commit.Hash) != 0 {
+				logger.Debug("Voter %s reveal hash did not match commit: %s != %s", voter, expected.String(), commit.Hash.String())
 				offenders = append(offenders, voter)
 				continue
-
 			}
 
-			validReveals = append(validReveals, reveal)
+			validReveals[voter] = reveal
 		}
 
 		logger.Info("Round: %d, Offenders: %d, Valid Reveals: %d", round, len(offenders), len(validReveals))
-		break
+
+		_, err := calculateMedians(re, validReveals)
+		if err != nil {
+			return RewardClaim{}, err
+
+		}
 	}
 
 	return RewardClaim{}, nil
+}
+
+func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit]Reveal) ([]MedianResult, error) {
+	var medianResults []MedianResult
+	for feedIndex, feed := range re.OrderedFeeds {
+		var weightedValues []WeightedValue
+
+		for voterSubmit, reveal := range validReveals {
+			feedValue := reveal.Values[feedIndex]
+			voterId := re.Voters.submitToIdentity[voterSubmit]
+			weight := re.Voters.cappedWeight[voterId]
+			if feedValue.isEmpty || weight == nil {
+				continue
+			}
+			weightedValues = append(weightedValues, WeightedValue{
+				value:  feedValue.Value,
+				weight: weight,
+			})
+		}
+
+		median, err := CalculateFeedMedian(weightedValues)
+		if err != nil {
+			logger.Error("error calculating median for feed %s: %s", feed.String(), err)
+			continue
+		}
+
+		medianResults = append(medianResults, median)
+
+		logger.Info("Feed: %s, Median: %+v", feed.String(), median)
+	}
+
+	return medianResults, nil
 }
