@@ -39,8 +39,6 @@ type Commit struct {
 
 type Reveal struct {
 	Random        common.Hash
-	Feeds         []Feed
-	Values        []FeedValue
 	EncodedValues []byte
 }
 
@@ -50,39 +48,33 @@ type FeedValue struct {
 	//Decimals int
 }
 
-func DecodeCommit(message string) (Commit, error) {
+func DecodeCommit(message string) (*Commit, error) {
 	if len(message) != 64 {
-		return Commit{}, errors.New("invalid message length")
+		return nil, errors.New("invalid message length")
 	}
 	hash := common.HexToHash(message)
-	return Commit{
+	return &Commit{
 		Hash: hash,
 	}, nil
 
 }
 
-func DecodeReveal(message string, feeds []Feed) (Reveal, error) {
+func DecodeReveal(message string) (*Reveal, error) {
 	bytes, err := hex.DecodeString(message)
 	if err != nil {
-		return Reveal{}, errors.Wrap(err, "message is not a valid hex string")
+		return nil, errors.Wrap(err, "message is not a valid hex string")
 	}
 
 	// The message should be long enough to contain the random and at least one feed value
 	if len(bytes) < (common.HashLength + FeedValueBytes) {
-		return Reveal{}, errors.New("message too short")
+		return nil, errors.New("message too short")
 	}
 
 	random := common.BytesToHash(bytes[:common.HashLength])
 	encodedFeeds := bytes[common.HashLength:]
-	values, err := DecodeFeedValues(encodedFeeds, feeds)
-	if err != nil {
-		return Reveal{}, errors.Wrap(err, "failed to decode feed values")
-	}
 
-	return Reveal{
+	return &Reveal{
 		Random:        random,
-		Feeds:         feeds,
-		Values:        values,
 		EncodedValues: encodedFeeds,
 	}, nil
 

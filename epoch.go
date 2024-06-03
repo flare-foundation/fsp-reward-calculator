@@ -3,7 +3,6 @@ package main
 import (
 	"flare-common/contracts/offers"
 	"flare-common/contracts/relay"
-	"fmt"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/utils"
@@ -13,7 +12,6 @@ import (
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
-	"sort"
 	"time"
 )
 
@@ -109,46 +107,47 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 	}, nil
 }
 
-func analyseReveals(revealMap map[uint64][]Reveal, feeds []Feed) {
-	for round, reveal := range revealMap {
-		feedValues := make(map[int][]int32)
-		invalidCount := make([]int, len(feeds))
-		validCount := make([]int, len(feeds))
-		for _, r := range reveal {
-			for feedIndex := range feeds {
-				if !r.Values[feedIndex].isEmpty {
-					if isPowerOfTen(int(r.Values[feedIndex].Value)) {
-						invalidCount[feedIndex]++
-					} else {
-						validCount[feedIndex]++
-					}
-				}
-				feedValues[feedIndex] = append(feedValues[feedIndex], r.Values[feedIndex].Value)
-			}
-		}
-
-		totalInvalid := 0
-
-		invalidFeeds := make([]string, 0)
-		for i, v := range feedValues {
-			invalidp := float64(invalidCount[i]) / float64(invalidCount[i]+validCount[i]) * 100
-			feedS := feeds[i].String()
-			feeds2 := feedS
-			if invalidp >= 50 {
-				totalInvalid++
-				invalidFeeds = append(invalidFeeds, feedS)
-			}
-			fmt.Printf("Round %d, feed %10s, total %2d, valid %2d, invalid %2d, invalid%% %.2f: %v\n", round, feeds2, invalidCount[i]+validCount[i], validCount[i], invalidCount[i], invalidp, v)
-		}
-
-		sort.Slice(invalidFeeds, func(i, j int) bool {
-			return invalidFeeds[i] < invalidFeeds[j]
-		})
-
-		fmt.Printf("Round %d, total invalid > 50%%: %d\n, feeds: %v", round, totalInvalid, invalidFeeds)
-		break
-	}
-}
+//
+//func analyseReveals(revealMap map[uint64][]Reveal, feeds []Feed) {
+//	for round, reveal := range revealMap {
+//		feedValues := make(map[int][]int32)
+//		invalidCount := make([]int, len(feeds))
+//		validCount := make([]int, len(feeds))
+//		for _, r := range reveal {
+//			for feedIndex := range feeds {
+//				if !r.Values[feedIndex].isEmpty {
+//					if isPowerOfTen(int(r.Values[feedIndex].Value)) {
+//						invalidCount[feedIndex]++
+//					} else {
+//						validCount[feedIndex]++
+//					}
+//				}
+//				feedValues[feedIndex] = append(feedValues[feedIndex], r.Values[feedIndex].Value)
+//			}
+//		}
+//
+//		totalInvalid := 0
+//
+//		invalidFeeds := make([]string, 0)
+//		for i, v := range feedValues {
+//			invalidp := float64(invalidCount[i]) / float64(invalidCount[i]+validCount[i]) * 100
+//			feedS := feeds[i].String()
+//			feeds2 := feedS
+//			if invalidp >= 50 {
+//				totalInvalid++
+//				invalidFeeds = append(invalidFeeds, feedS)
+//			}
+//			fmt.Printf("Round %d, feed %10s, total %2d, valid %2d, invalid %2d, invalid%% %.2f: %v\n", round, feeds2, invalidCount[i]+validCount[i], validCount[i], invalidCount[i], invalidp, v)
+//		}
+//
+//		sort.Slice(invalidFeeds, func(i, j int) bool {
+//			return invalidFeeds[i] < invalidFeeds[j]
+//		})
+//
+//		fmt.Printf("Round %d, total invalid > 50%%: %d\n, feeds: %v", round, totalInvalid, invalidFeeds)
+//		break
+//	}
+//}
 
 func isPowerOfTen(n int) bool {
 	if n < 1 {
@@ -234,21 +233,21 @@ type VoterId common.Address
 type VoterSubmit common.Address
 
 type VoterIndex struct {
-	identityToAddrs  map[VoterId]VoterAddresses
-	submitToIdentity map[VoterSubmit]VoterId
-	cappedWeight     map[VoterId]*big.Int
+	idToAddrs    map[VoterId]VoterAddresses
+	submitToId   map[VoterSubmit]VoterId
+	cappedWeight map[VoterId]*big.Int
 }
 
 func NewVoterIndex(voters []VoterAddresses, cappedWeight map[VoterId]*big.Int) VoterIndex {
 	addrMap := make(map[VoterId]VoterAddresses)
-	submitToIdentity := make(map[VoterSubmit]VoterId)
+	submitToId := make(map[VoterSubmit]VoterId)
 	for _, v := range voters {
-		submitToIdentity[v.Submit] = v.Identity
+		submitToId[v.Submit] = v.Identity
 		addrMap[v.Identity] = v
 	}
 	return VoterIndex{
-		identityToAddrs:  addrMap,
-		submitToIdentity: submitToIdentity,
-		cappedWeight:     cappedWeight,
+		idToAddrs:    addrMap,
+		submitToId:   submitToId,
+		cappedWeight: cappedWeight,
 	}
 }

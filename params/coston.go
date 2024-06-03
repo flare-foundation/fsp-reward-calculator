@@ -40,6 +40,7 @@ var Coston = Network{
 		FinalizationBips:                      big.NewInt(1000),
 		MinimalRewardedNonConsensusDepositedSignaturesPerHashBips: 3000,
 		FinalizationVoterSelectionThresholdWeightBips:             500,
-		CappedStakingFeeBips: 2000,
+		CappedStakingFeeBips:           2000,
+		NonBenchedRandomVotersMinCount: 2,
 	},
 }

@@ -27,7 +27,9 @@ type Ftso struct {
 	ProtocolId  byte
 	BurnAddress common.Address
 
-	RandomGenerationBenchingWindow        int
+	RandomGenerationBenchingWindow uint64
+	NonBenchedRandomVotersMinCount int
+
 	AdditionalRewardFinalizationWindows   int
 	PenaltyFactor                         *big.Int
 	GracePeriodForSignaturesDurationSec   int
