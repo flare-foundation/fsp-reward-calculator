@@ -15,7 +15,7 @@ var Coston = Network{
 		Submission:              common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f"),
 		Relay:                   common.HexToAddress("0x32D46A1260BB2D8C9d5Ab1C9bBd7FF7D7CfaabCC"),
 		FlareSystemsCalculator:  common.HexToAddress("0x43CBAB9C953F54533aadAf7ffCD13c30ec05Edc9"),
-		VoterRegistry:           common.HexToAddress("0x051E9Cb16A8676C011faa10efA1ABE95372e7825"),
+		VoterRegistry:           common.HexToAddress("0xE2c06DF29d175Aa0EcfcD10134eB96f8C94448A3"),
 	},
 
 	InitialRewardEpochId: 1,
@@ -32,6 +32,7 @@ var Coston = Network{
 		ProtocolId:                            100,
 		BurnAddress:                           common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 		RandomGenerationBenchingWindow:        20,
+		FutureSecureRandomWindow:              30,
 		AdditionalRewardFinalizationWindows:   0,
 		PenaltyFactor:                         big.NewInt(30),
 		GracePeriodForSignaturesDurationSec:   10,

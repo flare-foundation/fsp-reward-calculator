@@ -5,9 +5,10 @@ import (
 	"flare-common/contracts/relay"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
+	"ftsov2-rewarding/types"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
@@ -16,13 +17,14 @@ import (
 )
 
 type RewardEpoch struct {
-	Epoch        uint64
-	StartRound   uint64
-	EndRound     uint64
+	Epoch        types.EpochId
+	StartRound   types.RoundId
+	EndRound     types.RoundId
 	Policy       *relay.RelaySigningPolicyInitialized
 	Offers       RewardOffers
 	OrderedFeeds []Feed
 	Voters       VoterIndex
+	NextVoters   VoterIndex // Voters for the following reward epoch
 }
 
 type RewardOffers struct {
@@ -37,7 +39,8 @@ type VoterAddresses struct {
 	SigningPolicy    common.Address
 }
 
-func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
+// TODO: Use proper timings for event search instead of approximate
+func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	currentTimestamp := time.Now().Unix()
 
 	// TODO: Use lowest index in indexer db as start
@@ -48,7 +51,7 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 	searchIntervalEndSec := min(expectedStartSec+(epochDuration*2), uint64(currentTimestamp))
 
 	relayInst, _ := relay.NewRelay(common.Address{}, nil)
-	parsePolicyInitialized := func(log types.Log) (*relay.RelaySigningPolicyInitialized, error) {
+	parsePolicyInitialized := func(log etypes.Log) (*relay.RelaySigningPolicyInitialized, error) {
 		return relayInst.RelayFilterer.ParseSigningPolicyInitialized(log)
 	}
 	policies, err := QueryEvents(db, searchIntervalStartSec, searchIntervalEndSec, params.Coston.Contracts.Relay, utils.EventTopic0.SigningPolicyInitialized, parsePolicyInitialized)
@@ -57,16 +60,16 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 	}
 
 	var policy *relay.RelaySigningPolicyInitialized
-	var startRound uint64
-	var endRound uint64
+	var startRound types.RoundId
+	var endRound types.RoundId
 
 	for _, event := range policies {
-		if event.RewardEpochId.Uint64() == epoch {
+		if event.RewardEpochId.Uint64() == uint64(epoch) {
 			policy = event
-			startRound = uint64(event.StartVotingRoundId)
+			startRound = types.RoundId(event.StartVotingRoundId)
 		}
-		if event.RewardEpochId.Uint64() == epoch+1 {
-			endRound = uint64(event.StartVotingRoundId) - 1
+		if event.RewardEpochId.Uint64() == uint64(epoch)+1 {
+			endRound = types.RoundId(event.StartVotingRoundId - 1)
 		}
 	}
 
@@ -78,7 +81,6 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 	}
 
 	actualStartSec := params.Coston.Epoch.VotingRoundStartSec(startRound)
-	//actualEndSec := params.Coston.Epoch.VotingRoundEndSec(endRound)
 
 	rewardOffers, err := getRewardOffers(db, epoch, actualStartSec-(epochDuration+epochDuration/2), actualStartSec)
 	if err != nil {
@@ -96,6 +98,11 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
 
+	nextVoters, err := getVoters(db, epoch+1, actualStartSec, actualStartSec+epochDuration)
+	if err != nil {
+		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
+	}
+
 	return RewardEpoch{
 		Epoch:        epoch,
 		StartRound:   startRound,
@@ -104,6 +111,7 @@ func getRewardEpoch(epoch uint64, db *gorm.DB) (RewardEpoch, error) {
 		Offers:       rewardOffers,
 		OrderedFeeds: feeds,
 		Voters:       voters,
+		NextVoters:   nextVoters,
 	}, nil
 }
 
@@ -162,7 +170,7 @@ func isPowerOfTen(n int) bool {
 	return true
 }
 
-func getRewardOffers(db *gorm.DB, epoch, epochStartSec, epochEndSec uint64) (RewardOffers, error) {
+func getRewardOffers(db *gorm.DB, epoch types.EpochId, epochStartSec, epochEndSec uint64) (RewardOffers, error) {
 	community, err := GetRewardOfferEvents(db, epochStartSec, epochEndSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching reward offer events: %s", err)
@@ -173,10 +181,10 @@ func getRewardOffers(db *gorm.DB, epoch, epochStartSec, epochEndSec uint64) (Rew
 	}
 
 	community = slices.DeleteFunc(community, func(offer *offers.OffersRewardsOffered) bool {
-		return offer.RewardEpochId.Uint64() != epoch
+		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
 	inflation = slices.DeleteFunc(inflation, func(offer *offers.OffersInflationRewardsOffered) bool {
-		return offer.RewardEpochId.Uint64() != epoch
+		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
 
 	return RewardOffers{
@@ -185,7 +193,7 @@ func getRewardOffers(db *gorm.DB, epoch, epochStartSec, epochEndSec uint64) (Rew
 	}, nil
 }
 
-func getVoters(db *gorm.DB, epoch, fromSec, toSec uint64) (VoterIndex, error) {
+func getVoters(db *gorm.DB, epoch types.EpochId, fromSec, toSec uint64) (VoterIndex, error) {
 	regs, err := GetVoterRegisteredEvents(db, fromSec, toSec)
 	if err != nil {
 		return VoterIndex{}, errors.Errorf("error fetching voter registered regs: %s", err)
@@ -193,7 +201,7 @@ func getVoters(db *gorm.DB, epoch, fromSec, toSec uint64) (VoterIndex, error) {
 
 	var addresses []VoterAddresses
 	for i := range regs {
-		if regs[i].RewardEpochId.Uint64() != epoch {
+		if regs[i].RewardEpochId.Uint64() != uint64(epoch) {
 			continue
 		}
 
@@ -213,13 +221,13 @@ func getVoters(db *gorm.DB, epoch, fromSec, toSec uint64) (VoterIndex, error) {
 	}
 
 	if len(regs) != len(infos) {
-		return VoterIndex{}, errors.Errorf("mismatched voter registered and voter info events: %d != %d", len(regs), len(infos))
+		return VoterIndex{}, errors.Errorf("voter registered and voter info event count mismatch: %d != %d", len(regs), len(infos))
 
 	}
 
 	cappedWeight := map[VoterId]*big.Int{}
 	for i := range infos {
-		if infos[i].RewardEpochId.Uint64() != epoch {
+		if infos[i].RewardEpochId.Uint64() != uint64(epoch) {
 			continue
 		}
 		cappedWeight[VoterId(infos[i].Voter)] = infos[i].WNatCappedWeight

@@ -21,8 +21,11 @@ var EmptyFeedValue = FeedValue{
 type FeedId [FeedIdBytes]byte
 
 type Feed struct {
-	Id       FeedId
-	Decimals int8
+	Id                        FeedId
+	Decimals                  int8
+	MinRewardedTurnoutBIPS    uint16
+	PrimaryBandRewardSharePPM uint32 // uint24 actual
+	SecondaryBandWidthPPMs    uint32 // uint24 actual
 }
 
 func (f *Feed) String() string {

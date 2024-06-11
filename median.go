@@ -34,6 +34,17 @@ func CalculateFeedMedian(weightedValues []WeightedValue) (MedianResult, error) {
 		totalWeight.Add(totalWeight, vw.weight)
 	}
 
+	// TODO: Should return error
+	if len(weightedValues) == 1 {
+		return MedianResult{
+			Q1:          weightedValues[0].value,
+			Median:      weightedValues[0].value,
+			Q3:          weightedValues[0].value,
+			TotalWeight: weightedValues[0].weight,
+		}, nil
+
+	}
+
 	q1Weight := new(big.Int).Div(totalWeight, big.NewInt(4))
 	medianWeight, medianMod := new(big.Int).DivMod(totalWeight, big.NewInt(2), new(big.Int))
 	q3Weight := new(big.Int).Sub(totalWeight, q1Weight)

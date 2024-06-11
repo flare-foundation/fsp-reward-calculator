@@ -5,6 +5,7 @@ import (
 	"flare-common/payload"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
+	"ftsov2-rewarding/types"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -21,7 +22,7 @@ var (
 )
 
 // getCommits retrieves the last commit submission for each voter for each round in the given range
-func getCommits(db *gorm.DB, fromRound uint64, toRound uint64) (map[uint64]map[VoterSubmit]*Commit, error) {
+func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]map[VoterSubmit]*Commit, error) {
 	fromSec := params.Coston.Epoch.VotingRoundStartSec(fromRound)
 	toSec := params.Coston.Epoch.VotingRoundEndSec(toRound)
 
@@ -30,26 +31,27 @@ func getCommits(db *gorm.DB, fromRound uint64, toRound uint64) (map[uint64]map[V
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
 
-	var commitsByRound = map[uint64]map[VoterSubmit]*Commit{}
+	var commitsByRound = map[types.RoundId]map[VoterSubmit]*Commit{}
 	for _, msg := range msgs {
 		commit, err := DecodeCommit(msg.Payload)
 		if err != nil {
 			logger.Info("error parsing commit, skipping: %s", err)
 			continue
 		}
-		if _, ok := commitsByRound[msg.VotingRound]; !ok {
-			commitsByRound[msg.VotingRound] = map[VoterSubmit]*Commit{}
+		round := types.RoundId(msg.VotingRound)
+		if _, ok := commitsByRound[round]; !ok {
+			commitsByRound[round] = map[VoterSubmit]*Commit{}
 		}
 
 		from := VoterSubmit(common.HexToAddress(msg.From))
-		commitsByRound[msg.VotingRound][from] = commit
+		commitsByRound[round][from] = commit
 	}
 
 	return commitsByRound, nil
 }
 
 // getReveals retrieves the last reveal submission for voter for each round in the given range
-func getReveals(db *gorm.DB, fromRound uint64, toRound uint64) (map[uint64]map[VoterSubmit]*Reveal, error) {
+func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]map[VoterSubmit]*Reveal, error) {
 	fromSec := params.Coston.Epoch.VotingRoundStartSec(fromRound)
 	toSec := params.Coston.Epoch.VotingRoundEndSec(toRound)
 
@@ -58,19 +60,20 @@ func getReveals(db *gorm.DB, fromRound uint64, toRound uint64) (map[uint64]map[V
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
 
-	var revealsByRound = map[uint64]map[VoterSubmit]*Reveal{}
+	var revealsByRound = map[types.RoundId]map[VoterSubmit]*Reveal{}
 	for _, msg := range msgs {
 		reveal, err := DecodeReveal(msg.Payload)
 		if err != nil {
 			logger.Info("error parsing reveal, skipping: %s", err)
 			continue
 		}
-		if _, ok := revealsByRound[msg.VotingRound]; !ok {
-			revealsByRound[msg.VotingRound] = map[VoterSubmit]*Reveal{}
+		round := types.RoundId(msg.VotingRound)
+		if _, ok := revealsByRound[round]; !ok {
+			revealsByRound[round] = map[VoterSubmit]*Reveal{}
 		}
 
 		from := VoterSubmit(common.HexToAddress(msg.From))
-		revealsByRound[msg.VotingRound][from] = reveal
+		revealsByRound[round][from] = reveal
 	}
 
 	return revealsByRound, nil

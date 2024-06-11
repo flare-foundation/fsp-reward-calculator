@@ -4,6 +4,7 @@ import (
 	"flare-common/database"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
+	"ftsov2-rewarding/types"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -26,7 +27,7 @@ func main() {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
 
-	_, err = calculateRewards(db, 2620)
+	_, err = calculateRewards(db, 2745)
 	if err != nil {
 		logger.Fatal("Error calculating rewards: %s", err)
 		return
@@ -47,42 +48,48 @@ const (
 )
 
 type RewardClaim struct {
-	Epoch       uint64
+	Epoch       types.EpochId
 	Beneficiary common.Address
 	Amount      *big.Int
 	Type        ClaimType
 }
 
 type RandomResult struct {
-	Round    uint64
-	Random   *big.Int
+	Round    types.RoundId
+	Value    *big.Int
 	IsSecure bool
 }
 
-func calculateRewards(db *gorm.DB, epoch uint64) (RewardClaim, error) {
+type RoundResult struct {
+	Round  types.RoundId
+	Median []MedianResult
+	Random RandomResult
+}
+
+func calculateRewards(db *gorm.DB, epoch types.EpochId) (RewardClaim, error) {
 	re, err := getRewardEpoch(epoch, db)
 	if err != nil {
-		return RewardClaim{}, errors.Errorf("err fetching reward epoch: %s", err)
+		return RewardClaim{}, errors.Wrap(err, "err fetching reward epoch")
 	}
 
-	windowStart := re.StartRound - params.Coston.Ftso.RandomGenerationBenchingWindow
-	windowEnd := re.EndRound
+	windowStart := types.RoundId(uint64(re.StartRound) - params.Coston.Ftso.RandomGenerationBenchingWindow)
+	windowEnd := re.EndRound.Add(params.Coston.Ftso.FutureSecureRandomWindow)
 
-	commitsByRound, err := getCommits(db, windowStart, re.EndRound)
+	commitsByRound, err := getCommits(db, windowStart, windowEnd)
 	if err != nil {
 		return RewardClaim{}, errors.Errorf("error fetching commitsByRound: %s", err)
 	}
-	revealsByRound, err := getReveals(db, re.StartRound, re.EndRound)
+	revealsByRound, err := getReveals(db, re.StartRound, windowEnd)
 	if err != nil {
 		return RewardClaim{}, errors.Errorf("error fetching revealsByRound: %s", err)
 	}
 
-	offendersByRound := map[uint64][]VoterSubmit{}
-	validRevealsByRound := map[uint64]map[VoterSubmit]*Reveal{}
+	offendersByRound := map[types.RoundId][]VoterSubmit{}
+	matchingRevealsByRound := map[types.RoundId]map[VoterSubmit]*Reveal{}
 
 	for round := windowStart; round < windowEnd; round++ {
 		var offenders []VoterSubmit
-		validReveals := map[VoterSubmit]*Reveal{}
+		matchingReveals := map[VoterSubmit]*Reveal{}
 
 		commits := commitsByRound[round]
 		reveals := revealsByRound[round]
@@ -90,7 +97,7 @@ func calculateRewards(db *gorm.DB, epoch uint64) (RewardClaim, error) {
 		for voter, commit := range commits {
 			reveal, ok := reveals[voter]
 			if !ok {
-				logger.Debug("Voter %s committed but did not reveal", voter)
+				logger.Debug("Voter %s committed but did not reveal", common.Address(voter))
 				offenders = append(offenders, voter)
 				continue
 			}
@@ -106,15 +113,17 @@ func calculateRewards(db *gorm.DB, epoch uint64) (RewardClaim, error) {
 				continue
 			}
 
-			validReveals[voter] = reveal
+			matchingReveals[voter] = reveal
 		}
 
 		offendersByRound[round] = offenders
-		validRevealsByRound[round] = validReveals
+		matchingRevealsByRound[round] = matchingReveals
 	}
 
+	results := map[types.RoundId]RoundResult{}
+
 	for round := re.StartRound; round < re.EndRound; round++ {
-		validReveals := validRevealsByRound[round]
+		validReveals := matchingRevealsByRound[round]
 
 		eligibleReveals := map[VoterSubmit]*Reveal{}
 		for voter, reveal := range validReveals {
@@ -139,40 +148,124 @@ func calculateRewards(db *gorm.DB, epoch uint64) (RewardClaim, error) {
 		}
 		logger.Info("Median: %+v", median)
 
-		// Random calc
-		benchingWindowOffenders := map[VoterSubmit]bool{}
-		for i := round - params.Coston.Ftso.RandomGenerationBenchingWindow; i < round; i++ {
-			for j := range offendersByRound[i] {
-				benchingWindowOffenders[offendersByRound[i][j]] = true
-			}
-		}
-		nonBenchedOffenders := 0
-		for k := range offendersByRound[round] {
-			currentOffender := offendersByRound[round][k]
-			if _, ok := benchingWindowOffenders[currentOffender]; !ok {
-				nonBenchedOffenders++
-			}
-		}
-		validCount := 0
-		random := big.NewInt(0)
-		for voter, reveal := range eligibleReveals {
-			if _, ok := benchingWindowOffenders[voter]; !ok {
-				random.Add(random, new(big.Int).SetBytes(reveal.Random[:]))
-				validCount++
-			}
-		}
-		random.Mod(random, randomMod)
+		// Value calc
+		res := calculateRandom(round, offendersByRound, eligibleReveals)
+		logger.Info("Value result: %+v", res)
 
-		res := RandomResult{
-			Round:    round,
-			Random:   random,
-			IsSecure: nonBenchedOffenders == 0 && validCount >= params.Coston.Ftso.NonBenchedRandomVotersMinCount,
+		results[round] = RoundResult{
+			Round:  round,
+			Median: median,
 		}
-		logger.Info("Random result: %+v", res)
+	}
 
+	var lastRandom *RandomResult
+
+	for round := re.EndRound + 1; round < windowEnd; round++ {
+		validReveals := matchingRevealsByRound[round]
+
+		eligibleReveals := map[VoterSubmit]*Reveal{}
+		for voter, reveal := range validReveals {
+			if _, ok := re.NextVoters.submitToId[voter]; ok {
+				eligibleReveals[voter] = reveal
+			}
+		}
+		random := calculateRandom(round, offendersByRound, eligibleReveals)
+		if random.IsSecure {
+			lastRandom = &random
+			break
+		}
+		logger.Info("Extra random: %d %+v", lastRandom)
+	}
+
+	totalRounds := int64(re.EndRound - re.StartRound + 1)
+
+	feedSelectionRandoms := make([]*big.Int, totalRounds)
+	for i := re.StartRound; i < re.EndRound; i++ {
+		feedSelectionRandoms[i-re.StartRound] = results[i].Random.Value
+	}
+	// Random for last round is the first secure random from next reward epoch,
+	// or nil if none found within a certain window.
+	if lastRandom != nil {
+		feedSelectionRandoms = append(feedSelectionRandoms, lastRandom.Value)
+	}
+
+	// Calculate reward offer share for round
+	totalReward := big.NewInt(0)
+	for i := range re.Offers.inflation {
+		offer := re.Offers.inflation[i]
+		totalReward.Add(totalReward, offer.Amount)
+	}
+	for i := range re.Offers.community {
+		totalReward.Add(totalReward, re.Offers.community[i].Amount)
+	}
+
+	roundRewards := make(map[types.RoundId]FeedReward)
+
+	perRound, rem := totalReward.DivMod(totalReward, big.NewInt(totalRounds), nil)
+	numFeeds := big.NewInt(int64(len(re.OrderedFeeds)))
+	// TODO: Can reduce allocations in loop by re-using big.Int vars OR use uint64 if safe
+	for round := re.StartRound; round <= re.EndRound; round++ {
+		random := feedSelectionRandoms[round-re.StartRound]
+
+		if random == nil {
+			// TODO: Burn offer
+			logger.Info("No secure random found for round %d, burning reward", round)
+			continue
+		}
+
+		feedIndex := new(big.Int).Mod(random, numFeeds).Uint64()
+
+		randomFeed := &re.OrderedFeeds[feedIndex]
+
+		amount := big.NewInt(0).Set(perRound)
+		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
+			amount.Add(amount, big.NewInt(1))
+		}
+		roundRewards[round] = FeedReward{
+			Feed:   randomFeed,
+			Amount: amount,
+		}
 	}
 
 	return RewardClaim{}, nil
+}
+
+type FeedReward struct {
+	Feed   *Feed
+	Amount *big.Int
+}
+
+func calculateRandom(round types.RoundId, offendersByRound map[types.RoundId][]VoterSubmit, eligibleReveals map[VoterSubmit]*Reveal) RandomResult {
+	benchingWindowOffenders := map[VoterSubmit]bool{}
+	for i := types.RoundId(uint64(round) - params.Coston.Ftso.RandomGenerationBenchingWindow); i < round; i++ {
+		for j := range offendersByRound[i] {
+			benchingWindowOffenders[offendersByRound[i][j]] = true
+		}
+	}
+
+	nonBenchedOffenders := 0
+	for k := range offendersByRound[round] {
+		currentOffender := offendersByRound[round][k]
+		if _, ok := benchingWindowOffenders[currentOffender]; !ok {
+			nonBenchedOffenders++
+		}
+	}
+	validCount := 0
+	random := big.NewInt(0)
+	for voter, reveal := range eligibleReveals {
+		if _, ok := benchingWindowOffenders[voter]; !ok {
+			random.Add(random, new(big.Int).SetBytes(reveal.Random[:]))
+			validCount++
+		}
+	}
+	random.Mod(random, randomMod)
+
+	res := RandomResult{
+		Round:    round,
+		Value:    random,
+		IsSecure: nonBenchedOffenders == 0 && validCount >= params.Coston.Ftso.NonBenchedRandomVotersMinCount,
+	}
+	return res
 }
 
 func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) ([]MedianResult, error) {

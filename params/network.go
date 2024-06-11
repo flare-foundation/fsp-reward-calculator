@@ -29,6 +29,7 @@ type Ftso struct {
 
 	RandomGenerationBenchingWindow uint64
 	NonBenchedRandomVotersMinCount int
+	FutureSecureRandomWindow       int
 
 	AdditionalRewardFinalizationWindows   int
 	PenaltyFactor                         *big.Int
