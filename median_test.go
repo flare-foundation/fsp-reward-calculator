@@ -9,13 +9,13 @@ import (
 func TestCalculateMedian(t *testing.T) {
 	tests := []struct {
 		name    string
-		arg     []WeightedValue
+		arg     []VoterValue
 		want    MedianResult
 		wantErr bool
 	}{
 		{
-			name: "Same weight",
-			arg: []WeightedValue{
+			name: "Same Weight",
+			arg: []VoterValue{
 				{value: 1, weight: big.NewInt(1)},
 				{value: 2, weight: big.NewInt(1)},
 				{value: 3, weight: big.NewInt(1)},
@@ -24,45 +24,45 @@ func TestCalculateMedian(t *testing.T) {
 				{value: 6, weight: big.NewInt(1)},
 			},
 			want: MedianResult{
-				Q1:          2,
-				Median:      3,
-				Q3:          5,
-				TotalWeight: big.NewInt(6),
+				Q1:                2,
+				Median:            3,
+				Q3:                5,
+				ParticipantWeight: big.NewInt(6),
 			},
 			wantErr: false,
 		},
 		{
 			name: "Single value",
-			arg: []WeightedValue{
+			arg: []VoterValue{
 				{value: 1, weight: big.NewInt(1)},
 			},
 
 			want: MedianResult{
-				Q1:          1,
-				Median:      1,
-				Q3:          1,
-				TotalWeight: big.NewInt(1),
+				Q1:                1,
+				Median:            1,
+				Q3:                1,
+				ParticipantWeight: big.NewInt(1),
 			},
 			wantErr: false,
 		},
 		{
 			name: "Two values",
-			arg: []WeightedValue{
+			arg: []VoterValue{
 				{value: 1, weight: big.NewInt(1)},
 				{value: 2, weight: big.NewInt(1)},
 			},
 
 			want: MedianResult{
-				Q1:          1,
-				Median:      1,
-				Q3:          2,
-				TotalWeight: big.NewInt(2),
+				Q1:                1,
+				Median:            1,
+				Q3:                2,
+				ParticipantWeight: big.NewInt(2),
 			},
 			wantErr: false,
 		},
 		{
 			name: "Different weights",
-			arg: []WeightedValue{
+			arg: []VoterValue{
 				{value: 1, weight: big.NewInt(10)},
 				{value: 2, weight: big.NewInt(1)},
 				{value: 3, weight: big.NewInt(1)},
@@ -70,10 +70,10 @@ func TestCalculateMedian(t *testing.T) {
 				{value: 5, weight: big.NewInt(1)},
 			},
 			want: MedianResult{
-				Q1:          1,
-				Median:      1,
-				Q3:          2,
-				TotalWeight: big.NewInt(14),
+				Q1:                1,
+				Median:            1,
+				Q3:                2,
+				ParticipantWeight: big.NewInt(14),
 			},
 			wantErr: false,
 		},

@@ -8,23 +8,23 @@ import (
 )
 
 var (
-	addressType, _ = abi.NewType("address", "", nil)
-	uint32Type, _  = abi.NewType("uint32", "", nil)
-	uint256Type, _ = abi.NewType("uint256", "", nil)
-	bytesType, _   = abi.NewType("bytes", "", nil)
+	AddressType, _ = abi.NewType("address", "", nil)
+	Uint32Type, _  = abi.NewType("uint32", "", nil)
+	Uint256Type, _ = abi.NewType("uint256", "", nil)
+	BytesType, _   = abi.NewType("bytes", "", nil)
 
 	args = abi.Arguments{
 		{
-			Type: addressType,
+			Type: AddressType,
 		},
 		{
-			Type: uint32Type,
+			Type: Uint32Type,
 		},
 		{
-			Type: uint256Type,
+			Type: Uint256Type,
 		},
 		{
-			Type: bytesType,
+			Type: BytesType,
 		},
 	}
 )

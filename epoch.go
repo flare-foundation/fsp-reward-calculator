@@ -32,11 +32,14 @@ type RewardOffers struct {
 	inflation []*offers.OffersInflationRewardsOffered
 }
 
-type VoterAddresses struct {
-	Identity         VoterId
-	Submit           VoterSubmit
-	SubmitSignatures common.Address
-	SigningPolicy    common.Address
+type VoterInfo struct {
+	Identity          VoterId
+	Submit            VoterSubmit
+	SubmitSignatures  common.Address
+	SigningPolicy     common.Address
+	Delegation        VoterDelegation
+	cappedWeight      *big.Int
+	delegationFeeBips uint16
 }
 
 // TODO: Use proper timings for event search instead of approximate
@@ -199,22 +202,6 @@ func getVoters(db *gorm.DB, epoch types.EpochId, fromSec, toSec uint64) (VoterIn
 		return VoterIndex{}, errors.Errorf("error fetching voter registered regs: %s", err)
 	}
 
-	var addresses []VoterAddresses
-	for i := range regs {
-		if regs[i].RewardEpochId.Uint64() != uint64(epoch) {
-			continue
-		}
-
-		addresses = append(addresses, VoterAddresses{
-			Identity:         VoterId(regs[i].Voter),
-			Submit:           VoterSubmit(regs[i].SubmitAddress),
-			SubmitSignatures: regs[i].SubmitSignaturesAddress,
-			SigningPolicy:    regs[i].SigningPolicyAddress,
-		})
-
-		logger.Info("Voter %s, submit %s, submit signatures %s, signing policy %s", regs[i].Voter.String(), regs[i].SubmitAddress.String(), regs[i].SubmitSignaturesAddress.String(), regs[i].SigningPolicyAddress.String())
-	}
-
 	infos, err := GetVoterInfoEvents(db, fromSec, toSec)
 	if err != nil {
 		return VoterIndex{}, errors.Errorf("error fetching voter info events: %s", err)
@@ -222,40 +209,55 @@ func getVoters(db *gorm.DB, epoch types.EpochId, fromSec, toSec uint64) (VoterIn
 
 	if len(regs) != len(infos) {
 		return VoterIndex{}, errors.Errorf("voter registered and voter info event count mismatch: %d != %d", len(regs), len(infos))
-
 	}
 
-	cappedWeight := map[VoterId]*big.Int{}
-	for i := range infos {
-		if infos[i].RewardEpochId.Uint64() != uint64(epoch) {
+	var voters []*VoterInfo
+	for i := range regs {
+		if regs[i].RewardEpochId.Uint64() != uint64(epoch) {
 			continue
 		}
-		cappedWeight[VoterId(infos[i].Voter)] = infos[i].WNatCappedWeight
-		logger.Info("Voter %s, capped weight %s", infos[i].Voter.String(), infos[i].WNatCappedWeight.String())
+
+		voters = append(voters, &VoterInfo{
+			Identity:          VoterId(regs[i].Voter),
+			Submit:            VoterSubmit(regs[i].SubmitAddress),
+			SubmitSignatures:  regs[i].SubmitSignaturesAddress,
+			SigningPolicy:     regs[i].SigningPolicyAddress,
+			Delegation:        VoterDelegation(infos[i].DelegationAddress),
+			cappedWeight:      infos[i].WNatCappedWeight,
+			delegationFeeBips: infos[i].DelegationFeeBIPS,
+		})
+
+		logger.Info("voter %s, submit %s, submit signatures %s, signing policy %s", regs[i].Voter.String(), regs[i].SubmitAddress.String(), regs[i].SubmitSignaturesAddress.String(), regs[i].SigningPolicyAddress.String())
 	}
 
-	return NewVoterIndex(addresses, cappedWeight), nil
+	return NewVoterIndex(voters), nil
 }
 
 type VoterId common.Address
 type VoterSubmit common.Address
+type VoterDelegation common.Address
 
 type VoterIndex struct {
-	idToAddrs    map[VoterId]VoterAddresses
-	submitToId   map[VoterSubmit]VoterId
-	cappedWeight map[VoterId]*big.Int
+	byId              map[VoterId]*VoterInfo
+	bySubmit          map[VoterSubmit]*VoterInfo
+	byDelegation      map[VoterDelegation]*VoterInfo
+	totalCappedWeight *big.Int
 }
 
-func NewVoterIndex(voters []VoterAddresses, cappedWeight map[VoterId]*big.Int) VoterIndex {
-	addrMap := make(map[VoterId]VoterAddresses)
-	submitToId := make(map[VoterSubmit]VoterId)
+func NewVoterIndex(voters []*VoterInfo) VoterIndex {
+	byId := make(map[VoterId]*VoterInfo)
+	bySubmit := make(map[VoterSubmit]*VoterInfo)
 	for _, v := range voters {
-		submitToId[v.Submit] = v.Identity
-		addrMap[v.Identity] = v
+		bySubmit[v.Submit] = v
+		byId[v.Identity] = v
+	}
+	totalCappedWeight := big.NewInt(0)
+	for _, v := range voters {
+		totalCappedWeight.Add(totalCappedWeight, v.cappedWeight)
 	}
 	return VoterIndex{
-		idToAddrs:    addrMap,
-		submitToId:   submitToId,
-		cappedWeight: cappedWeight,
+		byId:              byId,
+		bySubmit:          bySubmit,
+		totalCappedWeight: totalCappedWeight,
 	}
 }

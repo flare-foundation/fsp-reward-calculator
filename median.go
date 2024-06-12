@@ -8,13 +8,15 @@ import (
 )
 
 type MedianResult struct {
-	Q1          int32
-	Median      int32
-	Q3          int32
-	TotalWeight *big.Int
+	Q1                int32
+	Median            int32
+	Q3                int32
+	ParticipantWeight *big.Int
+	inputValues       []VoterValue
 }
 
-type WeightedValue struct {
+type VoterValue struct {
+	voter  VoterSubmit
 	value  int32
 	weight *big.Int
 }
@@ -23,26 +25,19 @@ type nullInt32 struct {
 	value int32
 }
 
-func CalculateFeedMedian(weightedValues []WeightedValue) (MedianResult, error) {
-	logger.Info("Calculating median for %d values: %+v", len(weightedValues), weightedValues)
-	sort.Slice(weightedValues, func(i, j int) bool {
-		return weightedValues[i].value < weightedValues[j].value
+func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
+	logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
+	sort.Slice(voterValues, func(i, j int) bool {
+		return voterValues[i].value < voterValues[j].value
 	})
 
 	totalWeight := big.NewInt(0)
-	for _, vw := range weightedValues {
+	for _, vw := range voterValues {
 		totalWeight.Add(totalWeight, vw.weight)
 	}
 
-	// TODO: Should return error
-	if len(weightedValues) == 1 {
-		return MedianResult{
-			Q1:          weightedValues[0].value,
-			Median:      weightedValues[0].value,
-			Q3:          weightedValues[0].value,
-			TotalWeight: weightedValues[0].weight,
-		}, nil
-
+	if len(voterValues) == 1 {
+		return nil, nil
 	}
 
 	q1Weight := new(big.Int).Div(totalWeight, big.NewInt(4))
@@ -53,8 +48,8 @@ func CalculateFeedMedian(weightedValues []WeightedValue) (MedianResult, error) {
 	accumulatedWeight := big.NewInt(0)
 
 	i := 0
-	for ; i < len(weightedValues); i++ {
-		wv := weightedValues[i]
+	for ; i < len(voterValues); i++ {
+		wv := voterValues[i]
 		accumulatedWeight.Add(accumulatedWeight, wv.weight)
 
 		if q1 == nil && accumulatedWeight.Cmp(q1Weight) > 0 {
@@ -62,7 +57,7 @@ func CalculateFeedMedian(weightedValues []WeightedValue) (MedianResult, error) {
 		}
 		if median == nil && accumulatedWeight.Cmp(medianWeight) >= 0 {
 			if accumulatedWeight.Cmp(medianWeight) == 0 && medianMod.Cmp(big.NewInt(0)) == 0 {
-				median = &nullInt32{(wv.value + weightedValues[i+1].value) / 2}
+				median = &nullInt32{(wv.value + voterValues[i+1].value) / 2}
 			} else {
 				median = &nullInt32{wv.value}
 			}
@@ -71,16 +66,17 @@ func CalculateFeedMedian(weightedValues []WeightedValue) (MedianResult, error) {
 			break
 		}
 	}
-	q3 = &nullInt32{weightedValues[i-1].value}
+	q3 = &nullInt32{voterValues[i-1].value}
 
 	if q1 == nil || median == nil {
-		return MedianResult{}, errors.New("could not calculate quartiles")
+		return nil, errors.New("could not calculate quartiles")
 	}
 
-	return MedianResult{
-		Q1:          q1.value,
-		Median:      median.value,
-		Q3:          q3.value,
-		TotalWeight: totalWeight,
+	return &MedianResult{
+		Q1:                q1.value,
+		Median:            median.value,
+		Q3:                q3.value,
+		ParticipantWeight: totalWeight,
+		inputValues:       voterValues,
 	}, nil
 }
