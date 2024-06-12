@@ -77,12 +77,13 @@ func getInflationFeeds(offers []*offers.OffersInflationRewardsOffered) []Feed {
 			if _, ok := feedById[id]; ok {
 				logger.Info("More than one inflation offer contains feed %s, only the last one will be used for configuration values", id.String())
 			}
+
 			feedById[id] = Feed{
 				Id:                        id,
 				Decimals:                  int8(offer.Decimals[j]),
 				MinRewardedTurnoutBIPS:    offer.MinRewardedTurnoutBIPS,
 				PrimaryBandRewardSharePPM: uint32(offer.PrimaryBandRewardSharePPM.Uint64()),
-				SecondaryBandWidthPPMs:    binary.BigEndian.Uint32(offer.SecondaryBandWidthPPMs[j*3 : (j+1)*3]),
+				SecondaryBandWidthPPMs:    parseUint24(offer.SecondaryBandWidthPPMs[j*3 : (j+1)*3]),
 			}
 		}
 	}
@@ -92,4 +93,11 @@ func getInflationFeeds(offers []*offers.OffersInflationRewardsOffered) []Feed {
 		return bytes.Compare(feeds[i].Id[:], feeds[j].Id[:]) < 0
 	})
 	return feeds
+}
+
+func parseUint24(raw []byte) uint32 {
+	if len(raw) != 3 {
+		logger.Fatal("invalid length for uint24: %d", len(raw))
+	}
+	return binary.BigEndian.Uint32(append([]byte{0}, raw[:]...))
 }

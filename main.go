@@ -1,17 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"flare-common/database"
+	"fmt"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/types"
 	"ftsov2-rewarding/utils"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
+	"os"
 )
 
 func main() {
@@ -29,9 +30,34 @@ func main() {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
 
-	_, err = calculateRewards(db, 2745)
+	epoch := types.EpochId(2745)
+
+	allClaims, err := calculateRewardClaims(db, epoch)
 	if err != nil {
-		logger.Fatal("Error calculating rewards: %s", err)
+		logger.Fatal("Error calculating reward claims for epoch %d: %s", 2745, err)
+		return
+	}
+
+	printResults(allClaims, epoch)
+}
+
+func printResults(records []RewardClaim, id types.EpochId) {
+	jsonData, err := json.MarshalIndent(records, "", "    ")
+	if err != nil {
+		fmt.Println("Error serializing to JSON:", err)
+		return
+	}
+
+	file, err := os.Create(fmt.Sprintf("claims-%d.json", id))
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return
+	}
+	defer file.Close()
+
+	_, err = file.Write(jsonData)
+	if err != nil {
+		fmt.Println("Error writing to file:", err)
 		return
 	}
 }
@@ -80,7 +106,7 @@ type RoundResult struct {
 	Random RandomResult
 }
 
-func calculateRewards(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
+func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
 	re, err := getRewardEpoch(epoch, db)
 	if err != nil {
 		return nil, errors.Wrap(err, "err fetching reward epoch")
@@ -160,15 +186,15 @@ func calculateRewards(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("Median: %+v", median)
+		//logger.Info("Median: %+v", median)
 
-		// Value calc
-		res := calculateRandom(round, offendersByRound, eligibleReveals)
-		logger.Info("Value result: %+v", res)
+		random := calculateRandom(round, offendersByRound, eligibleReveals)
+		//logger.Info("Random result: %+v", random)
 
 		results[round] = RoundResult{
 			Round:  round,
 			Median: median,
+			Random: random,
 		}
 	}
 
@@ -200,7 +226,7 @@ func calculateRewards(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
 	// Random for last round is the first secure random from next reward epoch,
 	// or nil if none found within a certain window.
 	if lastRandom != nil {
-		feedSelectionRandoms = append(feedSelectionRandoms, lastRandom.Value)
+		feedSelectionRandoms[re.EndRound-re.StartRound] = lastRandom.Value
 	}
 
 	// Calculate reward offer share for round
@@ -215,14 +241,20 @@ func calculateRewards(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
 
 	roundRewards := make(map[types.RoundId]FeedReward)
 
-	perRound, rem := totalReward.DivMod(totalReward, big.NewInt(totalRounds), nil)
+	perRound, rem := totalReward.DivMod(totalReward, big.NewInt(totalRounds), big.NewInt(0))
 	numFeeds := big.NewInt(int64(len(re.OrderedFeeds)))
 	// TODO: Can reduce allocations in loop by re-using big.Int vars OR use uint64 if safe
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		random := feedSelectionRandoms[round-re.StartRound]
 
+		amount := big.NewInt(0).Set(perRound)
+		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
+			amount.Add(amount, big.NewInt(1))
+		}
+
 		if random == nil {
 			roundRewards[round] = FeedReward{
+				Amount:     amount,
 				ShouldBurn: true,
 			}
 			logger.Info("No secure random found for round %d, burning reward", round)
@@ -233,10 +265,6 @@ func calculateRewards(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
 
 		randomFeed := &re.OrderedFeeds[feedIndex]
 
-		amount := big.NewInt(0).Set(perRound)
-		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
-			amount.Add(amount, big.NewInt(1))
-		}
 		roundRewards[round] = FeedReward{
 			Feed:   randomFeed,
 			Amount: amount,
@@ -283,6 +311,7 @@ func calculateRewards(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
 			eligibleVoters = append(eligibleVoters, voter)
 		}
 
+		logger.Info("Round: %d, computed median claims: %d", round, len(medianClaims))
 	}
 
 	return epochClaims, nil
@@ -292,193 +321,6 @@ type FeedReward struct {
 	Feed       *Feed
 	Amount     *big.Int
 	ShouldBurn bool
-}
-
-func abs(v int32) uint32 {
-	if v < 0 {
-		return uint32(-v)
-	}
-	return uint32(v)
-}
-
-func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *MedianResult) []RewardClaim {
-	var epochClaims []RewardClaim
-
-	// Burn rewardOffer if turnout condition not reached
-	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.Voters.totalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
-		epochClaims = append(epochClaims, RewardClaim{
-			Beneficiary: BurnAddress,
-			Amount:      big.NewInt(0).Set(rewardShare),
-			Type:        Direct,
-		})
-		return epochClaims
-	}
-
-	secondaryBandDiff := abs(medianResult.Median) * rewardOffer.Feed.SecondaryBandWidthPPMs / totalPpm
-	lowPct := medianResult.Median - int32(secondaryBandDiff)
-	highPct := medianResult.Median + int32(secondaryBandDiff)
-
-	lowIQR := medianResult.Q1
-	highIQR := medianResult.Q3
-
-	iqrSum := big.NewInt(0) // eligible Weight for IQR rewardOffer
-	pctSum := big.NewInt(0) // eligible Weight for PCT rewardOffer
-
-	var voterRecords []voterRecord
-	for _, submission := range medianResult.inputValues {
-		value := submission.value
-
-		isPct := value > lowPct && value < highPct
-		isIqr := (value > lowIQR && value < highIQR) || (value == lowIQR || value == highIQR) && randomSelect(rewardOffer.Feed.Id, round, submission.voter)
-
-		if isPct {
-			pctSum.Add(pctSum, submission.weight)
-		}
-		if isIqr {
-			iqrSum.Add(iqrSum, submission.weight)
-		}
-
-		voterRecords = append(voterRecords, voterRecord{
-			voter:  submission.voter,
-			weight: submission.weight,
-			isPct:  isPct,
-			isIqr:  isIqr,
-		})
-	}
-
-	totalNormWeight := big.NewInt(0)
-	for i, record := range voterRecords {
-		newWeight := big.NewInt(0)
-		if pctSum.Cmp(bigZero) == 0 {
-			if record.isIqr {
-				newWeight.Set(record.weight)
-			}
-		} else {
-			if record.isIqr {
-				newWeight.Mul(
-					big.NewInt(int64(rewardOffer.Feed.PrimaryBandRewardSharePPM)),
-					bigTmp.Mul(
-						record.weight,
-						pctSum,
-					),
-				)
-			}
-			if record.isPct {
-				newWeight.Add(
-					newWeight,
-					bigTmp.Mul(
-						big.NewInt(int64(totalPpm-rewardOffer.Feed.PrimaryBandRewardSharePPM)),
-						bigTmp.Mul(
-							record.weight,
-							iqrSum,
-						),
-					),
-				)
-			}
-		}
-		voterRecords[i].weight = newWeight
-		totalNormWeight.Add(totalNormWeight, newWeight)
-	}
-
-	if totalNormWeight.Cmp(bigZero) == 0 {
-		// Burn rewardOffer if no eligible submissions
-		epochClaims = append(epochClaims, RewardClaim{
-			Beneficiary: BurnAddress,
-			Amount:      big.NewInt(0).Set(rewardShare),
-			Type:        Direct,
-		})
-		return epochClaims
-	}
-
-	totalReward := big.NewInt(0)
-	availableReward := big.NewInt(0).Set(rewardShare)
-	availableWeight := big.NewInt(0).Set(totalNormWeight)
-
-	var claims []RewardClaim
-	for _, record := range voterRecords {
-		if record.weight.Cmp(bigZero) == 0 {
-			continue
-		}
-		reward := big.NewInt(0)
-		if record.weight.Cmp(bigZero) > 0 {
-			if availableWeight.Cmp(bigZero) == 0 {
-				logger.Fatal("availableWeight is zero, this should never happen")
-			}
-			reward.Div(
-				bigTmp.Mul(
-					record.weight,
-					availableReward,
-				),
-				availableWeight,
-			)
-		}
-		totalReward.Add(totalReward, reward)
-
-		claims = append(claims, generateClaimsForVoter(re.Voters.bySubmit[record.voter], reward, rewardOffer)...)
-	}
-
-	return claims
-}
-
-func generateClaimsForVoter(voter *VoterInfo, reward *big.Int, offer FeedReward) []RewardClaim {
-	var claims []RewardClaim
-
-	voterFee := voter.delegationFeeBips
-	fee := big.NewInt(0).Div(
-		bigTmp.Mul(
-			reward,
-			big.NewInt(int64(voterFee)),
-		),
-		bigTotalBips,
-	)
-
-	if fee.Cmp(bigZero) > 0 {
-		claims = append(claims, RewardClaim{
-			Beneficiary: common.Address(voter.Identity),
-			Amount:      fee,
-			Type:        Fee,
-		})
-	}
-
-	participationReward := big.NewInt(0).Sub(reward, fee)
-	if participationReward.Cmp(bigZero) > 0 {
-		claims = append(claims, RewardClaim{
-			Beneficiary: common.Address(voter.Delegation),
-			Amount:      participationReward,
-			Type:        WNat,
-		})
-	}
-
-	return claims
-}
-
-type voterRecord struct {
-	voter        VoterSubmit
-	weight       *big.Int
-	isPct, isIqr bool
-}
-
-var randomArgs = abi.Arguments{{Type: utils.BytesType}, {Type: utils.Uint256Type}, {Type: utils.AddressType}}
-
-func randomSelect(feedId FeedId, round types.RoundId, voter VoterSubmit) bool {
-	pack, err := randomArgs.Pack(feedId, round, voter)
-	if err != nil {
-		logger.Fatal("error packing arguments, this should never happen: %s", err)
-	}
-	hash := crypto.Keccak256Hash(pack)
-	return hash[len(hash)-1]%2 == 1
-}
-
-func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips uint16) bool {
-	return big.NewInt(0).Mul(
-		participatingWeight,
-		bigTotalBips,
-	).Cmp(
-		big.NewInt(0).Mul(
-			totalWeight,
-			big.NewInt(int64(minBips)),
-		),
-	) >= 0
 }
 
 type RewardShare struct {
@@ -520,7 +362,7 @@ func calculateRandom(round types.RoundId, offendersByRound map[types.RoundId][]V
 }
 
 func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) (map[FeedId]*MedianResult, error) {
-	var medianResults map[FeedId]*MedianResult
+	medianResults := map[FeedId]*MedianResult{}
 	for feedIndex, feed := range re.OrderedFeeds {
 		var weightedValues []VoterValue
 
@@ -531,6 +373,7 @@ func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) 
 				continue
 			}
 			weightedValues = append(weightedValues, VoterValue{
+				voter:  voterSubmit,
 				value:  feedValue.Value,
 				weight: weight,
 			})
@@ -544,7 +387,7 @@ func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) 
 
 		medianResults[feed.Id] = median
 
-		logger.Info("Feed: %s, Median: %+v", feed.String(), median)
+		//logger.Info("Feed: %s, Median: %+v", feed.String(), median)
 	}
 
 	return medianResults, nil

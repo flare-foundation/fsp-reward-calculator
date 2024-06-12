@@ -1,7 +1,6 @@
 package main
 
 import (
-	"ftsov2-rewarding/logger"
 	"github.com/pkg/errors"
 	"math/big"
 	"sort"
@@ -26,7 +25,7 @@ type nullInt32 struct {
 }
 
 func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
-	logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
+	//logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
 	sort.Slice(voterValues, func(i, j int) bool {
 		return voterValues[i].value < voterValues[j].value
 	})
