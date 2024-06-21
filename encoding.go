@@ -3,14 +3,18 @@ package main
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"ftsov2-rewarding/params"
+	"ftsov2-rewarding/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 )
 
 const (
-	FeedValueBytes = 4
-	FeedIdBytes    = 21
-	NoValue        = 0
+	FeedValueBytes          = 4
+	FeedIdBytes             = 21
+	NoValue                 = 0
+	ProtocolMerkleRootBytes = 38
+	SignatureBytes          = 65
 )
 
 var EmptyFeedValue = FeedValue{
@@ -36,6 +40,13 @@ func (f *FeedId) String() string {
 	return string(f[1:])
 }
 
+type ProtocolMerkleRoot struct {
+	protocolId     int8
+	round          types.RoundId
+	isSecureRandom bool
+	merkleRoot     common.Hash
+}
+
 type Commit struct {
 	Hash common.Hash
 }
@@ -45,10 +56,40 @@ type Reveal struct {
 	EncodedValues []byte
 }
 
+type SignatureSubmission struct {
+	Signature Signature
+	Info      TxInfo
+}
+
+type TxInfo struct {
+	TimestampSec uint64
+	Reverted     bool
+	From         common.Address
+}
+
+type Signature struct {
+	signature  []byte
+	merkleRoot ProtocolMerkleRoot
+}
+
 type FeedValue struct {
 	isEmpty bool
 	Value   int32
 	//Decimals int
+}
+
+func (t *TxInfo) RoundId() types.RoundId {
+	return params.Net.Epoch.VotingRoundForTimeSec(t.TimestampSec)
+}
+func (t *TxInfo) RoundOffset() uint64 {
+	roundStartSec := params.Net.Epoch.VotingRoundStartSec(t.RoundId())
+	return t.TimestampSec - roundStartSec
+}
+
+// Submit1, Submit2, Submit3
+type Submission[T any] struct {
+	info TxInfo
+	item T
 }
 
 func DecodeCommit(message string) (*Commit, error) {
@@ -80,7 +121,55 @@ func DecodeReveal(message string) (*Reveal, error) {
 		Random:        random,
 		EncodedValues: encodedFeeds,
 	}, nil
+}
 
+func DecodeSignature(message string) (*Signature, error) {
+	bytes, err := hex.DecodeString(message)
+	if err != nil {
+		return nil, errors.Wrapf(err, "message is not a valid hex string: %s", message)
+	}
+
+	if len(bytes) < 1+ProtocolMerkleRootBytes+SignatureBytes {
+		return nil, errors.Errorf("Signature message too short: %s", message)
+	}
+
+	p := 1 // Type byte not used
+	encodedMerkleRoot := bytes[p : p+ProtocolMerkleRootBytes]
+	p += ProtocolMerkleRootBytes
+	signature := bytes[p : p+SignatureBytes]
+	p += SignatureBytes
+	_ = bytes[p:] // Unsigned message not used
+
+	merkleRoot, err := DecodeProtocolMerkleRoot(encodedMerkleRoot)
+	if err != nil {
+		return nil, errors.Wrap(err, "error decoding protocol merkle merkleRoot")
+	}
+
+	return &Signature{
+		signature:  signature,
+		merkleRoot: merkleRoot,
+	}, nil
+}
+
+func DecodeProtocolMerkleRoot(bytes []byte) (ProtocolMerkleRoot, error) {
+	if len(bytes) != ProtocolMerkleRootBytes {
+		return ProtocolMerkleRoot{}, errors.New("invalid message length for protocol merkle merkleRoot")
+	}
+	p := 0
+	id := bytes[p]
+	p++
+	round := types.RoundId(binary.BigEndian.Uint32(bytes[p : p+4]))
+	p += 4
+	isSecureRandom := bytes[p] == 1
+	p++
+	merkleRoot := common.BytesToHash(bytes[p : p+common.HashLength])
+
+	return ProtocolMerkleRoot{
+		protocolId:     int8(id),
+		round:          round,
+		isSecureRandom: isSecureRandom,
+		merkleRoot:     merkleRoot,
+	}, nil
 }
 
 func DecodeFeedValues(bytes []byte, feeds []Feed) ([]FeedValue, error) {

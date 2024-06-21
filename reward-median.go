@@ -25,27 +25,6 @@ type voterRecord struct {
 
 var randomArgs = abi.Arguments{{Type: utils.BytesType}, {Type: utils.Uint256Type}, {Type: utils.AddressType}}
 
-func randomSelect(feedId FeedId, round types.RoundId, voter VoterSubmit) bool {
-	pack, err := randomArgs.Pack(feedId[:], big.NewInt(int64(round)), common.Address(voter))
-	if err != nil {
-		logger.Fatal("error packing arguments, this should never happen: %s", err)
-	}
-	hash := crypto.Keccak256Hash(pack)
-	return hash[len(hash)-1]%2 == 1
-}
-
-func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips uint16) bool {
-	return big.NewInt(0).Mul(
-		participatingWeight,
-		bigTotalBips,
-	).Cmp(
-		big.NewInt(0).Mul(
-			totalWeight,
-			big.NewInt(int64(minBips)),
-		),
-	) >= 0
-}
-
 func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *MedianResult) []RewardClaim {
 	var epochClaims []RewardClaim
 
@@ -163,6 +142,27 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 	}
 
 	return claims
+}
+
+func randomSelect(feedId FeedId, round types.RoundId, voter VoterSubmit) bool {
+	pack, err := randomArgs.Pack(feedId[:], big.NewInt(int64(round)), common.Address(voter))
+	if err != nil {
+		logger.Fatal("error packing arguments, this should never happen: %s", err)
+	}
+	hash := crypto.Keccak256Hash(pack)
+	return hash[len(hash)-1]%2 == 1
+}
+
+func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips uint16) bool {
+	return big.NewInt(0).Mul(
+		participatingWeight,
+		bigTotalBips,
+	).Cmp(
+		big.NewInt(0).Mul(
+			totalWeight,
+			big.NewInt(int64(minBips)),
+		),
+	) >= 0
 }
 
 func generateClaimsForVoter(voter *VoterInfo, reward *big.Int, offer FeedReward) []RewardClaim {

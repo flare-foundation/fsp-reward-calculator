@@ -17,16 +17,17 @@ const (
 )
 
 var (
-	// TODO Read from config
-	SubmissionContractAddress = common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f") // Coston
+	SubmissionContractAddress = params.Net.Contracts.Submission
 )
+
+// TODO: Make sure DB query sorts both by timestamp and tx index
 
 // getCommits retrieves the last commit submission for each voter for each round in the given range
 func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]map[VoterSubmit]*Commit, error) {
-	fromSec := params.Coston.Epoch.VotingRoundStartSec(fromRound)
-	toSec := params.Coston.Epoch.VotingRoundEndSec(toRound)
+	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
+	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
 
-	msgs, err := queryMessages(db, fromSec, toSec, utils.FunctionSignatures.Submit1, SubmissionContractAddress)
+	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit1, SubmissionContractAddress)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -35,10 +36,16 @@ func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 	for _, msg := range msgs {
 		commit, err := DecodeCommit(msg.Payload)
 		if err != nil {
-			logger.Info("error parsing commit, skipping: %s", err)
+			logger.Debug("error parsing commit, skipping: %s", err)
 			continue
 		}
 		round := types.RoundId(msg.VotingRound)
+		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
+		if round != expectedRound {
+			logger.Debug("commit round %d does not match expected round %d, skipping", round, expectedRound)
+			continue
+		}
+
 		if _, ok := commitsByRound[round]; !ok {
 			commitsByRound[round] = map[VoterSubmit]*Commit{}
 		}
@@ -52,10 +59,10 @@ func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 
 // getReveals retrieves the last reveal submission for voter for each round in the given range
 func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]map[VoterSubmit]*Reveal, error) {
-	fromSec := params.Coston.Epoch.VotingRoundStartSec(fromRound)
-	toSec := params.Coston.Epoch.VotingRoundEndSec(toRound)
+	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
+	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
 
-	msgs, err := queryMessages(db, fromSec, toSec, utils.FunctionSignatures.Submit2, SubmissionContractAddress)
+	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit2, SubmissionContractAddress)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -64,10 +71,16 @@ func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 	for _, msg := range msgs {
 		reveal, err := DecodeReveal(msg.Payload)
 		if err != nil {
-			logger.Info("error parsing reveal, skipping: %s", err)
+			logger.Debug("error parsing reveal, skipping: %s", err)
 			continue
 		}
 		round := types.RoundId(msg.VotingRound)
+		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp) - 1
+		if round != expectedRound {
+			logger.Debug("reveal round %d does not match expected round %d, skipping", round, expectedRound)
+			continue
+		}
+
 		if _, ok := revealsByRound[round]; !ok {
 			revealsByRound[round] = map[VoterSubmit]*Reveal{}
 		}
@@ -79,10 +92,52 @@ func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 	return revealsByRound, nil
 }
 
-func queryMessages(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]byte, contractAddress common.Address) ([]payload.Message, error) {
+func getSignatures(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId][]*SignatureSubmission, error) {
+	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
+	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
+
+	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.SubmitSignatures, SubmissionContractAddress)
+	if err != nil {
+		return nil, errors.Errorf("error querying messages: %s", err)
+	}
+
+	var signaturesByRound = map[types.RoundId][]*SignatureSubmission{}
+	for _, msg := range msgs {
+		signature, err := DecodeSignature(msg.Payload)
+		if err != nil {
+			logger.Debug("error parsing Signature, skipping: %s", err)
+			continue
+		}
+		round := types.RoundId(msg.VotingRound)
+		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp) - 1
+		if round != expectedRound {
+			logger.Debug("Signature round %d does not match expected round %d, skipping", round, expectedRound)
+			continue
+		}
+
+		if _, ok := signaturesByRound[round]; !ok {
+			signaturesByRound[round] = []*SignatureSubmission{}
+		}
+
+		signaturesByRound[round] = append(signaturesByRound[round], SignatureSubmission{
+			Signature: signature,
+			Info: TxInfo{
+				From:         common.HexToAddress(msg.From),
+				TimestampSec: msg.Timestamp,
+				Reverted:     false,
+			},
+		})
+
+	}
+
+	return signaturesByRound, nil
+
+}
+
+func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]byte, contractAddress common.Address) ([]payload.Message, error) {
 	txns, err := database.FetchTransactionsByAddressAndSelectorTimestamp(db, contractAddress, signature, int64(fromSec), int64(toSec))
 	if err != nil {
-		return nil, errors.Errorf("error fetching txns from DB: %s", err)
+		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
 
 	var payloads []payload.Message
@@ -103,3 +158,45 @@ func queryMessages(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]byte,
 
 	return payloads, nil
 }
+
+/*
+TX:
+	for _, tx := range txns {
+		calldata, err := hex.DecodeString(tx.Input)
+		if err != nil {
+			logger.Fatal("retrieved tx input for %s is not a valid hex, the indexer db may be corrupted: %s", tx.Hash, err)
+		}
+
+		// Skip function Signature
+		payloadsByProtocol := map[int8][]byte{}
+		for p := len(Signature); p < len(calldata); {
+			protocol := int8(calldata[p])
+			p++
+			round := types.RoundId(binary.BigEndian.Uint32(calldata[p : p+4]))
+			p += 4
+
+			length := int(binary.BigEndian.Uint16(calldata[p : p+2]))
+			p += 2
+
+			if p+length > len(calldata) {
+				logger.Info("invalid message length for protocol %d, skipping submission", protocol)
+				continue TX
+			}
+
+			payload := calldata[p : p+length]
+			p += length
+
+			payloadsByProtocol[protocol] = payload
+		}
+
+		scalingPayload, ok := payloadsByProtocol[FtsoScalingProtocolId]
+		if !ok {
+			continue
+		}
+
+		payloads = append(payloads, scalingPayload)
+	}
+
+
+
+*/

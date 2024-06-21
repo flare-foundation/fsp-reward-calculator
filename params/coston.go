@@ -1,12 +1,11 @@
 package params
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
+	"math/big"
 )
 
-var Coston = Network{
+var coston = Network{
 
 	Contracts: ContractAddresses{
 		FlareSystemsManager:     common.HexToAddress("0x85680Dd93755Fe5d0789773fd0896cEE51F9e358"),

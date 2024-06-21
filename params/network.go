@@ -2,6 +2,7 @@ package params
 
 import (
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -42,4 +43,17 @@ type Ftso struct {
 	MinimalRewardedNonConsensusDepositedSignaturesPerHashBips int
 	FinalizationVoterSelectionThresholdWeightBips             int
 	CappedStakingFeeBips                                      int
+}
+
+var Net Network
+
+func init() {
+	network := os.Getenv("NETWORK")
+	if network == "" {
+		network = "coston" // TODO: remove default
+	}
+	switch network {
+	case "coston":
+		Net = coston
+	}
 }

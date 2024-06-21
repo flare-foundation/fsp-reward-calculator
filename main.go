@@ -38,7 +38,10 @@ func main() {
 		return
 	}
 
-	printResults(allClaims, epoch)
+	merged := mergeClaims(allClaims)
+	logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
+
+	printResults(merged, epoch)
 }
 
 func printResults(records []RewardClaim, id types.EpochId) {
@@ -87,7 +90,6 @@ var (
 const totalPpm = 1000000
 
 type RewardClaim struct {
-	//Epoch       types.EpochId
 	//Round 	 types.RoundId
 	Beneficiary common.Address
 	Amount      *big.Int
@@ -112,8 +114,8 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 		return nil, errors.Wrap(err, "err fetching reward epoch")
 	}
 
-	windowStart := types.RoundId(uint64(re.StartRound) - params.Coston.Ftso.RandomGenerationBenchingWindow)
-	windowEnd := re.EndRound.Add(params.Coston.Ftso.FutureSecureRandomWindow)
+	windowStart := types.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
+	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
 
 	commitsByRound, err := getCommits(db, windowStart, windowEnd)
 	if err != nil {
@@ -223,7 +225,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	for i := re.StartRound; i < re.EndRound; i++ {
 		feedSelectionRandoms[i-re.StartRound] = results[i].Random.Value
 	}
-	// Random for last round is the first secure random from next reward epoch,
+	// Random for last round is the first secure random From next reward epoch,
 	// or nil if none found within a certain window.
 	if lastRandom != nil {
 		feedSelectionRandoms[re.EndRound-re.StartRound] = lastRandom.Value
@@ -286,11 +288,11 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 		}
 
 		signingReward := big.NewInt(0).Div(
-			bigTmp.Mul(totalReward.Amount, params.Coston.Ftso.SigningBips),
+			bigTmp.Mul(totalReward.Amount, params.Net.Ftso.SigningBips),
 			bigTotalBips,
 		)
 		finalizationReward := big.NewInt(0).Div(
-			bigTmp.Mul(totalReward.Amount, params.Coston.Ftso.FinalizationBips),
+			bigTmp.Mul(totalReward.Amount, params.Net.Ftso.FinalizationBips),
 			bigTotalBips,
 		)
 		medianReward := big.NewInt(0).Sub(
@@ -330,7 +332,7 @@ type RewardShare struct {
 
 func calculateRandom(round types.RoundId, offendersByRound map[types.RoundId][]VoterSubmit, eligibleReveals map[VoterSubmit]*Reveal) RandomResult {
 	benchingWindowOffenders := map[VoterSubmit]bool{}
-	for i := types.RoundId(uint64(round) - params.Coston.Ftso.RandomGenerationBenchingWindow); i < round; i++ {
+	for i := types.RoundId(uint64(round) - params.Net.Ftso.RandomGenerationBenchingWindow); i < round; i++ {
 		for j := range offendersByRound[i] {
 			benchingWindowOffenders[offendersByRound[i][j]] = true
 		}
@@ -356,7 +358,7 @@ func calculateRandom(round types.RoundId, offendersByRound map[types.RoundId][]V
 	res := RandomResult{
 		Round:    round,
 		Value:    random,
-		IsSecure: nonBenchedOffenders == 0 && validCount >= params.Coston.Ftso.NonBenchedRandomVotersMinCount,
+		IsSecure: nonBenchedOffenders == 0 && validCount >= params.Net.Ftso.NonBenchedRandomVotersMinCount,
 	}
 	return res
 }

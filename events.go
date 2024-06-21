@@ -34,7 +34,7 @@ func QueryEvents[T interface{}](
 		searchIntervalStartSec, searchIntervalEndSec,
 	).Order("timestamp").Find(&logs).Error
 	if err != nil {
-		return nil, errors.Errorf("error fetching logs from DB: %s", err)
+		return nil, errors.Errorf("error fetching logs From DB: %s", err)
 	}
 
 	var parsedEvents []T
@@ -64,7 +64,7 @@ func GetVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]*registry.
 		db,
 		from,
 		to,
-		params.Coston.Contracts.VoterRegistry,
+		params.Net.Contracts.VoterRegistry,
 		utils.EventTopic0.VoterRegistered,
 		parse,
 	)
@@ -85,7 +85,7 @@ func GetVoterInfoEvents(db *gorm.DB, from uint64, to uint64) ([]*calculator.Calc
 		db,
 		from,
 		to,
-		params.Coston.Contracts.FlareSystemsCalculator,
+		params.Net.Contracts.FlareSystemsCalculator,
 		utils.EventTopic0.VoterRegistrationInfo,
 		parse,
 	)
@@ -106,7 +106,7 @@ func GetRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offers.Offers
 		db,
 		from,
 		to,
-		params.Coston.Contracts.FtsoRewardOffersManager,
+		params.Net.Contracts.FtsoRewardOffersManager,
 		utils.EventTopic0.RewardsOffered,
 		parse,
 	)
@@ -127,7 +127,7 @@ func GetInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offe
 		db,
 		from,
 		to,
-		params.Coston.Contracts.FtsoRewardOffersManager,
+		params.Net.Contracts.FtsoRewardOffersManager,
 		utils.EventTopic0.InflationRewardsOffered,
 		parse,
 	)
