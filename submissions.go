@@ -119,7 +119,7 @@ func getSignatures(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) 
 			signaturesByRound[round] = []*SignatureSubmission{}
 		}
 
-		signaturesByRound[round] = append(signaturesByRound[round], SignatureSubmission{
+		signaturesByRound[round] = append(signaturesByRound[round], &SignatureSubmission{
 			Signature: signature,
 			Info: TxInfo{
 				From:         common.HexToAddress(msg.From),

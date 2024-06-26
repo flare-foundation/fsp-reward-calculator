@@ -57,7 +57,7 @@ type Reveal struct {
 }
 
 type SignatureSubmission struct {
-	Signature Signature
+	Signature *Signature
 	Info      TxInfo
 }
 

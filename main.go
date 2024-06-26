@@ -144,10 +144,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 				continue
 			}
 
-			expected, err := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
-			if err != nil {
-				return nil, errors.Errorf("error computing reveal hash: %s", err)
-			}
+			expected := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
 
 			if expected.Cmp(commit.Hash) != 0 {
 				logger.Debug("voter %s reveal hash did not match commit: %s != %s", voter, expected.String(), commit.Hash.String())
@@ -223,12 +220,13 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 	feedSelectionRandoms := make([]*big.Int, totalRounds)
 	for i := re.StartRound; i < re.EndRound; i++ {
-		feedSelectionRandoms[i-re.StartRound] = results[i].Random.Value
+		feedSelectionRandoms[i-re.StartRound] = utils.FeedSelectionRandom(results[i].Random.Value, i)
 	}
 	// Random for last round is the first secure random From next reward epoch,
 	// or nil if none found within a certain window.
 	if lastRandom != nil {
-		feedSelectionRandoms[re.EndRound-re.StartRound] = lastRandom.Value
+		lastRound := re.EndRound - re.StartRound
+		feedSelectionRandoms[lastRound] = utils.FeedSelectionRandom(lastRandom.Value, lastRound)
 	}
 
 	// Calculate reward offer share for round
