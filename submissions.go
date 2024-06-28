@@ -153,7 +153,7 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 
 		finalization, err := DecodeFinalization(txn.Input[8:])
 		if err != nil {
-			logger.Debug("error parsing finalization, skipping: %s", err)
+			logger.Info("error parsing finalization, skipping: %+v", err)
 			continue
 		}
 		if finalization.merkleRoot.protocolId != FtsoScalingProtocolId {

@@ -8,6 +8,7 @@ import (
 	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 	"math"
 	"math/big"
@@ -182,7 +183,10 @@ func DecodeFinalization(message string) (*Finalization, error) {
 		// This is a new signing policy message, ignore
 		return nil, nil
 	}
-	merkleRoot, err := DecodeProtocolMerkleRoot(bytes[p : p+ProtocolMerkleRootBytes])
+
+	merkleRootBytes := bytes[p : p+ProtocolMerkleRootBytes]
+	merkleRootHash := crypto.Keccak256Hash(merkleRootBytes)
+	merkleRoot, err := DecodeProtocolMerkleRoot(merkleRootBytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding protocol merkle merkleRoot")
 	}
@@ -190,16 +194,47 @@ func DecodeFinalization(message string) (*Finalization, error) {
 
 	signatureCount := int(binary.BigEndian.Uint16(bytes[p : p+2]))
 	p += 2
+
+	if signatureCount > len(policy.Voters.VoterDataMap) {
+		return nil, errors.Errorf("signature count %d exceeds number of signing policy voters %d", signatureCount, len(policy.Voters.VoterDataMap))
+	}
+
 	signatures := make([]ECDSASignature, signatureCount)
+	signatureWeight := uint16(0)
 	for i := 0; i < signatureCount; i++ {
-		signatures[i].V = bytes[p]
+		v := bytes[p]
 		p++
-		copy(signatures[i].R[:], bytes[p:p+32])
+		r := bytes[p : p+32]
 		p += 32
-		copy(signatures[i].S[:], bytes[p:p+32])
+		s := bytes[p : p+32]
 		p += 32
-		signatures[i].index = binary.BigEndian.Uint16(bytes[p : p+2])
+		index := binary.BigEndian.Uint16(bytes[p : p+2])
 		p += 2
+
+		if i > 0 && index <= signatures[i-1].index {
+			return nil, errors.Errorf("signature index %d is not greater than previous index %d", signatures[i].index, signatures[i-1].index)
+		}
+
+		signature := append(r, s...)
+
+		actualSigner, err := crypto.SigToPub(
+			merkleRootHash.Bytes(),
+			append(signature[:], v-27),
+		)
+		if err != nil {
+			return nil, errors.Wrap(err, "error recovering signer from signature")
+		}
+		expectedSigner := policy.Voters.Voters[index]
+
+		if expectedSigner != crypto.PubkeyToAddress(*actualSigner) {
+			return nil, errors.Errorf("signature at index %d does not match expected signer: %s", index, expectedSigner)
+		}
+
+		signatureWeight += policy.Voters.Weights[index]
+	}
+
+	if signatureWeight <= policy.Threshold {
+		return nil, errors.Errorf("total signature weight %d is less than threshold %d", signatureWeight, policy.Threshold)
 	}
 
 	return &Finalization{
