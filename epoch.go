@@ -37,7 +37,7 @@ type VoterInfo struct {
 	Identity          VoterId
 	Submit            VoterSubmit
 	SubmitSignatures  VoterSubmitSignatures
-	SigningPolicy     common.Address
+	Signing           VoterSigning
 	Delegation        VoterDelegation
 	cappedWeight      *big.Int
 	delegationFeeBips uint16
@@ -222,7 +222,7 @@ func getVoters(db *gorm.DB, epoch types.EpochId, fromSec, toSec uint64) (*VoterI
 			Identity:          VoterId(regs[i].Voter),
 			Submit:            VoterSubmit(regs[i].SubmitAddress),
 			SubmitSignatures:  VoterSubmitSignatures(regs[i].SubmitSignaturesAddress),
-			SigningPolicy:     regs[i].SigningPolicyAddress,
+			Signing:           VoterSigning(regs[i].SigningPolicyAddress),
 			Delegation:        VoterDelegation(infos[i].DelegationAddress),
 			cappedWeight:      infos[i].WNatCappedWeight,
 			delegationFeeBips: infos[i].DelegationFeeBIPS,
@@ -237,29 +237,38 @@ func getVoters(db *gorm.DB, epoch types.EpochId, fromSec, toSec uint64) (*VoterI
 type VoterId common.Address
 type VoterSubmit common.Address
 type VoterSubmitSignatures common.Address
+type VoterSigning common.Address
 type VoterDelegation common.Address
 
 type VoterIndex struct {
-	byId              map[VoterId]*VoterInfo
-	bySubmit          map[VoterSubmit]*VoterInfo
-	byDelegation      map[VoterDelegation]*VoterInfo
-	totalCappedWeight *big.Int
+	byId               map[VoterId]*VoterInfo
+	bySubmit           map[VoterSubmit]*VoterInfo
+	bySubmitSignatures map[VoterSubmitSignatures]*VoterInfo
+	bySigning          map[VoterSigning]*VoterInfo
+	byDelegation       map[VoterDelegation]*VoterInfo
+	totalCappedWeight  *big.Int
 }
 
 func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
 	byId := make(map[VoterId]*VoterInfo)
 	bySubmit := make(map[VoterSubmit]*VoterInfo)
+	bySubmitSignatures := make(map[VoterSubmitSignatures]*VoterInfo)
+	bySigning := make(map[VoterSigning]*VoterInfo)
 	for _, v := range voters {
-		bySubmit[v.Submit] = v
 		byId[v.Identity] = v
+		bySubmit[v.Submit] = v
+		bySubmitSignatures[v.SubmitSignatures] = v
+		bySigning[v.Signing] = v
 	}
 	totalCappedWeight := big.NewInt(0)
 	for _, v := range voters {
 		totalCappedWeight.Add(totalCappedWeight, v.cappedWeight)
 	}
 	return &VoterIndex{
-		byId:              byId,
-		bySubmit:          bySubmit,
-		totalCappedWeight: totalCappedWeight,
+		byId:               byId,
+		bySubmit:           bySubmit,
+		bySubmitSignatures: bySubmitSignatures,
+		bySigning:          bySigning,
+		totalCappedWeight:  totalCappedWeight,
 	}
 }

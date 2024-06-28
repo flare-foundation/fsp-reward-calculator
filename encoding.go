@@ -173,12 +173,11 @@ func DecodeFinalization(message string) (*Finalization, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "message is not a valid hex string: %s", message)
 	}
-	policy, p, err := DecodeSigningPolicy(bytes)
+	policy, p, err := DecodeSigningPolicy(bytes[:])
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding signing policy")
 	}
-	protocol := DecodeUint32(bytes[p : p+2])
-	p += 2
+	protocol := bytes[p] // We peek ahead to the protocol ID but don't process it
 	if protocol == 0 {
 		// This is a new signing policy message, ignore
 		return nil, nil
@@ -214,9 +213,9 @@ func DecodeSigningPolicy(bytes []byte) (*policy.SigningPolicy, int, error) {
 	p := 0
 	size := int(DecodeUint32(bytes[p : p+2]))
 	p += 2
-	expectedLength := 86 + size*(20+2)*2
-	if len(bytes) != expectedLength {
-		return nil, p, errors.Errorf("invalid message length for signing policy: expected %d, got %d", expectedLength, len(bytes))
+	expectedLength := 43 + size*(common.AddressLength+2)
+	if len(bytes) < expectedLength {
+		return nil, p, errors.Errorf("message to short for decoding signing policy: expected >=%d, got %d", expectedLength, len(bytes))
 	}
 
 	epoch := DecodeUint32(bytes[p : p+3])
@@ -251,7 +250,7 @@ func DecodeSigningPolicy(bytes []byte) (*policy.SigningPolicy, int, error) {
 		StartVotingRoundId: startingRound,
 		Threshold:          threshold,
 		Seed:               new(big.Int).SetBytes(seed[:]),
-		RawBytes:           bytes,
+		RawBytes:           bytes[:p],
 		BlockTimestamp:     0,
 		Voters:             policy.NewVoterSet(signers, weights),
 	}, p, nil
