@@ -28,6 +28,7 @@ type FunctionSigs struct {
 	Submit1          [4]byte
 	Submit2          [4]byte
 	SubmitSignatures [4]byte
+	Relay            [4]byte
 }
 
 var EventTopic0 = EventIds{
@@ -47,6 +48,7 @@ var FunctionSignatures = FunctionSigs{
 	Submit1:          functionSigFromMetadata(submission.SubmissionMetaData, "submit1"),
 	Submit2:          functionSigFromMetadata(submission.SubmissionMetaData, "submit2"),
 	SubmitSignatures: functionSigFromMetadata(submission.SubmissionMetaData, "submitSignatures"),
+	Relay:            functionSigFromMetadata(relay.RelayMetaData, "relay"),
 }
 
 func eventIDFromMetadata(metaData *bind.MetaData, eventName string) string {
