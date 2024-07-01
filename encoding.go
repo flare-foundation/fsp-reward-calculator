@@ -7,6 +7,7 @@ import (
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/types"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
@@ -185,7 +186,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 	}
 
 	merkleRootBytes := bytes[p : p+ProtocolMerkleRootBytes]
-	merkleRootHash := crypto.Keccak256Hash(merkleRootBytes)
+	merkleRootHash := accounts.TextHash(crypto.Keccak256(merkleRootBytes))
 	merkleRoot, err := DecodeProtocolMerkleRoot(merkleRootBytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding protocol merkle merkleRoot")
@@ -201,13 +202,13 @@ func DecodeFinalization(message string) (*Finalization, error) {
 
 	signatures := make([]ECDSASignature, signatureCount)
 	signatureWeight := uint16(0)
+
+	rawSig := make([]byte, 65)
 	for i := 0; i < signatureCount; i++ {
-		v := bytes[p]
+		rawSig[64] = bytes[p] - 27
 		p++
-		r := bytes[p : p+32]
-		p += 32
-		s := bytes[p : p+32]
-		p += 32
+		copy(rawSig, bytes[p:p+64])
+		p += 64
 		index := binary.BigEndian.Uint16(bytes[p : p+2])
 		p += 2
 
@@ -215,11 +216,9 @@ func DecodeFinalization(message string) (*Finalization, error) {
 			return nil, errors.Errorf("signature index %d is not greater than previous index %d", signatures[i].index, signatures[i-1].index)
 		}
 
-		signature := append(r, s...)
-
 		actualSigner, err := crypto.SigToPub(
-			merkleRootHash.Bytes(),
-			append(signature[:], v-27),
+			merkleRootHash,
+			rawSig,
 		)
 		if err != nil {
 			return nil, errors.Wrap(err, "error recovering signer from signature")
@@ -227,7 +226,9 @@ func DecodeFinalization(message string) (*Finalization, error) {
 		expectedSigner := policy.Voters.Voters[index]
 
 		if expectedSigner != crypto.PubkeyToAddress(*actualSigner) {
-			return nil, errors.Errorf("signature at index %d does not match expected signer: %s", index, expectedSigner)
+			logger.Info("signature at index %d does not match expected signer: %s", index, expectedSigner)
+			continue
+			//return nil, errors.Errorf("signature at index %d does not match expected signer: %s", index, expectedSigner)
 		}
 
 		signatureWeight += policy.Voters.Weights[index]
