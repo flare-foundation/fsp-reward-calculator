@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 	"math/big"
 	"os"
+	"slices"
 )
 
 func main() {
@@ -115,10 +116,6 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	if err != nil {
 		return nil, errors.Wrap(err, "err fetching reward epoch")
 	}
-
-	getFinalz(db, re)
-
-	os.Exit(0)
 
 	windowStart := types.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
 	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
@@ -284,6 +281,17 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 		return nil, errors.Wrap(err, "error calculating signers")
 	}
 
+	signers, err := getSigners(db, re)
+	if err != nil {
+		return nil, errors.Wrap(err, "error calculating signers")
+	}
+
+	finalz, err := getFinalz(db, re)
+	if err != nil {
+		return nil, errors.Wrap(err, "err fetching finalizations")
+	}
+	logger.Info("Got finalizations: %d", len(finalz))
+
 	// Calculate reward claims
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		totalReward := roundRewards[round]
@@ -322,10 +330,35 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 			eligibleVoters = append(eligibleVoters, voter)
 		}
 
+		signingClaims := calcSigningRewardClaims(round, re, signingReward, eligibleVoters, signers[round], finalz[round])
+
 		logger.Info("Round: %d, computed median claims: %d", round, len(medianClaims))
 	}
 
 	return epochClaims, nil
+}
+
+func calcSigningRewardClaims(
+	round types.RoundId,
+	re RewardEpoch,
+	reward *big.Int,
+	voters []*VoterInfo,
+	signers map[common.Hash]map[VoterSigning]SigInfo,
+	finalz []*Finalization,
+) interface{} {
+
+	doubleSigners := getDoubleSigners(signers)
+
+	// TODO: Pre-compute
+	successIndex := slices.IndexFunc(finalz, func(f *Finalization) bool {
+		return f.Info.Reverted == false
+	})
+
+	if successIndex < 0 {
+		deadline := params.Net.Epoch.VotingRoundEndSec(round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
+
+	}
+
 }
 
 type SignerMap map[types.RoundId]map[common.Hash]map[VoterSigning]SigInfo
@@ -396,31 +429,45 @@ func getDoubleSigners(roundSigners map[common.Hash]map[VoterSigning]SigInfo) []V
 	return doubleSigners
 }
 
-func getFinalz(db *gorm.DB, re RewardEpoch) (*Finalization, error) {
-	allFinalizations, err := getFinalizations(db, re.StartRound, re.EndRound)
+func getFinalz(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*Finalization, error) {
+	allFinalizationsByRound, err := getFinalizations(db, re.StartRound, re.EndRound)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching finalizations")
 	}
 
-	logger.Info("Finalizations: %d", len(allFinalizations))
+	logger.Info("Finalizations: %d", len(allFinalizationsByRound))
 
-	for _, finalizations := range allFinalizations {
+	finalizationsByRound := make(map[types.RoundId][]*Finalization)
+
+	var firstSuccessful *Finalization
+	for round, finalizations := range allFinalizationsByRound {
+		seenSender := map[common.Address]bool{}
 		for _, finalization := range finalizations {
-
 			if types.EpochId(finalization.Policy.RewardEpochId) != re.Epoch {
-				logger.Debug("finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
+				logger.Info("finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
 				continue
 			}
 
 			if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.SigningPolicyBytes) {
-				logger.Debug("finalization signing policy does not match expected, skipping")
+				logger.Info("finalization signing policy does not match expected, skipping")
 				continue
 			}
 
-		}
+			if _, ok := seenSender[finalization.Info.From]; ok {
+				logger.Info("finalization from %s already seen, skipping", finalization.Info.From)
+				continue
+			} else {
+				seenSender[finalization.Info.From] = true
+			}
 
+			if firstSuccessful == nil && !finalization.Info.Reverted {
+				firstSuccessful = finalization
+			}
+
+			finalizationsByRound[round] = append(finalizationsByRound[round], finalization)
+		}
 	}
-	return nil, nil
+	return finalizationsByRound, nil
 }
 
 type FeedReward struct {

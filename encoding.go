@@ -164,10 +164,10 @@ func DecodeSignature(message string) (*Signature, error) {
 }
 
 type ECDSASignature struct {
-	V     byte
-	R     [32]byte
-	S     [32]byte
-	index uint16
+	V           byte
+	R           [32]byte
+	S           [32]byte
+	signerIndex uint16
 }
 
 func DecodeFinalization(message string) (*Finalization, error) {
@@ -179,7 +179,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding signing policy")
 	}
-	protocol := bytes[p] // We peek ahead to the protocol ID but don't process it
+	protocol := bytes[p] // Peek ahead to the protocol ID but don't process it
 	if protocol == 0 {
 		// This is a new signing policy message, ignore
 		return nil, nil
@@ -212,8 +212,8 @@ func DecodeFinalization(message string) (*Finalization, error) {
 		index := binary.BigEndian.Uint16(bytes[p : p+2])
 		p += 2
 
-		if i > 0 && index <= signatures[i-1].index {
-			return nil, errors.Errorf("signature index %d is not greater than previous index %d", signatures[i].index, signatures[i-1].index)
+		if i > 0 && index <= signatures[i-1].signerIndex {
+			return nil, errors.Errorf("signature index %d is not greater than previous index %d", signatures[i].signerIndex, signatures[i-1].signerIndex)
 		}
 
 		actualSigner, err := crypto.SigToPub(
@@ -221,14 +221,14 @@ func DecodeFinalization(message string) (*Finalization, error) {
 			rawSig,
 		)
 		if err != nil {
-			return nil, errors.Wrap(err, "error recovering signer from signature")
+			logger.Info("error recovering signer from signature: ", err)
+			continue
 		}
 		expectedSigner := policy.Voters.Voters[index]
 
 		if expectedSigner != crypto.PubkeyToAddress(*actualSigner) {
 			logger.Info("signature at index %d does not match expected signer: %s", index, expectedSigner)
 			continue
-			//return nil, errors.Errorf("signature at index %d does not match expected signer: %s", index, expectedSigner)
 		}
 
 		signatureWeight += policy.Voters.Weights[index]
