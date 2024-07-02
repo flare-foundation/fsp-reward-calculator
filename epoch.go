@@ -3,6 +3,7 @@ package main
 import (
 	"flare-common/contracts/offers"
 	"flare-common/contracts/relay"
+	"flare-common/policy"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/types"
@@ -20,7 +21,7 @@ type RewardEpoch struct {
 	Epoch        types.EpochId
 	StartRound   types.RoundId
 	EndRound     types.RoundId
-	Policy       *relay.RelaySigningPolicyInitialized
+	Policy       *policy.SigningPolicy
 	Offers       RewardOffers
 	OrderedFeeds []Feed
 	Voters       *VoterIndex
@@ -63,13 +64,13 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		return RewardEpoch{}, errors.Errorf("error fetching signing policy events: %s", err)
 	}
 
-	var policy *relay.RelaySigningPolicyInitialized
+	var policyEvent *relay.RelaySigningPolicyInitialized
 	var startRound types.RoundId
 	var endRound types.RoundId
 
 	for _, event := range policies {
 		if event.RewardEpochId.Uint64() == uint64(epoch) {
-			policy = event
+			policyEvent = event
 			startRound = types.RoundId(event.StartVotingRoundId)
 		}
 		if event.RewardEpochId.Uint64() == uint64(epoch)+1 {
@@ -77,7 +78,7 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		}
 	}
 
-	if policy == nil {
+	if policyEvent == nil {
 		return RewardEpoch{}, errors.Errorf("no signing policy found for epoch %d", epoch)
 	}
 	if endRound == 0 {
@@ -111,7 +112,7 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		Epoch:        epoch,
 		StartRound:   startRound,
 		EndRound:     endRound,
-		Policy:       policy,
+		Policy:       policy.NewSigningPolicy(policyEvent),
 		Offers:       rewardOffers,
 		OrderedFeeds: feeds,
 		Voters:       voters,

@@ -344,21 +344,113 @@ func calcSigningRewardClaims(
 	reward *big.Int,
 	voters []*VoterInfo,
 	signers map[common.Hash]map[VoterSigning]SigInfo,
-	finalz []*Finalization,
+	finalizations []*Finalization,
 ) interface{} {
 
 	doubleSigners := getDoubleSigners(signers)
 
+	revealDeadline := params.Net.Epoch.RevealDeadlineSec(round + 1)
+	roundEnd := params.Net.Epoch.VotingRoundEndSec(
+		round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows),
+	)
+
+	acceptedSigs := map[common.Hash]map[VoterSigning]SigInfo{}
+	for hash, sigs := range signers {
+		acceptedSigs[hash] = map[VoterSigning]SigInfo{}
+		for signer, sig := range sigs {
+			if sig.Timestamp < revealDeadline || sig.Timestamp > roundEnd {
+				continue
+			}
+			acceptedSigs[hash][signer] = sig
+		}
+	}
+
+	var rewardEligibleSigs []SigInfo
+
 	// TODO: Pre-compute
-	successIndex := slices.IndexFunc(finalz, func(f *Finalization) bool {
+	successIndex := slices.IndexFunc(finalizations, func(f *Finalization) bool {
 		return f.Info.Reverted == false
 	})
 
 	if successIndex < 0 {
-		deadline := params.Net.Epoch.VotingRoundEndSec(round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
+		signatures := acceptedHashSignatures(re, acceptedSigs)
+		if signatures == nil {
+			return burnClaim(reward)
+		} else {
+			for _, s := range signatures {
+				if _, ok := doubleSigners[s.Signer]; !ok {
+					rewardEligibleSigs = append(rewardEligibleSigs, s)
+				}
+			}
+		}
+	} else {
+		successfulFinalization := finalizations[successIndex]
 
+		deadline := min(
+			successfulFinalization.Info.TimestampSec,
+			roundEnd,
+		)
+		gracePeriod := revealDeadline + params.Net.Ftso.GracePeriodForSignaturesDurationSec
+
+		for _, s := range acceptedSigs[successfulFinalization.merkleRoot.hash] {
+			if _, ok := doubleSigners[s.Signer]; ok {
+				continue
+			}
+
+			if s.Timestamp <= gracePeriod || s.Timestamp <= deadline {
+				rewardEligibleSigs = append(rewardEligibleSigs, s)
+			}
+		}
 	}
 
+	// Distribute rewards
+
+	remainingWeight := uint16(0)
+	for _, sig := range rewardEligibleSigs {
+		remainingWeight += re.Policy.Voters.VoterDataMap[common.Address(sig.Signer)].Weight
+	}
+
+	if remainingWeight == 0 {
+		return burnClaim(reward)
+	}
+
+	remainingAmount := big.NewInt(0).Set(reward)
+
+	var claims []RewardClaim
+
+	return nil
+}
+
+func burnClaim(amount *big.Int) RewardClaim {
+	return RewardClaim{
+		Beneficiary: BurnAddress,
+		Amount:      amount,
+		Type:        Direct,
+	}
+}
+
+func acceptedHashSignatures(
+	re RewardEpoch,
+	signaturesByHash map[common.Hash]map[VoterSigning]SigInfo,
+) map[VoterSigning]SigInfo {
+	threshold := re.Policy.Voters.TotalWeight * params.Net.Ftso.MinimalRewardedNonConsensusDepositedSignaturesPerHashBips / totalBips
+
+	maxWeight := uint16(0)
+	var result map[VoterSigning]SigInfo
+
+	for _, signatures := range signaturesByHash {
+		hashWeight := uint16(0)
+		for _, info := range signatures {
+			signerWeight := re.Policy.Voters.VoterDataMap[common.Address(info.Signer)].Weight
+			hashWeight += signerWeight
+		}
+		if hashWeight > threshold && hashWeight > maxWeight {
+			maxWeight = hashWeight
+			result = signatures
+		}
+	}
+
+	return result
 }
 
 type SignerMap map[types.RoundId]map[common.Hash]map[VoterSigning]SigInfo
@@ -413,14 +505,14 @@ func getSigners(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
 	return signers, nil
 }
 
-func getDoubleSigners(roundSigners map[common.Hash]map[VoterSigning]SigInfo) []VoterSigning {
+func getDoubleSigners(roundSigners map[common.Hash]map[VoterSigning]SigInfo) map[VoterSigning]bool {
 	signed := map[VoterSigning]bool{}
-	var doubleSigners []VoterSigning
+	doubleSigners := map[VoterSigning]bool{}
 
 	for _, signers := range roundSigners {
 		for signer := range signers {
 			if _, ok := signed[signer]; ok {
-				doubleSigners = append(doubleSigners, signer)
+				doubleSigners[signer] = true
 			}
 			signed[signer] = true
 		}
@@ -448,7 +540,7 @@ func getFinalz(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*Finalization, 
 				continue
 			}
 
-			if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.SigningPolicyBytes) {
+			if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.RawBytes) {
 				logger.Info("finalization signing policy does not match expected, skipping")
 				continue
 			}
