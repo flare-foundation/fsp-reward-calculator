@@ -168,7 +168,7 @@ func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips ui
 func generateClaimsForVoter(voter *VoterInfo, reward *big.Int, offer FeedReward) []RewardClaim {
 	var claims []RewardClaim
 
-	voterFee := voter.delegationFeeBips
+	voterFee := voter.DelegationFeeBips
 	fee := big.NewInt(0).Div(
 		bigTmp.Mul(
 			reward,

@@ -33,7 +33,7 @@ func main() {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
 
-	epoch := types.EpochId(2745)
+	epoch := types.EpochId(2790)
 
 	allClaims, err := calculateRewardClaims(db, epoch)
 	if err != nil {
@@ -124,7 +124,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	if err != nil {
 		return nil, errors.Errorf("error fetching commitsByRound: %s", err)
 	}
-	revealsByRound, err := getReveals(db, re.StartRound, windowEnd)
+	revealsByRound, err := getReveals(db, windowStart, windowEnd)
 	if err != nil {
 		return nil, errors.Errorf("error fetching revealsByRound: %s", err)
 	}
@@ -150,7 +150,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 			expected := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
 
 			if expected.Cmp(commit.Hash) != 0 {
-				logger.Debug("voter %s reveal hash did not match commit: %s != %s", voter, expected.String(), commit.Hash.String())
+				logger.Debug("voter %s reveal hash did not match commit: %s != %s", common.Address(voter), expected.String(), commit.Hash.String())
 				offenders = append(offenders, voter)
 				continue
 			}
@@ -332,7 +332,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 		signingClaims := calcSigningRewardClaims(round, re, signingReward, eligibleVoters, signers[round], finalz[round])
 
-		logger.Info("Round: %d, computed median claims: %d", round, len(medianClaims))
+		logger.Info("Round: %d, computed median claims: %d, signing claims: %d", round, len(medianClaims), len(signingClaims))
 	}
 
 	return epochClaims, nil
@@ -342,11 +342,10 @@ func calcSigningRewardClaims(
 	round types.RoundId,
 	re RewardEpoch,
 	reward *big.Int,
-	voters []*VoterInfo,
+	eligibleVoters []*VoterInfo,
 	signers map[common.Hash]map[VoterSigning]SigInfo,
 	finalizations []*Finalization,
-) interface{} {
-
+) []RewardClaim {
 	doubleSigners := getDoubleSigners(signers)
 
 	revealDeadline := params.Net.Epoch.RevealDeadlineSec(round + 1)
@@ -375,7 +374,7 @@ func calcSigningRewardClaims(
 	if successIndex < 0 {
 		signatures := acceptedHashSignatures(re, acceptedSigs)
 		if signatures == nil {
-			return burnClaim(reward)
+			return []RewardClaim{burnClaim(reward)}
 		} else {
 			for _, s := range signatures {
 				if _, ok := doubleSigners[s.Signer]; !ok {
@@ -404,21 +403,122 @@ func calcSigningRewardClaims(
 	}
 
 	// Distribute rewards
-
 	remainingWeight := uint16(0)
 	for _, sig := range rewardEligibleSigs {
 		remainingWeight += re.Policy.Voters.VoterDataMap[common.Address(sig.Signer)].Weight
 	}
 
 	if remainingWeight == 0 {
-		return burnClaim(reward)
+		return []RewardClaim{burnClaim(reward)}
 	}
-
 	remainingAmount := big.NewInt(0).Set(reward)
 
 	var claims []RewardClaim
+	// Sort signatures according to voter order in signing policy
+	slices.SortFunc(rewardEligibleSigs, func(i, j SigInfo) int {
+		indexI := re.Policy.Voters.VoterDataMap[common.Address(i.Signer)].Index
+		indexJ := re.Policy.Voters.VoterDataMap[common.Address(j.Signer)].Index
+		return indexI - indexJ
+	})
 
-	return nil
+	eligibleSigners := map[VoterSigning]*VoterInfo{}
+	for _, voter := range eligibleVoters {
+		eligibleSigners[voter.Signing] = voter
+	}
+
+	for _, sig := range rewardEligibleSigs {
+		weight := re.Policy.Voters.VoterDataMap[common.Address(sig.Signer)].Weight
+		if weight == 0 {
+			continue
+		}
+
+		// TODO: clean up big.Int calculations
+		claimAmount := big.NewInt(0).Div(
+			bigTmp.Mul(remainingAmount, big.NewInt(int64(weight))),
+			big.NewInt(int64(remainingWeight)),
+		)
+
+		remainingAmount.Sub(remainingAmount, claimAmount)
+		remainingWeight -= weight
+
+		if voter, ok := eligibleSigners[sig.Signer]; ok {
+			claims = append(claims, claimsForVoter(voter, claimAmount)...)
+		} else {
+			claims = append(claims, burnClaim(claimAmount))
+		}
+	}
+
+	return claims
+}
+
+func claimsForVoter(voter *VoterInfo, claimAmount *big.Int) []RewardClaim {
+	var claims []RewardClaim
+	stakedWeight := big.NewInt(0)
+	for _, w := range voter.NodeWeights {
+		stakedWeight.Add(stakedWeight, w)
+	}
+
+	totalWeight := big.NewInt(0).Add(voter.CappedWeight, stakedWeight)
+	// TODO: can totalWeight be 0?
+
+	stakingAmount := big.NewInt(0).Div(
+		bigTmp.Mul(claimAmount, stakedWeight),
+		totalWeight,
+	)
+	delegationAmount := big.NewInt(0).Sub(claimAmount, stakingAmount)
+	delegationFee := big.NewInt(0).Div(
+		bigTmp.Mul(delegationAmount, big.NewInt(int64(voter.DelegationFeeBips))),
+		bigTotalBips,
+	)
+
+	cappedStakingFeeBips := big.NewInt(min(int64(voter.DelegationFeeBips), params.Net.Ftso.CappedStakingFeeBips))
+	stakingFeeAmount := big.NewInt(0).Div(
+		bigTmp.Mul(stakingAmount, cappedStakingFeeBips),
+		bigTotalBips,
+	)
+
+	feeBeneficiary := common.Address(voter.Identity)
+	delegationBeneficiary := common.Address(voter.Delegation)
+
+	fee := big.NewInt(0).Add(delegationFee, stakingFeeAmount)
+	if fee.Cmp(bigZero) != 0 {
+		claims = append(claims, RewardClaim{
+			Beneficiary: feeBeneficiary,
+			Amount:      fee,
+			Type:        Fee,
+		})
+	}
+
+	delegationCommunityReward := big.NewInt(0).Sub(delegationAmount, delegationFee)
+	claims = append(claims, RewardClaim{
+		Beneficiary: delegationBeneficiary,
+		Amount:      delegationCommunityReward,
+		Type:        WNat,
+	})
+
+	remainingStakeWeight := big.NewInt(0).Set(stakedWeight)
+	remainingStakeAmount := big.NewInt(0).Sub(stakingAmount, stakingFeeAmount)
+	for i := range voter.NodeIds {
+		nodeId := voter.NodeIds[i]
+		nodeWeight := voter.NodeWeights[i]
+		if nodeWeight.Cmp(bigZero) <= 0 {
+			continue
+		}
+
+		nodeAmount := big.NewInt(0).Div(
+			bigTmp.Mul(remainingStakeAmount, nodeWeight),
+			remainingStakeWeight,
+		)
+		remainingStakeWeight.Sub(remainingStakeWeight, nodeWeight)
+		remainingStakeAmount.Sub(remainingStakeAmount, nodeAmount)
+
+		claims = append(claims, RewardClaim{
+			Beneficiary: nodeId,
+			Amount:      nodeAmount,
+			Type:        Mirror,
+		})
+	}
+	return claims
 }
 
 func burnClaim(amount *big.Int) RewardClaim {
@@ -613,7 +713,7 @@ func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) 
 
 		for voterSubmit, values := range validReveals {
 			feedValue := values[feedIndex]
-			weight := re.Voters.bySubmit[voterSubmit].cappedWeight
+			weight := re.Voters.bySubmit[voterSubmit].CappedWeight
 			if feedValue.isEmpty || weight == nil {
 				continue
 			}

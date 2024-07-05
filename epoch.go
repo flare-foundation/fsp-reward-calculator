@@ -40,8 +40,10 @@ type VoterInfo struct {
 	SubmitSignatures  VoterSubmitSignatures
 	Signing           VoterSigning
 	Delegation        VoterDelegation
-	cappedWeight      *big.Int
-	delegationFeeBips uint16
+	CappedWeight      *big.Int
+	DelegationFeeBips uint16
+	NodeIds           [][20]byte
+	NodeWeights       []*big.Int
 }
 
 // TODO: Use proper timings for event search instead of approximate
@@ -225,8 +227,10 @@ func getVoters(db *gorm.DB, epoch types.EpochId, fromSec, toSec uint64) (*VoterI
 			SubmitSignatures:  VoterSubmitSignatures(regs[i].SubmitSignaturesAddress),
 			Signing:           VoterSigning(regs[i].SigningPolicyAddress),
 			Delegation:        VoterDelegation(infos[i].DelegationAddress),
-			cappedWeight:      infos[i].WNatCappedWeight,
-			delegationFeeBips: infos[i].DelegationFeeBIPS,
+			CappedWeight:      infos[i].WNatCappedWeight,
+			DelegationFeeBips: infos[i].DelegationFeeBIPS,
+			NodeIds:           infos[i].NodeIds,
+			NodeWeights:       infos[i].NodeWeights,
 		})
 
 		logger.Info("voter %s, submit %s, submit signatures %s, signing policy %s", regs[i].Voter.String(), regs[i].SubmitAddress.String(), regs[i].SubmitSignaturesAddress.String(), regs[i].SigningPolicyAddress.String())
@@ -263,7 +267,7 @@ func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
 	}
 	totalCappedWeight := big.NewInt(0)
 	for _, v := range voters {
-		totalCappedWeight.Add(totalCappedWeight, v.cappedWeight)
+		totalCappedWeight.Add(totalCappedWeight, v.CappedWeight)
 	}
 	return &VoterIndex{
 		byId:               byId,

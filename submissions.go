@@ -36,9 +36,9 @@ func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 	var commitsByRound = map[types.RoundId]map[VoterSubmit]*Commit{}
 	for _, msg := range msgs {
 		round := types.RoundId(msg.VotingRound)
-		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
-		if round != expectedRound {
-			logger.Debug("commit round %d does not match expected round %d, skipping", round, expectedRound)
+		submitRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
+		if round != submitRound {
+			logger.Debug("commit round %d does not match expected round %d, skipping", round, submitRound)
 			continue
 		}
 
@@ -61,8 +61,8 @@ func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 
 // getReveals retrieves the last reveal submission for voter for each round in the given range
 func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]map[VoterSubmit]*Reveal, error) {
-	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
+	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
+	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1))
 
 	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit2, submissionContractAddress)
 	if err != nil {
@@ -72,10 +72,16 @@ func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 	var revealsByRound = map[types.RoundId]map[VoterSubmit]*Reveal{}
 	for _, msg := range msgs {
 		round := types.RoundId(msg.VotingRound)
-		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp) - 1
-		if round != expectedRound {
-			logger.Debug("reveal round %d does not match expected round %d, skipping", round, expectedRound)
+		submitRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
+		if round != submitRound.Add(-1) {
+			logger.Debug("reveal round %d does not match expected round %d, skipping", round, submitRound.Add(-1))
 			continue
+		}
+
+		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitRound) {
+			// TODO: all seem to fail here??
+			logger.Debug("reveal from %s too late", common.HexToAddress(msg.From))
+			//continue
 		}
 
 		reveal, err := DecodeReveal(msg.Payload)
@@ -167,6 +173,13 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 
 		if _, ok := finalizationsByRound[expectedRound]; !ok {
 			finalizationsByRound[expectedRound] = []*Finalization{}
+		}
+
+		// TODO: Clean up filling in tx info: should be done on creation
+		finalization.Info = TxInfo{
+			From:         common.HexToAddress(txn.FromAddress),
+			TimestampSec: txn.Timestamp,
+			Reverted:     txn.Status > 0,
 		}
 
 		finalizationsByRound[expectedRound] = append(finalizationsByRound[expectedRound], finalization)

@@ -49,7 +49,7 @@ var rndArgs = abi.Arguments{
 }
 
 func FeedSelectionRandom(random *big.Int, round types.RoundId) *big.Int {
-	encoded, err := rndArgs.Pack(random, round)
+	encoded, err := rndArgs.Pack(random, big.NewInt(int64(round)))
 	if err != nil {
 		logger.Fatal("error packing arguments %d, %v: %s", round, random, err)
 	}

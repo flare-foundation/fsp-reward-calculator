@@ -42,7 +42,7 @@ type Ftso struct {
 
 	MinimalRewardedNonConsensusDepositedSignaturesPerHashBips uint16
 	FinalizationVoterSelectionThresholdWeightBips             int
-	CappedStakingFeeBips                                      int
+	CappedStakingFeeBips                                      int64
 }
 
 var Net Network
