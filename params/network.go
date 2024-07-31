@@ -35,13 +35,13 @@ type Ftso struct {
 	AdditionalRewardFinalizationWindows   int
 	PenaltyFactor                         *big.Int
 	GracePeriodForSignaturesDurationSec   uint64
-	GracePeriodForFinalizationDurationSec int
+	GracePeriodForFinalizationDurationSec uint64
 
 	SigningBips      *big.Int
 	FinalizationBips *big.Int
 
 	MinimalRewardedNonConsensusDepositedSignaturesPerHashBips uint16
-	FinalizationVoterSelectionThresholdWeightBips             int
+	FinalizationVoterSelectionThresholdWeightBips             uint16
 	CappedStakingFeeBips                                      int64
 }
 

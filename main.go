@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"flare-common/database"
+	"flare-common/policy"
 	"fmt"
+	voters "ftsov2-rewarding/lib"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/types"
@@ -33,7 +35,7 @@ func main() {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
 
-	epoch := types.EpochId(2790)
+	epoch := types.EpochId(2960)
 
 	allClaims, err := calculateRewardClaims(db, epoch)
 	if err != nil {
@@ -44,7 +46,7 @@ func main() {
 	merged := mergeClaims(allClaims)
 	logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
 
-	printResults(merged, epoch)
+	printResults(allClaims, epoch)
 }
 
 func printResults(records []RewardClaim, id types.EpochId) {
@@ -294,30 +296,30 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 	// Calculate reward claims
 	for round := re.StartRound; round <= re.EndRound; round++ {
-		totalReward := roundRewards[round]
-		if totalReward.ShouldBurn {
+		totalRoundReward := roundRewards[round]
+		if totalRoundReward.ShouldBurn {
 			epochClaims = append(epochClaims, RewardClaim{
 				Beneficiary: BurnAddress,
-				Amount:      big.NewInt(0).Set(totalReward.Amount),
+				Amount:      big.NewInt(0).Set(totalRoundReward.Amount),
 				Type:        Direct,
 			})
 			continue
 		}
 
 		signingReward := big.NewInt(0).Div(
-			bigTmp.Mul(totalReward.Amount, params.Net.Ftso.SigningBips),
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.SigningBips),
 			bigTotalBips,
 		)
 		finalizationReward := big.NewInt(0).Div(
-			bigTmp.Mul(totalReward.Amount, params.Net.Ftso.FinalizationBips),
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.FinalizationBips),
 			bigTotalBips,
 		)
 		medianReward := big.NewInt(0).Sub(
-			totalReward.Amount,
+			totalRoundReward.Amount,
 			bigTmp.Add(signingReward, finalizationReward),
 		)
 
-		medianClaims := calcMedianRewardClaims(round, re, medianReward, totalReward, results[round].Median[totalReward.Feed.Id])
+		medianClaims := calcMedianRewardClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
 		epochClaims = append(epochClaims, medianClaims...)
 
 		// Only voters receiving median rewards are eligible for signing and finalization rewards
@@ -332,10 +334,152 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 		signingClaims := calcSigningRewardClaims(round, re, signingReward, eligibleVoters, signers[round], finalz[round])
 
-		logger.Info("Round: %d, computed median claims: %d, signing claims: %d", round, len(medianClaims), len(signingClaims))
+		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+		if err != nil {
+			return nil, errors.Wrap(err, "error selecting finalizers")
+		}
+		finalizationClaims := calcFinalizationRewardClaims(round, finalizationReward, finalz[round], eligibleVoters, finalizers)
+
+		dSigners := getDoubleSigners(signers[round])
+		var dSignerInfos []*VoterInfo
+		for dSigner := range dSigners {
+			dSignerInfos = append(dSignerInfos, re.Voters.bySigning[dSigner])
+		}
+
+		doubleSigningPenalties := calcPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.Voters)
+
+		var offernderInfos []*VoterInfo
+		for _, offender := range offendersByRound[round] {
+			offernderInfos = append(offernderInfos, re.Voters.bySubmit[offender])
+		}
+		revealPenalties := calcPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offernderInfos, re.Voters)
+
+		logger.Info("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
+
+		epochClaims = append(epochClaims, signingClaims...)
+		epochClaims = append(epochClaims, finalizationClaims...)
+		epochClaims = append(epochClaims, doubleSigningPenalties...)
+		epochClaims = append(epochClaims, revealPenalties...)
+
+		break
 	}
 
 	return epochClaims, nil
+}
+
+func calcPenalties(
+	reward *big.Int,
+	penaltyFactor *big.Int,
+	offenders []*VoterInfo,
+	voters *VoterIndex,
+) []RewardClaim {
+	var penalties []RewardClaim
+	for _, offender := range offenders {
+		penalty := bigTmp.Div(
+			bigTmp.Mul(offender.CappedWeight, bigTmp.Mul(reward, penaltyFactor)),
+			voters.totalCappedWeight,
+		)
+		penalties = append(penalties, claimsForVoter(offender, penalty)...)
+	}
+	return penalties
+}
+
+func selectFinalizers(
+	round types.RoundId,
+	policy *policy.SigningPolicy,
+	threshold uint16,
+) (map[common.Address]bool, error) {
+	// TODO: We have duplicate VoterSet definitions
+	seed := voters.InitialHashSeed(policy.Seed, params.Net.Ftso.ProtocolId, uint32(round))
+	vs := voters.NewVoterSet(policy.Voters.Voters, policy.Voters.Weights)
+	res, err := vs.RandomSelectThresholdWeightVoters(seed, threshold)
+	if err != nil {
+		return nil, errors.Wrap(err, "error selecting finalizers")
+	}
+
+	selected := map[common.Address]bool{}
+	for voter := range res.Iter() {
+		selected[voter] = true
+	}
+
+	return selected, nil
+}
+
+func calcFinalizationRewardClaims(
+	round types.RoundId,
+	reward *big.Int,
+	finalizations []*Finalization,
+	eligibleVoters []*VoterInfo,
+	eligibleFinalizers map[common.Address]bool,
+) []RewardClaim {
+
+	// TODO: Pre-compute
+	successIndex := slices.IndexFunc(finalizations, func(f *Finalization) bool {
+		return f.Info.Reverted == false
+	})
+
+	if successIndex < 0 {
+		return []RewardClaim{burnClaim(reward)}
+	}
+
+	firstSuccessfulFinalization := finalizations[successIndex]
+	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(round+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec
+
+	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {
+		// No voter provided finalization in grace period. The first successful finalizer gets the full reward.
+		return []RewardClaim{
+			{
+				Beneficiary: firstSuccessfulFinalization.Info.From,
+				Amount:      reward,
+				Type:        Direct,
+			},
+		}
+	}
+
+	// TODO: Handle case when finalization is late and sent in the following round
+
+	var graceFinalizations []*Finalization
+	for _, finalization := range finalizations {
+		if eligibleFinalizers[finalization.Info.From] && finalization.Info.TimestampSec <= gracePeriodDeadline {
+			graceFinalizations = append(graceFinalizations, finalization)
+		}
+	}
+	// We have at least one successful finalization in the grace period, but from non-eligible voters -> burn the reward.
+	if len(graceFinalizations) == 0 {
+		return []RewardClaim{burnClaim(reward)}
+	}
+
+	var claims []RewardClaim
+
+	// The reward should be distributed equally among all the eligible finalizers.
+	// Note that each finalizer was chosen by probability corresponding to its relative weight.
+	// Consequently, the real weight should not be taken into account here.
+	undistributedAmount := big.NewInt(0).Set(reward)
+	undistributedWeight := big.NewInt(int64(len(eligibleFinalizers)))
+
+	eligibleVoterBySigning := map[VoterSigning]*VoterInfo{}
+	for _, voter := range eligibleVoters {
+		eligibleVoterBySigning[voter.Signing] = voter
+	}
+	for _, finalization := range graceFinalizations {
+		voter := eligibleVoterBySigning[VoterSigning(finalization.Info.From)]
+		if voter == nil {
+			continue
+		}
+
+		claimAmount := big.NewInt(0).Div(undistributedAmount, undistributedWeight)
+		undistributedAmount.Sub(undistributedAmount, claimAmount)
+		undistributedWeight.Sub(undistributedWeight, big.NewInt(1))
+
+		claims = append(claims, claimsForVoter(voter, claimAmount)...)
+	}
+
+	if undistributedAmount.Cmp(bigZero) != 0 {
+		logger.Info("Burning undistributed finalization reward amount: %s", undistributedAmount.String())
+		return []RewardClaim{burnClaim(undistributedAmount)}
+	}
+
+	return claims
 }
 
 func calcSigningRewardClaims(
@@ -631,7 +775,7 @@ func getFinalz(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*Finalization, 
 
 	finalizationsByRound := make(map[types.RoundId][]*Finalization)
 
-	var firstSuccessful *Finalization
+	//var firstSuccessful *Finalization
 	for round, finalizations := range allFinalizationsByRound {
 		seenSender := map[common.Address]bool{}
 		for _, finalization := range finalizations {
@@ -652,9 +796,10 @@ func getFinalz(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*Finalization, 
 				seenSender[finalization.Info.From] = true
 			}
 
-			if firstSuccessful == nil && !finalization.Info.Reverted {
-				firstSuccessful = finalization
-			}
+			//if firstSuccessful == nil && !finalization.Info.Reverted {
+			//	firstSuccessful = finalization
+			//}
+			// TODO: Store first successful
 
 			finalizationsByRound[round] = append(finalizationsByRound[round], finalization)
 		}

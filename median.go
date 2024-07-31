@@ -1,6 +1,7 @@
 package main
 
 import (
+	"ftsov2-rewarding/logger"
 	"github.com/pkg/errors"
 	"math/big"
 	"sort"
@@ -25,7 +26,12 @@ type nullInt32 struct {
 }
 
 func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
-	//logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
+	if len(voterValues) <= 1 {
+		return nil, nil
+	}
+
+	logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
+
 	sort.Slice(voterValues, func(i, j int) bool {
 		return voterValues[i].value < voterValues[j].value
 	})
@@ -33,10 +39,6 @@ func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
 	totalWeight := big.NewInt(0)
 	for _, vw := range voterValues {
 		totalWeight.Add(totalWeight, vw.weight)
-	}
-
-	if len(voterValues) == 1 {
-		return nil, nil
 	}
 
 	q1Weight := new(big.Int).Div(totalWeight, big.NewInt(4))
@@ -65,7 +67,12 @@ func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
 			break
 		}
 	}
-	q3 = &nullInt32{voterValues[i-1].value}
+
+	if i == 0 {
+		q3 = &nullInt32{voterValues[i].value}
+	} else {
+		q3 = &nullInt32{voterValues[i-1].value}
+	}
 
 	if q1 == nil || median == nil {
 		return nil, errors.New("could not calculate quartiles")

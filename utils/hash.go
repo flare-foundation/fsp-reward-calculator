@@ -11,7 +11,9 @@ import (
 
 var (
 	AddressType, _ = abi.NewType("address", "", nil)
+	Uint8Type, _   = abi.NewType("uint8", "", nil)
 	Uint32Type, _  = abi.NewType("uint32", "", nil)
+	Uint64Type, _  = abi.NewType("uint64", "", nil)
 	Uint256Type, _ = abi.NewType("uint256", "", nil)
 	BytesType, _   = abi.NewType("bytes", "", nil)
 )
@@ -55,4 +57,24 @@ func FeedSelectionRandom(random *big.Int, round types.RoundId) *big.Int {
 	}
 	hash := crypto.Keccak256(encoded)
 	return new(big.Int).SetBytes(hash[:])
+}
+
+var finalizerArgs = abi.Arguments{
+	{
+		Type: Uint256Type,
+	},
+	{
+		Type: Uint8Type,
+	},
+	{
+		Type: Uint64Type,
+	},
+}
+
+func FinalizerSelectionSeed(seed *big.Int, protocolId byte, round types.RoundId) common.Hash {
+	encoded, err := finalizerArgs.Pack(seed, protocolId, uint64(round))
+	if err != nil {
+		logger.Fatal("error packing arguments %d, %v: %s", round, seed, err)
+	}
+	return crypto.Keccak256Hash(encoded)
 }
