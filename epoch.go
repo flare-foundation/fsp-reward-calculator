@@ -245,6 +245,21 @@ type VoterSubmitSignatures common.Address
 type VoterSigning common.Address
 type VoterDelegation common.Address
 
+func (v VoterId) String() string {
+	return common.Address(v).String()
+}
+func (v VoterSubmit) String() string {
+	return common.Address(v).String()
+}
+
+func (v VoterSubmitSignatures) String() string {
+	return common.Address(v).String()
+}
+
+func (v VoterSigning) String() string {
+	return common.Address(v).String()
+}
+
 type VoterIndex struct {
 	byId               map[VoterId]*VoterInfo
 	bySubmit           map[VoterSubmit]*VoterInfo

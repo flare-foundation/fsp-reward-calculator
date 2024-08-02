@@ -46,11 +46,16 @@ func (f *FeedId) String() string {
 	return string(f[1:])
 }
 
+func (f *FeedId) Hex() string {
+	return hex.EncodeToString(f[1:])
+}
+
 type ProtocolMerkleRoot struct {
 	protocolId     int8
 	round          types.RoundId
 	isSecureRandom bool
 	hash           common.Hash
+	rawEncoded     [ProtocolMerkleRootBytes]byte
 }
 
 type Commit struct {
@@ -305,11 +310,15 @@ func DecodeProtocolMerkleRoot(bytes []byte) (ProtocolMerkleRoot, error) {
 	p++
 	merkleRoot := common.BytesToHash(bytes[p : p+common.HashLength])
 
+	encoded := [ProtocolMerkleRootBytes]byte{}
+	copy(encoded[:], bytes)
+
 	return ProtocolMerkleRoot{
 		protocolId:     int8(id),
 		round:          round,
 		isSecureRandom: isSecureRandom,
 		hash:           merkleRoot,
+		rawEncoded:     encoded,
 	}, nil
 }
 
@@ -358,4 +367,8 @@ func DecodeUint32(bytes []byte) uint32 {
 	copy(tmpUint32[pad:], bytes)
 
 	return binary.BigEndian.Uint32(tmpUint32[:])
+}
+
+func (p *ProtocolMerkleRoot) EncodedHash() common.Hash {
+	return common.BytesToHash(accounts.TextHash(crypto.Keccak256(p.rawEncoded[:])))
 }

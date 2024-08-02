@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"flare-common/database"
 	"flare-common/policy"
@@ -18,6 +19,7 @@ import (
 	"math/big"
 	"os"
 	"slices"
+	"strconv"
 )
 
 func main() {
@@ -30,6 +32,8 @@ func main() {
 	}
 
 	db, err := database.Connect(&config)
+
+	os.Setenv("NETWORK", "coston")
 
 	if err != nil {
 		logger.Fatal("Error connecting to database: %s", err)
@@ -46,17 +50,17 @@ func main() {
 	merged := mergeClaims(allClaims)
 	logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
 
-	printResults(allClaims, epoch)
+	printResults(allClaims, strconv.Itoa(int(epoch)))
 }
 
-func printResults(records []RewardClaim, id types.EpochId) {
+func printResults(records []RewardClaim, suffix string) {
 	jsonData, err := json.MarshalIndent(records, "", "    ")
 	if err != nil {
 		fmt.Println("Error serializing to JSON:", err)
 		return
 	}
 
-	file, err := os.Create(fmt.Sprintf("claims-%d.json", id))
+	file, err := os.Create(fmt.Sprintf("results/claims-%s.json", suffix))
 	if err != nil {
 		fmt.Println("Error creating file:", err)
 		return
@@ -166,15 +170,21 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 	results := map[types.RoundId]RoundResult{}
 
-	for round := re.StartRound; round < re.EndRound; round++ {
+	for round := re.StartRound; round <= re.EndRound; round++ {
 		validReveals := matchingRevealsByRound[round]
+
+		logger.Info("Reveals for round %d: %d", round, len(validReveals))
 
 		eligibleReveals := map[VoterSubmit]*Reveal{}
 		for voter, reveal := range validReveals {
 			if _, ok := re.Voters.bySubmit[voter]; ok {
 				eligibleReveals[voter] = reveal
+				logger.Info("By voter %s", hex.EncodeToString(voter[:]))
+
 			}
 		}
+
+		logger.Info("Eligible reveals for round %d: %d", round, len(eligibleReveals))
 
 		// Median
 		feedValues := map[VoterSubmit][]FeedValue{}
@@ -186,14 +196,24 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 			}
 			feedValues[voter] = values
 		}
-		median, err := calculateMedians(re, feedValues)
+
+		logger.Info("Calculating median for round %d", round)
+
+		median, err := calculateMedians(round, re, feedValues)
 		if err != nil {
 			return nil, err
 		}
+
+		for _, feed := range re.OrderedFeeds {
+			jsonData, _ := json.MarshalIndent(median[feed.Id], "", "    ")
+
+			logger.Info("Feed: %s, median: %s", feed.Id.Hex(), jsonData)
+		}
+
 		//logger.Info("Median: %+v", median)
 
 		random := calculateRandom(round, offendersByRound, eligibleReveals)
-		//logger.Info("Random result: %+v", random)
+		logger.Info("Round %d, random result: %d", round, random.Value)
 
 		results[round] = RoundResult{
 			Round:  round,
@@ -203,6 +223,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	}
 
 	var lastRandom *RandomResult
+	var lastRandomRound types.RoundId
 
 	for round := re.EndRound + 1; round < windowEnd; round++ {
 		validReveals := matchingRevealsByRound[round]
@@ -216,6 +237,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 		random := calculateRandom(round, offendersByRound, eligibleReveals)
 		if random.IsSecure {
 			lastRandom = &random
+			lastRandomRound = round
 			break
 		}
 		logger.Info("Extra random: %d %+v", lastRandom)
@@ -225,13 +247,14 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 	feedSelectionRandoms := make([]*big.Int, totalRounds)
 	for i := re.StartRound; i < re.EndRound; i++ {
-		feedSelectionRandoms[i-re.StartRound] = utils.FeedSelectionRandom(results[i].Random.Value, i)
+		logger.Info("Calculating feed selection random for round %d", i)
+		feedSelectionRandoms[i-re.StartRound] = utils.FeedSelectionRandom(results[i+1].Random.Value, i+1)
 	}
 	// Random for last round is the first secure random from next reward epoch,
 	// or nil if none found within a certain window.
 	if lastRandom != nil {
 		lastRound := re.EndRound - re.StartRound
-		feedSelectionRandoms[lastRound] = utils.FeedSelectionRandom(lastRandom.Value, lastRound)
+		feedSelectionRandoms[lastRound] = utils.FeedSelectionRandom(lastRandom.Value, lastRandomRound)
 	}
 
 	// Calculate reward offer share for round
@@ -251,6 +274,8 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	// TODO: Can reduce allocations in loop by re-using big.Int vars OR use uint64 if safe
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		random := feedSelectionRandoms[round-re.StartRound]
+
+		logger.Info("Selected random for round %d: %d", round, random)
 
 		amount := big.NewInt(0).Set(perRound)
 		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
@@ -297,6 +322,10 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	// Calculate reward claims
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		totalRoundReward := roundRewards[round]
+
+		logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), hex.EncodeToString(totalRoundReward.Feed.Id[:]))
+		logger.Info("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
+
 		if totalRoundReward.ShouldBurn {
 			epochClaims = append(epochClaims, RewardClaim{
 				Beneficiary: BurnAddress,
@@ -318,6 +347,8 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 			totalRoundReward.Amount,
 			bigTmp.Add(signingReward, finalizationReward),
 		)
+
+		logger.Info("Reward shares for round %d: signing %s, finalization %s, median %s", round, signingReward.String(), finalizationReward.String(), medianReward.String())
 
 		medianClaims := calcMedianRewardClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
 		epochClaims = append(epochClaims, medianClaims...)
@@ -348,11 +379,14 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 		doubleSigningPenalties := calcPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.Voters)
 
-		var offernderInfos []*VoterInfo
+		var offenderInfos []*VoterInfo
 		for _, offender := range offendersByRound[round] {
-			offernderInfos = append(offernderInfos, re.Voters.bySubmit[offender])
+			info := re.Voters.bySubmit[offender]
+			if info != nil {
+				offenderInfos = append(offenderInfos, re.Voters.bySubmit[offender])
+			}
 		}
-		revealPenalties := calcPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offernderInfos, re.Voters)
+		revealPenalties := calcPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offenderInfos, re.Voters)
 
 		logger.Info("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
 
@@ -361,7 +395,11 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 		epochClaims = append(epochClaims, doubleSigningPenalties...)
 		epochClaims = append(epochClaims, revealPenalties...)
 
-		break
+		printResults(medianClaims, fmt.Sprintf("%d-median-claims", round))
+		printResults(signingClaims, fmt.Sprintf("%d-signing-claims", round))
+		printResults(finalizationClaims, fmt.Sprintf("%d-finalz-claims", round))
+		printResults(doubleSigningPenalties, fmt.Sprintf("%d-doublesig-claims", round))
+		printResults(revealPenalties, fmt.Sprintf("%d-reveal-claims", round))
 	}
 
 	return epochClaims, nil
@@ -379,7 +417,7 @@ func calcPenalties(
 			bigTmp.Mul(offender.CappedWeight, bigTmp.Mul(reward, penaltyFactor)),
 			voters.totalCappedWeight,
 		)
-		penalties = append(penalties, claimsForVoter(offender, penalty)...)
+		penalties = append(penalties, signingClaimsForVoter(offender, penalty)...)
 	}
 	return penalties
 }
@@ -471,7 +509,7 @@ func calcFinalizationRewardClaims(
 		undistributedAmount.Sub(undistributedAmount, claimAmount)
 		undistributedWeight.Sub(undistributedWeight, big.NewInt(1))
 
-		claims = append(claims, claimsForVoter(voter, claimAmount)...)
+		claims = append(claims, signingClaimsForVoter(voter, claimAmount)...)
 	}
 
 	if undistributedAmount.Cmp(bigZero) != 0 {
@@ -586,7 +624,7 @@ func calcSigningRewardClaims(
 		remainingWeight -= weight
 
 		if voter, ok := eligibleSigners[sig.Signer]; ok {
-			claims = append(claims, claimsForVoter(voter, claimAmount)...)
+			claims = append(claims, signingClaimsForVoter(voter, claimAmount)...)
 		} else {
 			claims = append(claims, burnClaim(claimAmount))
 		}
@@ -595,36 +633,37 @@ func calcSigningRewardClaims(
 	return claims
 }
 
-func claimsForVoter(voter *VoterInfo, claimAmount *big.Int) []RewardClaim {
+func signingClaimsForVoter(voter *VoterInfo, amount *big.Int) []RewardClaim {
 	var claims []RewardClaim
+
 	stakedWeight := big.NewInt(0)
 	for _, w := range voter.NodeWeights {
 		stakedWeight.Add(stakedWeight, w)
 	}
 
 	totalWeight := big.NewInt(0).Add(voter.CappedWeight, stakedWeight)
-	// TODO: can totalWeight be 0?
+	if totalWeight.Cmp(bigZero) == 0 {
+		logger.Fatal("voter totalWeight is zero, this should never happen")
+	}
 
 	stakingAmount := big.NewInt(0).Div(
-		bigTmp.Mul(claimAmount, stakedWeight),
+		bigTmp.Mul(amount, stakedWeight),
 		totalWeight,
 	)
-	delegationAmount := big.NewInt(0).Sub(claimAmount, stakingAmount)
+	delegationAmount := big.NewInt(0).Sub(amount, stakingAmount)
 	delegationFee := big.NewInt(0).Div(
 		bigTmp.Mul(delegationAmount, big.NewInt(int64(voter.DelegationFeeBips))),
 		bigTotalBips,
 	)
-
 	cappedStakingFeeBips := big.NewInt(min(int64(voter.DelegationFeeBips), params.Net.Ftso.CappedStakingFeeBips))
-	stakingFeeAmount := big.NewInt(0).Div(
+	stakingFee := big.NewInt(0).Div(
 		bigTmp.Mul(stakingAmount, cappedStakingFeeBips),
 		bigTotalBips,
 	)
-
 	feeBeneficiary := common.Address(voter.Identity)
 	delegationBeneficiary := common.Address(voter.Delegation)
 
-	fee := big.NewInt(0).Add(delegationFee, stakingFeeAmount)
+	fee := big.NewInt(0).Add(delegationFee, stakingFee)
 	if fee.Cmp(bigZero) != 0 {
 		claims = append(claims, RewardClaim{
 			Beneficiary: feeBeneficiary,
@@ -641,20 +680,23 @@ func claimsForVoter(voter *VoterInfo, claimAmount *big.Int) []RewardClaim {
 	})
 
 	remainingStakeWeight := big.NewInt(0).Set(stakedWeight)
-	remainingStakeAmount := big.NewInt(0).Sub(stakingAmount, stakingFeeAmount)
+	remainingStakeAmount := big.NewInt(0).Sub(stakingAmount, stakingFee)
+
 	for i := range voter.NodeIds {
 		nodeId := voter.NodeIds[i]
 		nodeWeight := voter.NodeWeights[i]
-		if nodeWeight.Cmp(bigZero) <= 0 {
-			continue
+
+		nodeAmount := big.NewInt(0)
+
+		if nodeWeight.Cmp(bigZero) > 0 {
+			nodeAmount = big.NewInt(0).Div(
+				bigTmp.Mul(remainingStakeAmount, nodeWeight),
+				remainingStakeWeight,
+			)
 		}
 
-		nodeAmount := big.NewInt(0).Div(
-			bigTmp.Mul(remainingStakeAmount, nodeWeight),
-			remainingStakeWeight,
-		)
-		remainingStakeWeight.Sub(remainingStakeWeight, nodeWeight)
 		remainingStakeAmount.Sub(remainingStakeAmount, nodeAmount)
+		remainingStakeWeight.Sub(remainingStakeWeight, nodeWeight)
 
 		claims = append(claims, RewardClaim{
 			Beneficiary: nodeId,
@@ -662,6 +704,11 @@ func claimsForVoter(voter *VoterInfo, claimAmount *big.Int) []RewardClaim {
 			Type:        Mirror,
 		})
 	}
+
+	if remainingStakeAmount.Cmp(bigZero) != 0 {
+		logger.Fatal("remainingStakeAmount is not zero, this should never happen")
+	}
+
 	return claims
 }
 
@@ -715,15 +762,13 @@ func getSigners(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
 
 	signers := SignerMap{}
 	for round, signatures := range allSignatures {
-
 		sigsByHash := map[common.Hash]map[VoterSigning]SigInfo{}
-
 		for _, signatureSubmission := range signatures {
 			signature := signatureSubmission.Signature
-			signedHash := signature.merkleRoot.hash
+			signedHash := signature.merkleRoot.EncodedHash()
 			signerKey, err := crypto.SigToPub(
 				signedHash.Bytes(),
-				append(signature.bytes[:64], signature.bytes[64]),
+				append(signature.bytes[1:65], signature.bytes[0]-27),
 			)
 			if err != nil {
 				logger.Debug("error recovering signerKey, skipping signature: %s", err)
@@ -851,7 +896,7 @@ func calculateRandom(round types.RoundId, offendersByRound map[types.RoundId][]V
 	return res
 }
 
-func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) (map[FeedId]*MedianResult, error) {
+func calculateMedians(round types.RoundId, re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) (map[FeedId]*MedianResult, error) {
 	medianResults := map[FeedId]*MedianResult{}
 	for feedIndex, feed := range re.OrderedFeeds {
 		var weightedValues []VoterValue
@@ -869,11 +914,15 @@ func calculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) 
 			})
 		}
 
+		logger.Info("Calculating median for round %d feed %s, valid values: %d", round, feed.Id.Hex(), len(weightedValues))
+
 		median, err := CalculateFeedMedian(weightedValues)
 		if err != nil {
 			logger.Error("error calculating median for feed %s: %s", feed.String(), err)
 			continue
 		}
+
+		logger.Info("Calculated median for round %s feed %s, %s: result %+v", round, feed.String(), hex.EncodeToString(feed.Id[:]), median)
 
 		medianResults[feed.Id] = median
 

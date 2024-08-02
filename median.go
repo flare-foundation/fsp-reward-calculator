@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/hex"
+	"fmt"
 	"ftsov2-rewarding/logger"
 	"github.com/pkg/errors"
 	"math/big"
@@ -21,12 +23,16 @@ type VoterValue struct {
 	weight *big.Int
 }
 
+func (v VoterValue) String() string {
+	return fmt.Sprintf("VoterValue{voter: %s, value: %d, weight: %s}", hex.EncodeToString(v.voter[:]), v.value, v.weight.String())
+}
+
 type nullInt32 struct {
 	value int32
 }
 
 func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
-	if len(voterValues) <= 1 {
+	if len(voterValues) < 1 {
 		return nil, nil
 	}
 
@@ -68,11 +74,7 @@ func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
 		}
 	}
 
-	if i == 0 {
-		q3 = &nullInt32{voterValues[i].value}
-	} else {
-		q3 = &nullInt32{voterValues[i-1].value}
-	}
+	q3 = &nullInt32{voterValues[i].value}
 
 	if q1 == nil || median == nil {
 		return nil, errors.New("could not calculate quartiles")

@@ -81,7 +81,7 @@ func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitRound) {
 			// TODO: all seem to fail here??
 			logger.Debug("reveal from %s too late", common.HexToAddress(msg.From))
-			//continue
+			continue
 		}
 
 		reveal, err := DecodeReveal(msg.Payload)
@@ -105,7 +105,7 @@ func getSignatures(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) 
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
-	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Relay, submissionContractAddress)
+	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.SubmitSignatures, submissionContractAddress)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -179,7 +179,7 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 		finalization.Info = TxInfo{
 			From:         common.HexToAddress(txn.FromAddress),
 			TimestampSec: txn.Timestamp,
-			Reverted:     txn.Status > 0,
+			Reverted:     txn.Status != 1,
 		}
 
 		finalizationsByRound[expectedRound] = append(finalizationsByRound[expectedRound], finalization)

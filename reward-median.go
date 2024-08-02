@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/types"
 	"ftsov2-rewarding/utils"
@@ -128,6 +129,7 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 			if availableWeight.Cmp(bigZero) == 0 {
 				logger.Fatal("availableWeight is zero, this should never happen")
 			}
+
 			reward.Div(
 				bigTmp.Mul(
 					record.weight,
@@ -135,10 +137,22 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 				),
 				availableWeight,
 			)
+			logger.Info("Dividing for %s: %d * %d / %d, res %d",
+				hex.EncodeToString(record.voter[:]),
+				record.weight,
+				availableReward, availableWeight, reward)
+
 		}
+
+		availableReward.Sub(availableReward, reward)
+		availableWeight.Sub(availableWeight, record.weight)
 		totalReward.Add(totalReward, reward)
 
 		claims = append(claims, generateClaimsForVoter(re.Voters.bySubmit[record.voter], reward, rewardOffer)...)
+	}
+
+	if totalReward.Cmp(rewardShare) != 0 {
+		logger.Fatal("totalReward %d is not equal to rewardShare %d, this should never happen", totalReward, rewardShare)
 	}
 
 	return claims
@@ -166,6 +180,8 @@ func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips ui
 }
 
 func generateClaimsForVoter(voter *VoterInfo, reward *big.Int, offer FeedReward) []RewardClaim {
+	logger.Info("Generating claims for voter %s, amount %d", hex.EncodeToString(voter.Identity[:]), reward)
+
 	var claims []RewardClaim
 
 	voterFee := voter.DelegationFeeBips

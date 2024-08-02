@@ -5,25 +5,25 @@ import (
 	"math/big"
 )
 
-var coston = Network{
+var songbird = Network{
 
 	Contracts: ContractAddresses{
-		FlareSystemsManager:     common.HexToAddress("0x85680Dd93755Fe5d0789773fd0896cEE51F9e358"),
-		FtsoRewardOffersManager: common.HexToAddress("0xC9534cB913150aD3e98D792857689B55e2404212"),
-		RewardManager:           common.HexToAddress("0xA17197b7Bdff7Be7c3Da39ec08981FB716B70d3A"),
+		FlareSystemsManager:     common.HexToAddress("0x421c69E22f48e14Fc2d2Ee3812c59bfb81c38516"),
+		FtsoRewardOffersManager: common.HexToAddress("0x5aB9cB258a342001C4663D9526A1c54cCcF8C545"),
+		RewardManager:           common.HexToAddress("0x8A80583BD5A5Cd8f68De585163259D61Ea8dc904"),
 		Submission:              common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f"),
-		Relay:                   common.HexToAddress("0x32D46A1260BB2D8C9d5Ab1C9bBd7FF7D7CfaabCC"),
-		FlareSystemsCalculator:  common.HexToAddress("0x43CBAB9C953F54533aadAf7ffCD13c30ec05Edc9"),
-		VoterRegistry:           common.HexToAddress("0xE2c06DF29d175Aa0EcfcD10134eB96f8C94448A3"),
+		Relay:                   common.HexToAddress("0xbA35e39D01A3f5710d1e43FC61dbb738B68641c4"),
+		FlareSystemsCalculator:  common.HexToAddress("0x126FAeEc75601dA3354c0b5Cc0b60C85fCbC3A5e"),
+		VoterRegistry:           common.HexToAddress("0x31B9EC65C731c7D973a33Ef3FC83B653f540dC8D"),
 	},
 
-	InitialRewardEpochId: 2466,
+	InitialRewardEpochId: 183,
 
 	Epoch: Epoch{
 		FirstVotingRoundStartTs:            1658429955,
 		VotingRoundDurationSeconds:         90,
 		FirstRewardEpochStartVotingRoundId: 0,
-		RewardEpochDurationInVotingEpochs:  240,
+		RewardEpochDurationInVotingEpochs:  3360,
 		RevealDeadlineSeconds:              45,
 	},
 

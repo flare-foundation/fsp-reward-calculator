@@ -49,11 +49,14 @@ var Net Network
 
 func init() {
 	network := os.Getenv("NETWORK")
-	if network == "" {
-		network = "coston" // TODO: remove default
-	}
+
+	Net = coston
+
 	switch network {
 	case "coston":
 		Net = coston
+	case "songbird":
+		Net = songbird
 	}
+
 }
