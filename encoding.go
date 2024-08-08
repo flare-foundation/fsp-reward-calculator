@@ -58,37 +58,6 @@ type ProtocolMerkleRoot struct {
 	rawEncoded     [ProtocolMerkleRootBytes]byte
 }
 
-type Commit struct {
-	Hash common.Hash
-}
-
-type Reveal struct {
-	Random        common.Hash
-	EncodedValues []byte
-}
-
-type SignatureSubmission struct {
-	Signature *Signature
-	Info      TxInfo
-}
-
-type Finalization struct {
-	Policy     policy.SigningPolicy
-	merkleRoot ProtocolMerkleRoot
-	Signatures []ECDSASignature
-	Info       TxInfo
-}
-type TxInfo struct {
-	TimestampSec uint64
-	Reverted     bool
-	From         common.Address
-}
-
-type Signature struct {
-	bytes      []byte
-	merkleRoot ProtocolMerkleRoot
-}
-
 type FeedValue struct {
 	isEmpty bool
 	Value   int32

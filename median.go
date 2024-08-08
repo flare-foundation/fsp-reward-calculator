@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"ftsov2-rewarding/logger"
+	"ftsov2-rewarding/types"
 	"github.com/pkg/errors"
 	"math/big"
 	"sort"
@@ -31,12 +32,48 @@ type nullInt32 struct {
 	value int32
 }
 
+func CalculateMedians(round types.RoundId, re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) (map[FeedId]*MedianResult, error) {
+	medianResults := map[FeedId]*MedianResult{}
+	for feedIndex, feed := range re.OrderedFeeds {
+		var weightedValues []VoterValue
+
+		for voterSubmit, values := range validReveals {
+			feedValue := values[feedIndex]
+			weight := re.Voters.bySubmit[voterSubmit].CappedWeight
+			if feedValue.isEmpty || weight == nil {
+				continue
+			}
+			weightedValues = append(weightedValues, VoterValue{
+				voter:  voterSubmit,
+				value:  feedValue.Value,
+				weight: weight,
+			})
+		}
+
+		//logger.Info("Calculating median for round %d feed %s, valid values: %d", round, feed.Id.Hex(), len(weightedValues))
+
+		median, err := CalculateFeedMedian(weightedValues)
+		if err != nil {
+			logger.Error("error calculating median for feed %s: %s", feed.String(), err)
+			continue
+		}
+
+		//logger.Info("Calculated median for round %s feed %s, %s: result %+v", round, feed.String(), hex.EncodeToString(feed.Id[:]), median)
+
+		medianResults[feed.Id] = median
+
+		//logger.Info("Feed: %s, Median: %+v", feed.String(), median)
+	}
+
+	return medianResults, nil
+}
+
 func CalculateFeedMedian(voterValues []VoterValue) (*MedianResult, error) {
 	if len(voterValues) < 1 {
 		return nil, nil
 	}
 
-	logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
+	//logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
 
 	sort.Slice(voterValues, func(i, j int) bool {
 		return voterValues[i].value < voterValues[j].value

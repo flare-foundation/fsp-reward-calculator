@@ -274,11 +274,13 @@ func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
 	bySubmit := make(map[VoterSubmit]*VoterInfo)
 	bySubmitSignatures := make(map[VoterSubmitSignatures]*VoterInfo)
 	bySigning := make(map[VoterSigning]*VoterInfo)
+	byDelegation := make(map[VoterDelegation]*VoterInfo)
 	for _, v := range voters {
 		byId[v.Identity] = v
 		bySubmit[v.Submit] = v
 		bySubmitSignatures[v.SubmitSignatures] = v
 		bySigning[v.Signing] = v
+		byDelegation[v.Delegation] = v
 	}
 	totalCappedWeight := big.NewInt(0)
 	for _, v := range voters {
@@ -289,6 +291,7 @@ func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
 		bySubmit:           bySubmit,
 		bySubmitSignatures: bySubmitSignatures,
 		bySigning:          bySigning,
+		byDelegation:       byDelegation,
 		totalCappedWeight:  totalCappedWeight,
 	}
 }

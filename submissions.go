@@ -3,6 +3,7 @@ package main
 import (
 	"flare-common/database"
 	"flare-common/payload"
+	"flare-common/policy"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
 	"ftsov2-rewarding/types"
@@ -20,6 +21,38 @@ var (
 	submissionContractAddress = params.Net.Contracts.Submission
 	relayContractAddress      = params.Net.Contracts.Relay
 )
+
+type Commit struct {
+	Hash common.Hash
+}
+
+type Reveal struct {
+	Random        common.Hash
+	EncodedValues []byte
+}
+
+type SignatureSubmission struct {
+	Signature *Signature
+	Info      TxInfo
+}
+
+type TxInfo struct {
+	TimestampSec uint64
+	Reverted     bool
+	From         common.Address
+}
+
+type Signature struct {
+	bytes      []byte
+	merkleRoot ProtocolMerkleRoot
+}
+
+type Finalization struct {
+	Policy     policy.SigningPolicy
+	merkleRoot ProtocolMerkleRoot
+	Signatures []ECDSASignature
+	Info       TxInfo
+}
 
 // TODO: Make sure DB query sorts both by timestamp and tx index
 
@@ -212,45 +245,3 @@ func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]by
 
 	return payloads, nil
 }
-
-/*
-TX:
-	for _, tx := range txns {
-		calldata, err := hex.DecodeString(tx.Input)
-		if err != nil {
-			logger.Fatal("retrieved tx input for %s is not a valid hex, the indexer db may be corrupted: %s", tx.Hash, err)
-		}
-
-		// Skip function Signature
-		payloadsByProtocol := map[int8][]byte{}
-		for p := len(Signature); p < len(calldata); {
-			protocol := int8(calldata[p])
-			p++
-			round := types.RoundId(binary.BigEndian.Uint32(calldata[p : p+4]))
-			p += 4
-
-			length := int(binary.BigEndian.Uint16(calldata[p : p+2]))
-			p += 2
-
-			if p+length > len(calldata) {
-				logger.Info("invalid message length for protocol %d, skipping submission", protocol)
-				continue TX
-			}
-
-			payload := calldata[p : p+length]
-			p += length
-
-			payloadsByProtocol[protocol] = payload
-		}
-
-		scalingPayload, ok := payloadsByProtocol[FtsoScalingProtocolId]
-		if !ok {
-			continue
-		}
-
-		payloads = append(payloads, scalingPayload)
-	}
-
-
-
-*/
