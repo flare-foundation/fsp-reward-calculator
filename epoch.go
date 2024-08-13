@@ -18,13 +18,14 @@ import (
 )
 
 type RewardEpoch struct {
-	Epoch        types.EpochId
-	StartRound   types.RoundId
-	EndRound     types.RoundId
-	Policy       *policy.SigningPolicy
-	Offers       RewardOffers
-	OrderedFeeds []Feed
-	Voters       *VoterIndex
+	Epoch         types.EpochId
+	StartRound    types.RoundId
+	EndRound      types.RoundId
+	Policy        *policy.SigningPolicy
+	Offers        RewardOffers
+	OrderedFeeds  []Feed
+	OrderedVoters []VoterSigning
+	VoterIndex    *VoterIndex
 	// TODO: Move next voter calculation elsewhere
 	NextVoters *VoterIndex // Voters for the following reward epoch
 }
@@ -111,15 +112,24 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	}
 
 	return RewardEpoch{
-		Epoch:        epoch,
-		StartRound:   startRound,
-		EndRound:     endRound,
-		Policy:       policy.NewSigningPolicy(policyEvent),
-		Offers:       rewardOffers,
-		OrderedFeeds: feeds,
-		Voters:       voters,
-		NextVoters:   nextVoters,
+		Epoch:         epoch,
+		StartRound:    startRound,
+		EndRound:      endRound,
+		Policy:        policy.NewSigningPolicy(policyEvent),
+		Offers:        rewardOffers,
+		OrderedFeeds:  feeds,
+		OrderedVoters: getOrderedVoters(policyEvent),
+		VoterIndex:    voters,
+		NextVoters:    nextVoters,
 	}, nil
+}
+
+func getOrderedVoters(event *relay.RelaySigningPolicyInitialized) []VoterSigning {
+	voters := make([]VoterSigning, len(event.Voters))
+	for i, addr := range event.Voters {
+		voters[i] = VoterSigning(addr)
+	}
+	return voters
 }
 
 //

@@ -39,7 +39,7 @@ func CalculateMedians(round types.RoundId, re RewardEpoch, validReveals map[Vote
 
 		for voterSubmit, values := range validReveals {
 			feedValue := values[feedIndex]
-			weight := re.Voters.bySubmit[voterSubmit].CappedWeight
+			weight := re.VoterIndex.bySubmit[voterSubmit].CappedWeight
 			if feedValue.isEmpty || weight == nil {
 				continue
 			}

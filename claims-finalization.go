@@ -28,6 +28,7 @@ func calcFinalizationRewardClaims(
 
 	firstSuccessfulFinalization := finalizations[successIndex]
 	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(round+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec
+	gracePeriodDeadline += 1 // TODO: This is to match TS implementation logic, need to check if it's correct
 
 	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {
 		// No voter provided finalization in grace period. The first successful finalizer gets the full reward.
@@ -49,7 +50,7 @@ func calcFinalizationRewardClaims(
 		}
 	}
 	// We have at least one successful finalization in the grace period, but from non-eligible voters -> burn the reward.
-	if len(graceFinalizations) == 0 {
+	if len(graceFinalizations) == 0 || len(eligibleVoters) == 0 {
 		return []RewardClaim{burnClaim(reward)}
 	}
 
@@ -80,7 +81,7 @@ func calcFinalizationRewardClaims(
 
 	if undistributedAmount.Cmp(bigZero) != 0 {
 		logger.Info("Burning undistributed finalization reward amount: %s", undistributedAmount.String())
-		return []RewardClaim{burnClaim(undistributedAmount)}
+		claims = append(claims, burnClaim(undistributedAmount))
 	}
 
 	return claims

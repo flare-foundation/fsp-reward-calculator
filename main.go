@@ -27,18 +27,21 @@ func main() {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
 
-	epoch := types.EpochId(2960)
+	//epoch := types.EpochId(2963)
 
-	allClaims, err := calculateRewardClaims(db, epoch)
-	if err != nil {
-		logger.Fatal("Error calculating reward claims for epoch %d: %s", epoch, err)
-		return
+	for epoch := types.EpochId(2969); epoch <= types.EpochId(3014); epoch++ {
+
+		allClaims, err := calculateRewardClaims(db, epoch)
+		if err != nil {
+			logger.Fatal("Error calculating reward claims for epoch %d: %s", epoch, err)
+			return
+		}
+
+		merged := mergeClaims(allClaims)
+		logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
+
+		printResults(merged, strconv.Itoa(int(epoch)))
 	}
-
-	merged := mergeClaims(allClaims)
-	logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
-
-	printResults(merged, strconv.Itoa(int(epoch)))
 }
 
 func printResults(records []RewardClaim, suffix string) {

@@ -30,7 +30,7 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 	var epochClaims []RewardClaim
 
 	// Burn rewardOffer if turnout condition not reached
-	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.Voters.totalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
+	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.VoterIndex.totalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
 		epochClaims = append(epochClaims, RewardClaim{
 			Beneficiary: BurnAddress,
 			Amount:      big.NewInt(0).Set(rewardShare),
@@ -39,40 +39,10 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 		return epochClaims
 	}
 
-	secondaryBandDiff := abs(medianResult.Median) * rewardOffer.Feed.SecondaryBandWidthPPMs / totalPpm
-	lowPct := medianResult.Median - int32(secondaryBandDiff)
-	highPct := medianResult.Median + int32(secondaryBandDiff)
-
-	lowIQR := medianResult.Q1
-	highIQR := medianResult.Q3
-
-	iqrSum := big.NewInt(0) // eligible Weight for IQR rewardOffer
-	pctSum := big.NewInt(0) // eligible Weight for PCT rewardOffer
-
-	var voterRecords []voterRecord
-	for _, submission := range medianResult.inputValues {
-		value := submission.value
-
-		isPct := value > lowPct && value < highPct
-		isIqr := (value > lowIQR && value < highIQR) || (value == lowIQR || value == highIQR) && randomSelect(rewardOffer.Feed.Id, round, submission.voter)
-
-		if isPct {
-			pctSum.Add(pctSum, submission.weight)
-		}
-		if isIqr {
-			iqrSum.Add(iqrSum, submission.weight)
-		}
-
-		voterRecords = append(voterRecords, voterRecord{
-			voter:  submission.voter,
-			weight: submission.weight,
-			isPct:  isPct,
-			isIqr:  isIqr,
-		})
-	}
+	sortedRecords, pctSum, iqrSum := getRecords(round, re, medianResult, rewardOffer)
 
 	totalNormWeight := big.NewInt(0)
-	for i, record := range voterRecords {
+	for i, record := range sortedRecords {
 		newWeight := big.NewInt(0)
 		if pctSum.Cmp(bigZero) == 0 {
 			if record.isIqr {
@@ -101,7 +71,7 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 				)
 			}
 		}
-		voterRecords[i].weight = newWeight
+		sortedRecords[i].weight = newWeight
 		totalNormWeight.Add(totalNormWeight, newWeight)
 	}
 
@@ -119,8 +89,12 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 	availableReward := big.NewInt(0).Set(rewardShare)
 	availableWeight := big.NewInt(0).Set(totalNormWeight)
 
+	for _, record := range sortedRecords {
+		logger.Info("Voter %s, weight %d, isPct %t, isIqr %t", hex.EncodeToString(record.voter[:]), record.weight, record.isPct, record.isIqr)
+	}
+
 	var claims []RewardClaim
-	for _, record := range voterRecords {
+	for _, record := range sortedRecords {
 		if record.weight.Cmp(bigZero) == 0 {
 			continue
 		}
@@ -148,7 +122,7 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 		availableWeight.Sub(availableWeight, record.weight)
 		totalReward.Add(totalReward, reward)
 
-		claims = append(claims, generateClaimsForVoter(re.Voters.bySubmit[record.voter], reward, rewardOffer)...)
+		claims = append(claims, generateClaimsForVoter(re.VoterIndex.bySubmit[record.voter], reward)...)
 	}
 
 	if totalReward.Cmp(rewardShare) != 0 {
@@ -156,6 +130,48 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 	}
 
 	return claims
+}
+
+func getRecords(round types.RoundId, re RewardEpoch, medianResult *MedianResult, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {
+	secondaryBandDiff := abs(medianResult.Median) * rewardOffer.Feed.SecondaryBandWidthPPMs / totalPpm
+	lowPct := medianResult.Median - int32(secondaryBandDiff)
+	highPct := medianResult.Median + int32(secondaryBandDiff)
+
+	lowIQR := medianResult.Q1
+	highIQR := medianResult.Q3
+
+	pctSum := big.NewInt(0)
+	iqrSum := big.NewInt(0)
+	voterRecords := map[VoterSubmit]voterRecord{}
+	for _, submission := range medianResult.inputValues {
+		value := submission.value
+
+		isPct := value > lowPct && value < highPct
+		isIqr := (value > lowIQR && value < highIQR) || (value == lowIQR || value == highIQR) && randomSelect(rewardOffer.Feed.Id, round, submission.voter)
+
+		if isPct {
+			pctSum.Add(pctSum, submission.weight)
+		}
+		if isIqr {
+			iqrSum.Add(iqrSum, submission.weight)
+		}
+
+		voterRecords[submission.voter] = voterRecord{
+			voter:  submission.voter,
+			weight: submission.weight,
+			isPct:  isPct,
+			isIqr:  isIqr,
+		}
+	}
+
+	sortedRecords := make([]voterRecord, 0, len(voterRecords))
+	for _, signingAddr := range re.OrderedVoters {
+		submit := re.VoterIndex.bySigning[signingAddr].Submit
+		if record, ok := voterRecords[submit]; ok {
+			sortedRecords = append(sortedRecords, record)
+		}
+	}
+	return sortedRecords, pctSum, iqrSum
 }
 
 func randomSelect(feedId FeedId, round types.RoundId, voter VoterSubmit) bool {
@@ -179,7 +195,7 @@ func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips ui
 	) >= 0
 }
 
-func generateClaimsForVoter(voter *VoterInfo, reward *big.Int, offer FeedReward) []RewardClaim {
+func generateClaimsForVoter(voter *VoterInfo, reward *big.Int) []RewardClaim {
 	logger.Info("Generating claims for voter %s, amount %d", hex.EncodeToString(voter.Identity[:]), reward)
 
 	var claims []RewardClaim

@@ -21,6 +21,7 @@ type SigInfo struct {
 // computes the list of valid signatures by signed hash.
 // For each signer, only the last signature for a specific round and hash is retained.
 func getSignersByRound(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
+	logger.Info("Fetching signers for rounds %d-%d", re.StartRound, re.EndRound)
 	allSignatures, err := getSignatures(db, re.StartRound, re.EndRound)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching signatures")
@@ -42,7 +43,7 @@ func getSignersByRound(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
 			}
 
 			signer := VoterSigning(crypto.PubkeyToAddress(*signerKey))
-			if _, ok := re.Voters.bySigning[signer]; ok {
+			if _, ok := re.VoterIndex.bySigning[signer]; ok {
 				if _, ok := sigsByHash[signedHash]; !ok {
 					sigsByHash[signedHash] = map[VoterSigning]SigInfo{}
 				}
@@ -61,6 +62,7 @@ func getSignersByRound(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
 }
 
 func getFinalizationsByRound(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*Finalization, error) {
+	logger.Info("Fetching finalizations for rounds %d-%d", re.StartRound, re.EndRound)
 	allFinalizationsByRound, err := getFinalizations(db, re.StartRound, re.EndRound)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching finalizations")
