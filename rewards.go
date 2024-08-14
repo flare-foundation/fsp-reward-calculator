@@ -1,0 +1,547 @@
+package main
+
+import (
+	"encoding/hex"
+	"flare-common/policy"
+	"fmt"
+	voters "ftsov2-rewarding/lib"
+	"ftsov2-rewarding/logger"
+	"ftsov2-rewarding/params"
+	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/utils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/pkg/errors"
+	"gorm.io/gorm"
+	"math/big"
+)
+
+type ClaimType int
+
+// TODO: Check correct
+const (
+	Direct ClaimType = iota
+	Fee
+	WNat
+	Mirror
+	CChain
+)
+
+var (
+	randomMod   = new(big.Int).Exp(big.NewInt(2), big.NewInt(256), nil)
+	BurnAddress = common.HexToAddress("0x000000000000000000000000000000000000dEaD")
+
+	totalBips    uint16 = 10000
+	bigTotalBips        = big.NewInt(int64(totalBips))
+	bigZero             = big.NewInt(0)
+	// Used for temporary big.Int calculations
+	bigTmp = new(big.Int)
+)
+
+const totalPpm = 1000000
+
+type RewardClaim struct {
+	//Round 	 types.RoundId
+	Beneficiary common.Address
+	Amount      *big.Int
+	Type        ClaimType
+}
+
+type RandomResult struct {
+	Round    types.RoundId
+	Value    *big.Int
+	IsSecure bool
+}
+
+type RoundResult struct {
+	Round  types.RoundId
+	Median map[FeedId]*MedianResult
+	Random RandomResult
+}
+
+func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
+	re, err := getRewardEpoch(epoch, db)
+	if err != nil {
+		return nil, errors.Wrap(err, "err fetching reward epoch")
+	}
+
+	windowStart := types.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
+	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
+
+	allCommitsByRound, err := getCommits(db, windowStart, windowEnd)
+	if err != nil {
+		return nil, errors.Errorf("error fetching commitsByRound: %s", err)
+	}
+	allRevealsByRound, err := getReveals(db, windowStart, windowEnd)
+	if err != nil {
+		return nil, errors.Errorf("error fetching revealsByRound: %s", err)
+	}
+
+	commitsByRound := map[types.RoundId]map[VoterSubmit]*Commit{}
+	revealsByRound := map[types.RoundId]map[VoterSubmit]*Reveal{}
+
+	for round := windowStart; round < windowEnd; round++ {
+
+		var voterIndex *VoterIndex
+		switch {
+		case round < re.StartRound:
+			voterIndex = re.PrevVoters
+		case round > re.EndRound:
+			voterIndex = re.NextVoters
+		default:
+			voterIndex = re.VoterIndex
+		}
+
+		for voter, commit := range allCommitsByRound[round] {
+			if voterIndex.bySubmit[voter] != nil {
+				if _, ok := commitsByRound[round]; !ok {
+					commitsByRound[round] = map[VoterSubmit]*Commit{}
+				}
+				commitsByRound[round][voter] = commit
+			}
+		}
+		for voter, reveal := range allRevealsByRound[round] {
+			if voterIndex.bySubmit[voter] != nil {
+				if _, ok := revealsByRound[round]; !ok {
+					revealsByRound[round] = map[VoterSubmit]*Reveal{}
+				}
+				revealsByRound[round][voter] = reveal
+			}
+		}
+	}
+
+	offendersByRound := map[types.RoundId][]VoterSubmit{}
+	matchingRevealsByRound := map[types.RoundId]map[VoterSubmit]*Reveal{}
+
+	for round := windowStart; round < windowEnd; round++ {
+		var offenders []VoterSubmit
+		matchingReveals := map[VoterSubmit]*Reveal{}
+
+		commits := commitsByRound[round]
+		reveals := revealsByRound[round]
+
+		for voter, commit := range commits {
+			reveal, ok := reveals[voter]
+			if !ok {
+				logger.Debug("voter %s committed but did not reveal", common.Address(voter))
+				offenders = append(offenders, voter)
+				continue
+			}
+
+			expected := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
+
+			if expected.Cmp(commit.Hash) != 0 {
+				logger.Debug("voter %s reveal hash did not match commit: %s != %s", common.Address(voter), expected.String(), commit.Hash.String())
+				offenders = append(offenders, voter)
+				continue
+			}
+
+			matchingReveals[voter] = reveal
+		}
+
+		offendersByRound[round] = offenders
+		matchingRevealsByRound[round] = matchingReveals
+	}
+
+	results, err := calculateResults(re, matchingRevealsByRound, offendersByRound)
+	if err != nil {
+		return nil, errors.Wrap(err, "error calculating results")
+	}
+
+	feedSelectionRandoms := calculateFeedSelectionRandoms(re, windowEnd, matchingRevealsByRound, offendersByRound, results)
+	roundRewards := calculateRoundRewards(re, feedSelectionRandoms)
+
+	epochClaims := make([]RewardClaim, 0)
+
+	roundSigners, err := getSignersByRound(db, re)
+	if err != nil {
+		return nil, errors.Wrap(err, "error calculating signers")
+	}
+
+	roundFinalizations, err := getFinalizationsByRound(db, re)
+	if err != nil {
+		return nil, errors.Wrap(err, "err fetching finalizations")
+	}
+	logger.Info("Got finalizations: %d", len(roundFinalizations))
+
+	// Calculate reward claims
+	for round := re.StartRound; round <= re.EndRound; round++ {
+		totalRoundReward := roundRewards[round]
+
+		logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), hex.EncodeToString(totalRoundReward.Feed.Id[:]))
+		logger.Info("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
+
+		if totalRoundReward.ShouldBurn {
+			epochClaims = append(epochClaims, RewardClaim{
+				Beneficiary: BurnAddress,
+				Amount:      big.NewInt(0).Set(totalRoundReward.Amount),
+				Type:        Direct,
+			})
+			continue
+		}
+
+		signingReward := big.NewInt(0).Div(
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.SigningBips),
+			bigTotalBips,
+		)
+		finalizationReward := big.NewInt(0).Div(
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.FinalizationBips),
+			bigTotalBips,
+		)
+		medianReward := big.NewInt(0).Sub(
+			totalRoundReward.Amount,
+			bigTmp.Add(signingReward, finalizationReward),
+		)
+
+		logger.Info("Reward shares for round %d: signing %s, finalization %s, median %s", round, signingReward.String(), finalizationReward.String(), medianReward.String())
+
+		logger.Info("Calculating median claims for round %d", round)
+		medianClaims := calcMedianRewardClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
+
+		printResults(medianClaims, fmt.Sprintf("%d-median-claims", round))
+
+		// Only voters receiving median rewards are eligible for signing and finalization rewards
+		var eligibleVoters []*VoterInfo
+		for _, claim := range medianClaims {
+			if claim.Type != WNat || claim.Amount.Cmp(bigZero) <= 0 {
+				continue
+			}
+			voter, ok := re.VoterIndex.byDelegation[VoterDelegation(claim.Beneficiary)]
+			if ok {
+				eligibleVoters = append(eligibleVoters, voter)
+			}
+
+		}
+		logger.Info("Calculating signing claims for round %d", round)
+		signingClaims := calcSigningRewardClaims(round, re, signingReward, eligibleVoters, roundSigners[round], roundFinalizations[round])
+
+		printResults(signingClaims, fmt.Sprintf("%d-signing-claims", round))
+
+		logger.Info("Calculating finalization claims for round %d", round)
+		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+		if err != nil {
+			return nil, errors.Wrap(err, "error selecting finalizers")
+		}
+		finalizationClaims := calcFinalizationRewardClaims(round, finalizationReward, roundFinalizations[round], eligibleVoters, finalizers)
+
+		printResults(finalizationClaims, fmt.Sprintf("%d-finalz-claims", round))
+
+		dSigners := getDoubleSigners(roundSigners[round])
+		var dSignerInfos []*VoterInfo
+		for dSigner := range dSigners {
+			dSignerInfos = append(dSignerInfos, re.VoterIndex.bySigning[dSigner])
+		}
+
+		doubleSigningPenalties := calcPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
+
+		var offenderInfos []*VoterInfo
+		for _, offender := range offendersByRound[round] {
+			info := re.VoterIndex.bySubmit[offender]
+			if info != nil {
+				offenderInfos = append(offenderInfos, re.VoterIndex.bySubmit[offender])
+			}
+		}
+		revealPenalties := calcPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
+
+		logger.Info("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
+
+		var roundClaims []RewardClaim
+
+		roundClaims = append(roundClaims, medianClaims...)
+		roundClaims = append(roundClaims, signingClaims...)
+		roundClaims = append(roundClaims, finalizationClaims...)
+		roundClaims = append(roundClaims, doubleSigningPenalties...)
+		roundClaims = append(roundClaims, revealPenalties...)
+
+		printResults(doubleSigningPenalties, fmt.Sprintf("%d-doublesig-claims", round))
+		printResults(revealPenalties, fmt.Sprintf("%d-reveal-claims", round))
+
+		printResults(roundClaims, fmt.Sprintf("%d-round-claims", round))
+
+		checkRoundClaims(round, roundClaims)
+
+		epochClaims = append(epochClaims, roundClaims...)
+	}
+
+	return epochClaims, nil
+}
+
+func checkRoundClaims(round types.RoundId, claims []RewardClaim) {
+	total := big.NewInt(0)
+	for _, claim := range claims {
+		total.Add(total, claim.Amount)
+	}
+	logger.Info("Round %d total claims: %s", round, total.String())
+
+}
+
+// calculateRoundRewards total reward offer share per round
+func calculateRoundRewards(re RewardEpoch, feedSelectionRandoms []*big.Int) map[types.RoundId]FeedReward {
+	totalReward := big.NewInt(0)
+	for i := range re.Offers.inflation {
+		offer := re.Offers.inflation[i]
+		totalReward.Add(totalReward, offer.Amount)
+	}
+	for i := range re.Offers.community {
+		totalReward.Add(totalReward, re.Offers.community[i].Amount)
+	}
+
+	roundRewards := make(map[types.RoundId]FeedReward)
+
+	perRound, rem := totalReward.DivMod(totalReward, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))
+	numFeeds := big.NewInt(int64(len(re.OrderedFeeds)))
+	// TODO: Can reduce allocations in loop by re-using big.Int vars OR use uint64 if safe
+	for round := re.StartRound; round <= re.EndRound; round++ {
+		random := feedSelectionRandoms[round-re.StartRound]
+
+		logger.Info("Selected random for round %d: %d", round, random)
+
+		amount := big.NewInt(0).Set(perRound)
+		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
+			amount.Add(amount, big.NewInt(1))
+		}
+
+		if random == nil {
+			roundRewards[round] = FeedReward{
+				Amount:     amount,
+				ShouldBurn: true,
+			}
+			logger.Info("No secure random found for round %d, burning reward", round)
+			continue
+		}
+
+		feedIndex := new(big.Int).Mod(random, numFeeds).Uint64()
+
+		randomFeed := &re.OrderedFeeds[feedIndex]
+
+		roundRewards[round] = FeedReward{
+			Feed:   randomFeed,
+			Amount: amount,
+		}
+	}
+	return roundRewards
+}
+
+func calculateFeedSelectionRandoms(
+	re RewardEpoch,
+	windowEnd types.RoundId,
+	matchingRevealsByRound map[types.RoundId]map[VoterSubmit]*Reveal,
+	offendersByRound map[types.RoundId][]VoterSubmit,
+	results map[types.RoundId]RoundResult,
+) []*big.Int {
+	totalRounds := int64(re.EndRound - re.StartRound + 1)
+
+	feedSelectionRandoms := make([]*big.Int, 0, totalRounds)
+
+	for round := re.StartRound + 1; round <= re.EndRound; round++ {
+		logger.Info("Calculating feed selection random for round %d", round)
+
+		if results[round].Random.IsSecure {
+			feedRandom := utils.FeedSelectionRandom(results[round].Random.Value, round)
+			for len(feedSelectionRandoms) < int(round-re.StartRound) {
+				feedSelectionRandoms = append(feedSelectionRandoms, feedRandom)
+			}
+		}
+		//feedSelectionRandoms[round-re.StartRound] = utils.FeedSelectionRandom(results[round+1].Random.Value, round+1)
+	}
+
+	var lastRandom *RandomResult
+	var lastRandomRound types.RoundId
+
+	for round := re.EndRound + 1; round < windowEnd; round++ {
+		validReveals := matchingRevealsByRound[round]
+
+		eligibleReveals := map[VoterSubmit]*Reveal{}
+		for voter, reveal := range validReveals {
+			if _, ok := re.NextVoters.bySubmit[voter]; ok {
+				eligibleReveals[voter] = reveal
+			}
+		}
+		random := calculateRandom(round, offendersByRound, eligibleReveals)
+		if random.IsSecure {
+			lastRandom = &random
+			lastRandomRound = round
+			break
+		}
+		logger.Info("Extra random: %d %+v", lastRandom)
+	}
+
+	// Random for last round is the first secure random from next reward epoch,
+	// or nil if none found within a certain window.
+	if lastRandom != nil {
+		rnd := utils.FeedSelectionRandom(lastRandom.Value, lastRandomRound)
+		for len(feedSelectionRandoms) < int(totalRounds) {
+			feedSelectionRandoms = append(feedSelectionRandoms, rnd)
+		}
+	}
+	return feedSelectionRandoms
+}
+
+func calculateResults(
+	re RewardEpoch,
+	matchingRevealsByRound map[types.RoundId]map[VoterSubmit]*Reveal,
+	offendersByRound map[types.RoundId][]VoterSubmit,
+) (map[types.RoundId]RoundResult, error) {
+	var results = map[types.RoundId]RoundResult{}
+
+	for round := re.StartRound; round <= re.EndRound; round++ {
+		validReveals := matchingRevealsByRound[round]
+
+		logger.Info("Reveals for round %d: %d", round, len(validReveals))
+
+		eligibleReveals := map[VoterSubmit]*Reveal{}
+		for voter, reveal := range validReveals {
+			if _, ok := re.VoterIndex.bySubmit[voter]; ok {
+				eligibleReveals[voter] = reveal
+				logger.Info("By voter %s", hex.EncodeToString(voter[:]))
+
+			}
+		}
+
+		logger.Info("Eligible reveals for round %d: %d", round, len(eligibleReveals))
+
+		// Median
+		feedValues := map[VoterSubmit][]FeedValue{}
+		for voter, reveal := range eligibleReveals {
+			values, err := DecodeFeedValues(reveal.EncodedValues, re.OrderedFeeds)
+			if err != nil {
+				logger.Error("error decoding feed values for voter %s: %s", voter, err)
+				continue
+			}
+			feedValues[voter] = values
+		}
+
+		logger.Info("Calculating median for round %d", round)
+
+		median, err := CalculateMedians(round, re, feedValues)
+		if err != nil {
+			return nil, err
+		}
+
+		//for _, feed := range re.OrderedFeeds {
+		//	jsonData, _ := json.MarshalIndent(median[feed.Id], "", "    ")
+		//
+		//	logger.Info("Feed: %s, median: %s", feed.Id.Hex(), jsonData)
+		//}
+
+		//logger.Info("Median: %+v", median)
+
+		random := calculateRandom(round, offendersByRound, eligibleReveals)
+		logger.Info("Round %d, random result: %d", round, random.Value)
+
+		results[round] = RoundResult{
+			Round:  round,
+			Median: median,
+			Random: random,
+		}
+	}
+	return results, nil
+}
+
+func calcPenalties(
+	reward *big.Int,
+	penaltyFactor *big.Int,
+	offenders []*VoterInfo,
+	voters *VoterIndex,
+) []RewardClaim {
+	var penalties []RewardClaim
+	for _, offender := range offenders {
+		amount := big.NewInt(0).Div(
+			bigTmp.Mul(offender.CappedWeight, bigTmp.Mul(reward, penaltyFactor)),
+			voters.totalCappedWeight,
+		)
+
+		claims := signingWeightClaimsForVoter(offender, amount)
+		// big.Int uses Euclidian division behaves differently when dividing negative numbers compared
+		// to BigInt in JS. So we calculate an absolute penalty amount first and then negate it.
+		for i := range claims {
+			claims[i].Amount.Neg(claims[i].Amount)
+		}
+
+		penalties = append(penalties, claims...)
+	}
+	return penalties
+}
+
+func selectFinalizers(
+	round types.RoundId,
+	policy *policy.SigningPolicy,
+	threshold uint16,
+) (map[common.Address]bool, error) {
+	// TODO: We have duplicate VoterSet definitions
+	seed := voters.InitialHashSeed(policy.Seed, params.Net.Ftso.ProtocolId, uint32(round))
+	vs := voters.NewVoterSet(policy.Voters.Voters, policy.Voters.Weights)
+	res, err := vs.RandomSelectThresholdWeightVoters(seed, threshold)
+	if err != nil {
+		return nil, errors.Wrap(err, "error selecting finalizers")
+	}
+
+	selected := map[common.Address]bool{}
+	for voter := range res.Iter() {
+		selected[voter] = true
+	}
+
+	return selected, nil
+}
+
+func burnClaim(amount *big.Int) RewardClaim {
+	return RewardClaim{
+		Beneficiary: BurnAddress,
+		Amount:      amount,
+		Type:        Direct,
+	}
+}
+
+func getDoubleSigners(roundSigners map[common.Hash]map[VoterSigning]SigInfo) map[VoterSigning]bool {
+	signed := map[VoterSigning]bool{}
+	doubleSigners := map[VoterSigning]bool{}
+
+	for _, signers := range roundSigners {
+		for signer := range signers {
+			if _, ok := signed[signer]; ok {
+				doubleSigners[signer] = true
+			}
+			signed[signer] = true
+		}
+	}
+
+	return doubleSigners
+}
+
+type FeedReward struct {
+	Feed       *Feed
+	Amount     *big.Int
+	ShouldBurn bool
+}
+
+func calculateRandom(round types.RoundId, offendersByRound map[types.RoundId][]VoterSubmit, eligibleReveals map[VoterSubmit]*Reveal) RandomResult {
+	benchingWindowOffenders := map[VoterSubmit]bool{}
+	for i := types.RoundId(uint64(round) - params.Net.Ftso.RandomGenerationBenchingWindow); i < round; i++ {
+		for j := range offendersByRound[i] {
+			benchingWindowOffenders[offendersByRound[i][j]] = true
+		}
+	}
+
+	nonBenchedOffenders := 0
+	for k := range offendersByRound[round] {
+		currentOffender := offendersByRound[round][k]
+		if _, ok := benchingWindowOffenders[currentOffender]; !ok {
+			nonBenchedOffenders++
+		}
+	}
+	validCount := 0
+	random := big.NewInt(0)
+	for voter, reveal := range eligibleReveals {
+		if _, ok := benchingWindowOffenders[voter]; !ok {
+			random.Add(random, new(big.Int).SetBytes(reveal.Random[:]))
+			validCount++
+		}
+	}
+	random.Mod(random, randomMod)
+
+	res := RandomResult{
+		Round:    round,
+		Value:    random,
+		IsSecure: nonBenchedOffenders == 0 && validCount >= params.Net.Ftso.NonBenchedRandomVotersMinCount,
+	}
+	return res
+}

@@ -20,11 +20,12 @@ var songbird = Network{
 	InitialRewardEpochId: 183,
 
 	Epoch: Epoch{
-		FirstVotingRoundStartTs:            1658429955,
-		VotingRoundDurationSeconds:         90,
-		FirstRewardEpochStartVotingRoundId: 0,
-		RewardEpochDurationInVotingEpochs:  3360,
-		RevealDeadlineSeconds:              45,
+		FirstVotingRoundStartTs:                    1658429955,
+		VotingRoundDurationSeconds:                 90,
+		FirstRewardEpochStartVotingRoundId:         0,
+		RewardEpochDurationInVotingEpochs:          3360,
+		RevealDeadlineSeconds:                      45,
+		NewSigningPolicyInitializationStartSeconds: 7200,
 	},
 
 	Ftso: Ftso{

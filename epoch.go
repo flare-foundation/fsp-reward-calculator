@@ -28,6 +28,7 @@ type RewardEpoch struct {
 	VoterIndex    *VoterIndex
 	// TODO: Move next voter calculation elsewhere
 	NextVoters *VoterIndex // Voters for the following reward epoch
+	PrevVoters *VoterIndex // Voters for the previous reward epoch
 }
 
 type RewardOffers struct {
@@ -101,15 +102,19 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		logger.Info("Feed: %s, Decimals: %d", f.String(), f.Decimals)
 	}
 
-	voters, err := getVoters(db, epoch, actualStartSec-(epochDuration+epochDuration/2), actualStartSec)
+	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
+
+	voters, err := getVoters(db, epoch, actualStartSec-signingPolicyWindow, actualStartSec)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
 
-	nextVoters, err := getVoters(db, epoch+1, actualStartSec, actualStartSec+epochDuration)
+	nextVoters, err := getVoters(db, epoch+1, actualStartSec+epochDuration-signingPolicyWindow, actualStartSec+epochDuration)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
+
+	prevVoters, err := getVoters(db, epoch-1, actualStartSec-(epochDuration+signingPolicyWindow), actualStartSec-(epochDuration))
 
 	return RewardEpoch{
 		Epoch:         epoch,
@@ -121,6 +126,7 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		OrderedVoters: getOrderedVoters(policyEvent),
 		VoterIndex:    voters,
 		NextVoters:    nextVoters,
+		PrevVoters:    prevVoters,
 	}, nil
 }
 

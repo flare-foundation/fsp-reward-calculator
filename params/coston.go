@@ -20,11 +20,12 @@ var coston = Network{
 	InitialRewardEpochId: 2466,
 
 	Epoch: Epoch{
-		FirstVotingRoundStartTs:            1658429955,
-		VotingRoundDurationSeconds:         90,
-		FirstRewardEpochStartVotingRoundId: 0,
-		RewardEpochDurationInVotingEpochs:  240,
-		RevealDeadlineSeconds:              45,
+		FirstVotingRoundStartTs:                    1658429955,
+		VotingRoundDurationSeconds:                 90,
+		FirstRewardEpochStartVotingRoundId:         0,
+		RewardEpochDurationInVotingEpochs:          240,
+		RevealDeadlineSeconds:                      45,
+		NewSigningPolicyInitializationStartSeconds: 7200,
 	},
 
 	Ftso: Ftso{

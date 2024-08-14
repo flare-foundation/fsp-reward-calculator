@@ -10,11 +10,12 @@ import (
 // TODO: This was auto-converted from TS, needs reviewing
 
 type Epoch struct {
-	FirstVotingRoundStartTs            uint64
-	VotingRoundDurationSeconds         uint64
-	FirstRewardEpochStartVotingRoundId types.RoundId
-	RewardEpochDurationInVotingEpochs  uint64
-	RevealDeadlineSeconds              uint64
+	FirstVotingRoundStartTs                    uint64
+	VotingRoundDurationSeconds                 uint64
+	FirstRewardEpochStartVotingRoundId         types.RoundId
+	RewardEpochDurationInVotingEpochs          uint64
+	RevealDeadlineSeconds                      uint64
+	NewSigningPolicyInitializationStartSeconds uint64
 }
 
 func (e *Epoch) VotingRoundForTimeSec(unixSeconds uint64) types.RoundId {
