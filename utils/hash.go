@@ -60,21 +60,40 @@ func FeedSelectionRandom(random *big.Int, round types.RoundId) *big.Int {
 }
 
 var finalizerArgs = abi.Arguments{
-	{
-		Type: Uint256Type,
-	},
-	{
-		Type: Uint8Type,
-	},
-	{
-		Type: Uint64Type,
-	},
+	{Type: Uint256Type},
+	{Type: Uint8Type},
+	{Type: Uint64Type},
 }
 
 func FinalizerSelectionSeed(seed *big.Int, protocolId byte, round types.RoundId) common.Hash {
 	encoded, err := finalizerArgs.Pack(seed, protocolId, uint64(round))
 	if err != nil {
 		logger.Fatal("error packing arguments %d, %v: %s", round, seed, err)
+	}
+	return crypto.Keccak256Hash(encoded)
+}
+
+var (
+	uint24Type, _   = abi.NewType("uint24", "", nil)
+	bytes20Type, _  = abi.NewType("bytes20", "", nil)
+	uint120Type, _  = abi.NewType("uint120", "", nil)
+	rewardClaimArgs = abi.Arguments{
+		{Type: Uint64Type},
+		{Type: bytes20Type},
+		{Type: uint120Type},
+		{Type: Uint8Type},
+	}
+)
+
+func RewardClaimHash(epoch types.EpochId, claim types.RewardClaim) common.Hash {
+	encoded, err := rewardClaimArgs.Pack(
+		epoch,
+		claim.Beneficiary,
+		claim.Amount,
+		claim.Type,
+	)
+	if err != nil {
+		logger.Fatal("error packing arguments %v: %s", claim, err)
 	}
 	return crypto.Keccak256Hash(encoded)
 }

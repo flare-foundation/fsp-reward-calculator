@@ -26,15 +26,15 @@ type voterRecord struct {
 
 var randomArgs = abi.Arguments{{Type: utils.BytesType}, {Type: utils.Uint256Type}, {Type: utils.AddressType}}
 
-func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *MedianResult) []RewardClaim {
-	var epochClaims []RewardClaim
+func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *MedianResult) []types.RewardClaim {
+	var epochClaims []types.RewardClaim
 
 	// Burn rewardOffer if turnout condition not reached
 	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.VoterIndex.totalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
-		epochClaims = append(epochClaims, RewardClaim{
+		epochClaims = append(epochClaims, types.RewardClaim{
 			Beneficiary: BurnAddress,
 			Amount:      big.NewInt(0).Set(rewardShare),
-			Type:        Direct,
+			Type:        types.Direct,
 		})
 		return epochClaims
 	}
@@ -77,10 +77,10 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 
 	if totalNormWeight.Cmp(bigZero) == 0 {
 		// Burn rewardOffer if no eligible submissions
-		epochClaims = append(epochClaims, RewardClaim{
+		epochClaims = append(epochClaims, types.RewardClaim{
 			Beneficiary: BurnAddress,
 			Amount:      big.NewInt(0).Set(rewardShare),
-			Type:        Direct,
+			Type:        types.Direct,
 		})
 		return epochClaims
 	}
@@ -90,10 +90,10 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 	availableWeight := big.NewInt(0).Set(totalNormWeight)
 
 	for _, record := range sortedRecords {
-		logger.Info("Voter %s, weight %d, isPct %t, isIqr %t", hex.EncodeToString(record.voter[:]), record.weight, record.isPct, record.isIqr)
+		logger.Debug("Voter %s, weight %d, isPct %t, isIqr %t", hex.EncodeToString(record.voter[:]), record.weight, record.isPct, record.isIqr)
 	}
 
-	var claims []RewardClaim
+	var claims []types.RewardClaim
 	for _, record := range sortedRecords {
 		if record.weight.Cmp(bigZero) == 0 {
 			continue
@@ -111,7 +111,7 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 				),
 				availableWeight,
 			)
-			logger.Info("Dividing for %s: %d * %d / %d, res %d",
+			logger.Debug("Dividing for %s: %d * %d / %d, res %d",
 				hex.EncodeToString(record.voter[:]),
 				record.weight,
 				availableReward, availableWeight, reward)
@@ -195,10 +195,10 @@ func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips ui
 	) >= 0
 }
 
-func generateClaimsForVoter(voter *VoterInfo, reward *big.Int) []RewardClaim {
+func generateClaimsForVoter(voter *VoterInfo, reward *big.Int) []types.RewardClaim {
 	logger.Info("Generating claims for voter %s, amount %d", hex.EncodeToString(voter.Identity[:]), reward)
 
-	var claims []RewardClaim
+	var claims []types.RewardClaim
 
 	voterFee := voter.DelegationFeeBips
 	fee := big.NewInt(0).Div(
@@ -210,19 +210,19 @@ func generateClaimsForVoter(voter *VoterInfo, reward *big.Int) []RewardClaim {
 	)
 
 	if fee.Cmp(bigZero) > 0 {
-		claims = append(claims, RewardClaim{
+		claims = append(claims, types.RewardClaim{
 			Beneficiary: common.Address(voter.Identity),
 			Amount:      fee,
-			Type:        Fee,
+			Type:        types.Fee,
 		})
 	}
 
 	participationReward := big.NewInt(0).Sub(reward, fee)
 	if participationReward.Cmp(bigZero) > 0 {
-		claims = append(claims, RewardClaim{
+		claims = append(claims, types.RewardClaim{
 			Beneficiary: common.Address(voter.Delegation),
 			Amount:      participationReward,
-			Type:        WNat,
+			Type:        types.WNat,
 		})
 	}
 

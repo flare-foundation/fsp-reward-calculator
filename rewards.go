@@ -13,17 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
-)
-
-type ClaimType int
-
-// TODO: Check correct
-const (
-	Direct ClaimType = iota
-	Fee
-	WNat
-	Mirror
-	CChain
+	"sync"
 )
 
 var (
@@ -39,13 +29,6 @@ var (
 
 const totalPpm = 1000000
 
-type RewardClaim struct {
-	//Round 	 types.RoundId
-	Beneficiary common.Address
-	Amount      *big.Int
-	Type        ClaimType
-}
-
 type RandomResult struct {
 	Round    types.RoundId
 	Value    *big.Int
@@ -58,7 +41,7 @@ type RoundResult struct {
 	Random RandomResult
 }
 
-func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, error) {
+func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]types.RewardClaim, error) {
 	re, err := getRewardEpoch(epoch, db)
 	if err != nil {
 		return nil, errors.Wrap(err, "err fetching reward epoch")
@@ -67,14 +50,68 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	windowStart := types.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
 	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
 
-	allCommitsByRound, err := getCommits(db, windowStart, windowEnd)
-	if err != nil {
-		return nil, errors.Errorf("error fetching commitsByRound: %s", err)
+	var wgCR sync.WaitGroup // Commits and reveals
+	var wgSF sync.WaitGroup // Signatures and finalizations
+	errCR := make(chan error, 2)
+	errSF := make(chan error, 2)
+
+	var (
+		allCommitsByRound  map[types.RoundId]map[VoterSubmit]*Commit
+		allRevealsByRound  map[types.RoundId]map[VoterSubmit]*Reveal
+		roundSigners       SignerMap
+		roundFinalizations map[types.RoundId][]*Finalization
+	)
+
+	wgCR.Add(2)
+	go func() {
+		var err error
+		logger.Info("Fetching commits for rounds %d-%d", windowStart, windowEnd)
+		allCommitsByRound, err = getCommits(db, windowStart, windowEnd)
+		logger.Info("All commits fetched")
+		wgCR.Done()
+		if err != nil {
+			errCR <- errors.Errorf("error fetching commitsByRound: %s", err)
+		}
+	}()
+	go func() {
+		var err error
+		logger.Info("Fetching reveals for rounds %d-%d", windowStart, windowEnd)
+		allRevealsByRound, err = getReveals(db, windowStart, windowEnd)
+		logger.Info("All reveals fetched")
+		wgCR.Done()
+		if err != nil {
+			errCR <- errors.Errorf("error fetching revealsByRound: %s", err)
+		}
+	}()
+
+	wgSF.Add(2)
+	go func() {
+		var err error
+		roundSigners, err = getSignersByRound(db, re)
+		logger.Info("All signers fetched")
+		wgSF.Done()
+		if err != nil {
+			errSF <- errors.Errorf("error calculating signers: %s", err)
+		}
+	}()
+	go func() {
+		var err error
+		roundFinalizations, err = getFinalizationsByRound(db, re)
+		logger.Info("All finalizations fetched")
+		wgSF.Done()
+		if err != nil {
+			errSF <- errors.Errorf("err fetching finalizations: %s", err)
+		}
+	}()
+
+	wgCR.Wait()
+	close(errCR)
+	for err := range errCR {
+		if err != nil {
+			return nil, err
+		}
 	}
-	allRevealsByRound, err := getReveals(db, windowStart, windowEnd)
-	if err != nil {
-		return nil, errors.Errorf("error fetching revealsByRound: %s", err)
-	}
+	logger.Info("All commits and reveals fetched, processing.")
 
 	commitsByRound := map[types.RoundId]map[VoterSubmit]*Commit{}
 	revealsByRound := map[types.RoundId]map[VoterSubmit]*Reveal{}
@@ -150,31 +187,29 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	feedSelectionRandoms := calculateFeedSelectionRandoms(re, windowEnd, matchingRevealsByRound, offendersByRound, results)
 	roundRewards := calculateRoundRewards(re, feedSelectionRandoms)
 
-	epochClaims := make([]RewardClaim, 0)
+	epochClaims := make([]types.RewardClaim, 0)
 
-	roundSigners, err := getSignersByRound(db, re)
-	if err != nil {
-		return nil, errors.Wrap(err, "error calculating signers")
+	wgSF.Wait()
+	close(errSF)
+	for err := range errSF {
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	roundFinalizations, err := getFinalizationsByRound(db, re)
-	if err != nil {
-		return nil, errors.Wrap(err, "err fetching finalizations")
-	}
-	logger.Info("Got finalizations: %d", len(roundFinalizations))
+	logger.Info("All signers and finalizations fetched, calculating rewards.")
 
 	// Calculate reward claims
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		totalRoundReward := roundRewards[round]
 
 		logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), hex.EncodeToString(totalRoundReward.Feed.Id[:]))
-		logger.Info("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
+		logger.Debug("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
 
 		if totalRoundReward.ShouldBurn {
-			epochClaims = append(epochClaims, RewardClaim{
+			epochClaims = append(epochClaims, types.RewardClaim{
 				Beneficiary: BurnAddress,
 				Amount:      big.NewInt(0).Set(totalRoundReward.Amount),
-				Type:        Direct,
+				Type:        types.Direct,
 			})
 			continue
 		}
@@ -202,7 +237,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 		// Only voters receiving median rewards are eligible for signing and finalization rewards
 		var eligibleVoters []*VoterInfo
 		for _, claim := range medianClaims {
-			if claim.Type != WNat || claim.Amount.Cmp(bigZero) <= 0 {
+			if claim.Type != types.WNat || claim.Amount.Cmp(bigZero) <= 0 {
 				continue
 			}
 			voter, ok := re.VoterIndex.byDelegation[VoterDelegation(claim.Beneficiary)]
@@ -244,7 +279,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 
 		logger.Info("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
 
-		var roundClaims []RewardClaim
+		var roundClaims []types.RewardClaim
 
 		roundClaims = append(roundClaims, medianClaims...)
 		roundClaims = append(roundClaims, signingClaims...)
@@ -265,7 +300,7 @@ func calculateRewardClaims(db *gorm.DB, epoch types.EpochId) ([]RewardClaim, err
 	return epochClaims, nil
 }
 
-func checkRoundClaims(round types.RoundId, claims []RewardClaim) {
+func checkRoundClaims(round types.RoundId, claims []types.RewardClaim) {
 	total := big.NewInt(0)
 	for _, claim := range claims {
 		total.Add(total, claim.Amount)
@@ -392,8 +427,6 @@ func calculateResults(
 		for voter, reveal := range validReveals {
 			if _, ok := re.VoterIndex.bySubmit[voter]; ok {
 				eligibleReveals[voter] = reveal
-				logger.Info("By voter %s", hex.EncodeToString(voter[:]))
-
 			}
 		}
 
@@ -442,8 +475,8 @@ func calcPenalties(
 	penaltyFactor *big.Int,
 	offenders []*VoterInfo,
 	voters *VoterIndex,
-) []RewardClaim {
-	var penalties []RewardClaim
+) []types.RewardClaim {
+	var penalties []types.RewardClaim
 	for _, offender := range offenders {
 		amount := big.NewInt(0).Div(
 			bigTmp.Mul(offender.CappedWeight, bigTmp.Mul(reward, penaltyFactor)),
@@ -483,11 +516,11 @@ func selectFinalizers(
 	return selected, nil
 }
 
-func burnClaim(amount *big.Int) RewardClaim {
-	return RewardClaim{
+func burnClaim(amount *big.Int) types.RewardClaim {
+	return types.RewardClaim{
 		Beneficiary: BurnAddress,
 		Amount:      amount,
-		Type:        Direct,
+		Type:        types.Direct,
 	}
 }
 

@@ -15,7 +15,7 @@ func calcFinalizationRewardClaims(
 	finalizations []*Finalization,
 	eligibleVoters []*VoterInfo,
 	eligibleFinalizers map[common.Address]bool,
-) []RewardClaim {
+) []types.RewardClaim {
 
 	// TODO: Pre-compute
 	successIndex := slices.IndexFunc(finalizations, func(f *Finalization) bool {
@@ -23,7 +23,7 @@ func calcFinalizationRewardClaims(
 	})
 
 	if successIndex < 0 {
-		return []RewardClaim{burnClaim(reward)}
+		return []types.RewardClaim{burnClaim(reward)}
 	}
 
 	firstSuccessfulFinalization := finalizations[successIndex]
@@ -32,11 +32,11 @@ func calcFinalizationRewardClaims(
 
 	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {
 		// No voter provided finalization in grace period. The first successful finalizer gets the full reward.
-		return []RewardClaim{
+		return []types.RewardClaim{
 			{
 				Beneficiary: firstSuccessfulFinalization.Info.From,
 				Amount:      reward,
-				Type:        Direct,
+				Type:        types.Direct,
 			},
 		}
 	}
@@ -51,10 +51,10 @@ func calcFinalizationRewardClaims(
 	}
 	// We have at least one successful finalization in the grace period, but from non-eligible voters -> burn the reward.
 	if len(graceFinalizations) == 0 || len(eligibleVoters) == 0 {
-		return []RewardClaim{burnClaim(reward)}
+		return []types.RewardClaim{burnClaim(reward)}
 	}
 
-	var claims []RewardClaim
+	var claims []types.RewardClaim
 
 	// The reward should be distributed equally among all the eligible finalizers.
 	// Note that each finalizer was chosen by probability corresponding to its relative weight.

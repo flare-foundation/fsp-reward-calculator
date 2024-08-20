@@ -1,6 +1,7 @@
 package params
 
 import (
+	"ftsov2-rewarding/logger"
 	"math/big"
 	"os"
 
@@ -50,8 +51,6 @@ var Net Network
 func init() {
 	network := os.Getenv("NETWORK")
 
-	Net = coston
-
 	switch network {
 	case "coston":
 		Net = coston
@@ -59,4 +58,5 @@ func init() {
 		Net = songbird
 	}
 
+	logger.Info("Network: %s", network)
 }

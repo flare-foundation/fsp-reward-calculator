@@ -4,53 +4,8 @@ import (
 	"ftsov2-rewarding/types"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
-	"reflect"
 	"testing"
 )
-
-func TestCommitHash(t *testing.T) {
-	type args struct {
-		voter      common.Address
-		round      uint32
-		random     common.Hash
-		feedValues []byte
-	}
-	tests := []struct {
-		name string
-		args args
-		want common.Hash
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := CommitHash(tt.args.voter, tt.args.round, tt.args.random, tt.args.feedValues); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("CommitHash() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFeedSelectionRandom(t *testing.T) {
-	type args struct {
-		random *big.Int
-		round  types.RoundId
-	}
-	tests := []struct {
-		name string
-		args args
-		want *big.Int
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := FeedSelectionRandom(tt.args.random, tt.args.round); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("FeedSelectionRandom() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestFinalizerSelectionSeed(t *testing.T) {
 	t.Run("encoding matches reference Typescript implementation", func(t *testing.T) {
@@ -62,4 +17,22 @@ func TestFinalizerSelectionSeed(t *testing.T) {
 		}
 	})
 
+}
+
+func TestRewardClaimHash(t *testing.T) {
+	t.Run("encodes correctly", func(t *testing.T) {
+		amount, _ := big.NewInt(0).SetString("48398380199697751340269", 10)
+
+		claim := types.RewardClaim{
+			Beneficiary: common.HexToAddress("0xa174d46ef49d7d4a0328f9910222689e9eab2f45"),
+			Amount:      amount,
+			Type:        2,
+		}
+		hash := RewardClaimHash(213, claim)
+		expected := "0xd6ebe34021a480411c18676c77aba5eb104ee3caf21537879548ab05833bfedf"
+
+		if hash.Hex() != expected {
+			t.Errorf("expected %s, got %s", expected, hash.Hex())
+		}
+	})
 }

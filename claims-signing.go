@@ -16,7 +16,7 @@ func calcSigningRewardClaims(
 	eligibleVoters []*VoterInfo,
 	signers map[common.Hash]map[VoterSigning]SigInfo,
 	finalizations []*Finalization,
-) []RewardClaim {
+) []types.RewardClaim {
 	doubleSigners := getDoubleSigners(signers)
 
 	revealDeadline := params.Net.Epoch.RevealDeadlineSec(round + 1)
@@ -45,7 +45,7 @@ func calcSigningRewardClaims(
 	if successIndex < 0 {
 		signatures := acceptedHashSignatures(re, acceptedSigs)
 		if signatures == nil {
-			return []RewardClaim{burnClaim(reward)}
+			return []types.RewardClaim{burnClaim(reward)}
 		} else {
 			for _, s := range signatures {
 				if _, ok := doubleSigners[s.Signer]; !ok {
@@ -82,11 +82,11 @@ func calcSigningRewardClaims(
 	}
 
 	if remainingWeight == 0 {
-		return []RewardClaim{burnClaim(reward)}
+		return []types.RewardClaim{burnClaim(reward)}
 	}
 	remainingAmount := big.NewInt(0).Set(reward)
 
-	var claims []RewardClaim
+	var claims []types.RewardClaim
 	// Sort signatures according to voter order in signing policy
 	slices.SortFunc(rewardEligibleSigs, func(i, j SigInfo) int {
 		indexI := re.Policy.Voters.VoterDataMap[common.Address(i.Signer)].Index
@@ -124,8 +124,8 @@ func calcSigningRewardClaims(
 	return claims
 }
 
-func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []RewardClaim {
-	var claims []RewardClaim
+func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.RewardClaim {
+	var claims []types.RewardClaim
 
 	stakedWeight := big.NewInt(0)
 	for _, w := range voter.NodeWeights {
@@ -156,18 +156,18 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []RewardClai
 
 	fee := big.NewInt(0).Add(delegationFee, stakingFee)
 	if fee.Cmp(bigZero) != 0 {
-		claims = append(claims, RewardClaim{
+		claims = append(claims, types.RewardClaim{
 			Beneficiary: feeBeneficiary,
 			Amount:      fee,
-			Type:        Fee,
+			Type:        types.Fee,
 		})
 	}
 
 	delegationCommunityReward := big.NewInt(0).Sub(delegationAmount, delegationFee)
-	claims = append(claims, RewardClaim{
+	claims = append(claims, types.RewardClaim{
 		Beneficiary: delegationBeneficiary,
 		Amount:      delegationCommunityReward,
-		Type:        WNat,
+		Type:        types.WNat,
 	})
 
 	remainingStakeWeight := big.NewInt(0).Set(stakedWeight)
@@ -189,10 +189,10 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []RewardClai
 		remainingStakeAmount.Sub(remainingStakeAmount, nodeAmount)
 		remainingStakeWeight.Sub(remainingStakeWeight, nodeWeight)
 
-		claims = append(claims, RewardClaim{
+		claims = append(claims, types.RewardClaim{
 			Beneficiary: nodeId,
 			Amount:      nodeAmount,
-			Type:        Mirror,
+			Type:        types.Mirror,
 		})
 	}
 
