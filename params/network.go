@@ -16,13 +16,15 @@ type Network struct {
 }
 
 type ContractAddresses struct {
-	FlareSystemsManager     common.Address
-	FtsoRewardOffersManager common.Address
-	RewardManager           common.Address
-	Submission              common.Address
-	Relay                   common.Address
-	FlareSystemsCalculator  common.Address
-	VoterRegistry           common.Address
+	FlareSystemsManager        common.Address
+	FtsoRewardOffersManager    common.Address
+	RewardManager              common.Address
+	Submission                 common.Address
+	Relay                      common.Address
+	FlareSystemsCalculator     common.Address
+	VoterRegistry              common.Address
+	FastUpdateIncentiveManager common.Address
+	FastUpdater                common.Address
 }
 
 type Ftso struct {

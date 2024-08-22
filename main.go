@@ -28,7 +28,6 @@ func main() {
 		dbPort = "3306"
 	}
 	dbPortInt, err := strconv.Atoi(dbPort)
-	strconv.Atoi(dbPort)
 
 	var config = database.DBConfig{
 		Host:     dbHost,
@@ -37,6 +36,7 @@ func main() {
 		Username: "root",
 		Password: "root",
 	}
+
 	logger.Info("Connecting to database: +%v", config)
 
 	db, err = database.Connect(&config)

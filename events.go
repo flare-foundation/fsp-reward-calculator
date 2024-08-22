@@ -2,6 +2,7 @@ package main
 
 import (
 	"flare-common/contracts/calculator"
+	"flare-common/contracts/fumanager"
 	"flare-common/contracts/offers"
 	"flare-common/contracts/registry"
 	"flare-common/database"
@@ -129,6 +130,27 @@ func GetInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offe
 		to,
 		params.Net.Contracts.FtsoRewardOffersManager,
 		utils.EventTopic0.InflationRewardsOffered,
+		parse,
+	)
+	if err != nil {
+		return nil, errors.Errorf("err fetching events: %s", err)
+	}
+
+	return events, nil
+}
+
+func GetFURewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.FUManagerInflationRewardsOffered, error) {
+	instance, _ := fumanager.NewFUManager(common.Address{}, nil)
+	parse := func(log types.Log) (*fumanager.FUManagerInflationRewardsOffered, error) {
+		return instance.FUManagerFilterer.ParseInflationRewardsOffered(log)
+	}
+
+	events, err := QueryEvents(
+		db,
+		from,
+		to,
+		params.Net.Contracts.FastUpdateIncentiveManager,
+		utils.EventTopic0.FUInflationRewardsOffered,
 		parse,
 	)
 	if err != nil {

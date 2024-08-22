@@ -196,7 +196,7 @@ func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips ui
 }
 
 func generateClaimsForVoter(voter *VoterInfo, reward *big.Int) []types.RewardClaim {
-	logger.Info("Generating claims for voter %s, amount %d", hex.EncodeToString(voter.Identity[:]), reward)
+	logger.Debug("Generating claims for voter %s, amount %d", hex.EncodeToString(voter.Identity[:]), reward)
 
 	var claims []types.RewardClaim
 

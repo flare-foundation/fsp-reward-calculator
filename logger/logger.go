@@ -101,8 +101,12 @@ func fileLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
 }
 
 func DefaultLoggerConfig() config.LoggerConfig {
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "INFO"
+	}
 	return config.LoggerConfig{
-		Level:   "DEBUG",
+		Level:   logLevel,
 		Console: true,
 	}
 }

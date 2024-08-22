@@ -2,6 +2,7 @@ package utils
 
 import (
 	"flare-common/contracts/calculator"
+	"flare-common/contracts/fumanager"
 	"flare-common/contracts/offers"
 	"flare-common/contracts/registry"
 	"flare-common/contracts/relay"
@@ -12,8 +13,9 @@ import (
 )
 
 type EventIds struct {
-	RewardsOffered          string
-	InflationRewardsOffered string
+	RewardsOffered            string
+	InflationRewardsOffered   string
+	FUInflationRewardsOffered string
 
 	RewardEpochStarted       string
 	RandomAcquisitionStarted string
@@ -32,8 +34,9 @@ type FunctionSigs struct {
 }
 
 var EventTopic0 = EventIds{
-	RewardsOffered:          eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
-	InflationRewardsOffered: eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
+	RewardsOffered:            eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
+	InflationRewardsOffered:   eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
+	FUInflationRewardsOffered: eventIDFromMetadata(fumanager.FUManagerMetaData, "InflationRewardsOffered"),
 
 	RewardEpochStarted:       eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RewardEpochStarted"),
 	RandomAcquisitionStarted: eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RandomAcquisitionStarted"),
