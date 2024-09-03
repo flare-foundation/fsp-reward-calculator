@@ -1,4 +1,4 @@
-package main
+package rewards
 
 import (
 	"encoding/binary"
@@ -61,7 +61,6 @@ type ProtocolMerkleRoot struct {
 type FeedValue struct {
 	isEmpty bool
 	Value   int32
-	//Decimals int
 }
 
 func (t *TxInfo) RoundId() types.RoundId {
@@ -70,12 +69,6 @@ func (t *TxInfo) RoundId() types.RoundId {
 func (t *TxInfo) RoundOffset() uint64 {
 	roundStartSec := params.Net.Epoch.VotingRoundStartSec(t.RoundId())
 	return t.TimestampSec - roundStartSec
-}
-
-// Submit1, Submit2, Submit3
-type Submission[T any] struct {
-	info TxInfo
-	item T
 }
 
 func DecodeCommit(message string) (*Commit, error) {

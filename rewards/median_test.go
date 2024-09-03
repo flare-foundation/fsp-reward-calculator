@@ -1,4 +1,4 @@
-package main
+package rewards
 
 import (
 	"math/big"

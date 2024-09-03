@@ -74,7 +74,6 @@ func FinalizerSelectionSeed(seed *big.Int, protocolId byte, round types.RoundId)
 }
 
 var (
-	uint24Type, _   = abi.NewType("uint24", "", nil)
 	bytes20Type, _  = abi.NewType("bytes20", "", nil)
 	uint120Type, _  = abi.NewType("uint120", "", nil)
 	rewardClaimArgs = abi.Arguments{

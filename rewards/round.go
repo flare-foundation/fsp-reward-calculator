@@ -1,4 +1,4 @@
-package main
+package rewards
 
 import (
 	"bytes"
@@ -72,7 +72,6 @@ func getFinalizationsByRound(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*
 
 	finalizationsByRound := make(map[types.RoundId][]*Finalization)
 
-	//var firstSuccessful *Finalization
 	for round, finalizations := range allFinalizationsByRound {
 		seenSender := map[common.Address]bool{}
 		for _, finalization := range finalizations {
@@ -92,11 +91,6 @@ func getFinalizationsByRound(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*
 			} else {
 				seenSender[finalization.Info.From] = true
 			}
-
-			//if firstSuccessful == nil && !finalization.Info.Reverted {
-			//	firstSuccessful = finalization
-			//}
-			// TODO: Store first successful
 
 			finalizationsByRound[round] = append(finalizationsByRound[round], finalization)
 		}

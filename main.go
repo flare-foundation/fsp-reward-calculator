@@ -6,6 +6,7 @@ import (
 	"flare-common/merkle"
 	"fmt"
 	"ftsov2-rewarding/logger"
+	"ftsov2-rewarding/rewards"
 	"ftsov2-rewarding/types"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -85,19 +86,18 @@ func calculateRewardClaimsHandler(w http.ResponseWriter, r *http.Request) {
 func getResult(epoch types.EpochId, err error) roundResult {
 	logger.Info("Calculating reward claims for epoch %d", epoch)
 
-	allClaims, err := calculateRewardClaims(db, epoch)
+	allClaims, err := rewards.CalculateRewardClaims(db, epoch)
 	if err != nil {
 		logger.Fatal("Error calculating reward claims for epoch %d: %s", epoch, err)
 	}
 
-	merged := mergeClaims(allClaims)
+	merged := rewards.MergeClaims(allClaims)
 	logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
 
-	printResults(merged, strconv.Itoa(int(epoch)))
+	utils.PrintResults(merged, strconv.Itoa(int(epoch)))
 
-	finalClaims := applyPenalties(merged)
-
-	printResults(finalClaims, strconv.Itoa(int(epoch))+"-merged")
+	finalClaims := rewards.ApplyPenalties(merged)
+	utils.PrintResults(finalClaims, strconv.Itoa(int(epoch))+"-merged")
 
 	var hashes []common.Hash
 	var weightBasedClaims = 0
@@ -123,27 +123,6 @@ func getResult(epoch types.EpochId, err error) roundResult {
 		MerkleRoot:            root.Hex(),
 	}
 	return res
-}
-
-func printResults(records []types.RewardClaim, suffix string) {
-	jsonData, err := json.MarshalIndent(records, "", "    ")
-	if err != nil {
-		fmt.Println("Error serializing to JSON:", err)
-		return
-	}
-
-	file, err := os.Create(fmt.Sprintf("results/claims-%s.json", suffix))
-	if err != nil {
-		fmt.Println("Error creating file:", err)
-		return
-	}
-	defer file.Close()
-
-	_, err = file.Write(jsonData)
-	if err != nil {
-		fmt.Println("Error writing to file:", err)
-		return
-	}
 }
 
 type roundResult struct {

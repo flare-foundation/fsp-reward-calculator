@@ -1,4 +1,4 @@
-package main
+package rewards
 
 import (
 	"flare-common/contracts/fupdater"

@@ -1,4 +1,4 @@
-package main
+package rewards
 
 import (
 	"ftsov2-rewarding/logger"
@@ -7,8 +7,8 @@ import (
 	"math/big"
 )
 
-// mergeClaims merges claims with the same beneficiary, type, and amount sign (penalty or reward).
-func mergeClaims(claims []types.RewardClaim) []types.RewardClaim {
+// MergeClaims merges claims with the same beneficiary, type, and amount sign (penalty or reward).
+func MergeClaims(claims []types.RewardClaim) []types.RewardClaim {
 	byBeneficiaryTypeAndSign := make(map[common.Address]map[types.ClaimType]map[bool]*big.Int)
 
 	for _, claim := range claims {
@@ -44,7 +44,7 @@ func mergeClaims(claims []types.RewardClaim) []types.RewardClaim {
 	return merged
 }
 
-func applyPenalties(claims []types.RewardClaim) []types.RewardClaim {
+func ApplyPenalties(claims []types.RewardClaim) []types.RewardClaim {
 	var result []types.RewardClaim
 
 	rewardByBeneficiaryAndType := make(map[common.Address]map[types.ClaimType]*types.RewardClaim)

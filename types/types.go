@@ -29,7 +29,6 @@ const (
 )
 
 type RewardClaim struct {
-	//Round 	 types.RoundId
 	Beneficiary common.Address
 	Amount      *big.Int
 	Type        ClaimType

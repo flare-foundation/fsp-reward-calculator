@@ -1,10 +1,9 @@
-package main
+package rewards
 
 import (
 	"encoding/hex"
 	"fmt"
 	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/types"
 	"github.com/pkg/errors"
 	"math/big"
 	"sort"
@@ -32,7 +31,7 @@ type nullInt32 struct {
 	value int32
 }
 
-func CalculateMedians(round types.RoundId, re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) (map[FeedId]*MedianResult, error) {
+func CalculateMedians(re RewardEpoch, validReveals map[VoterSubmit][]FeedValue) (map[FeedId]*MedianResult, error) {
 	medianResults := map[FeedId]*MedianResult{}
 	for feedIndex, feed := range re.OrderedFeeds {
 		var weightedValues []VoterValue
