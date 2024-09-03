@@ -21,7 +21,7 @@ func TestFinalizerSelectionSeed(t *testing.T) {
 
 func TestRewardClaimHash(t *testing.T) {
 	t.Run("encodes correctly", func(t *testing.T) {
-		amount, _ := big.NewInt(0).SetString("48398380199697751340269", 10)
+		amount, _ := new(big.Int).SetString("48398380199697751340269", 10)
 
 		claim := types.RewardClaim{
 			Beneficiary: common.HexToAddress("0xa174d46ef49d7d4a0328f9910222689e9eab2f45"),

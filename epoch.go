@@ -33,9 +33,10 @@ type RewardEpoch struct {
 }
 
 type RewardOffers struct {
-	community   []*offers.OffersRewardsOffered
-	inflation   []*offers.OffersInflationRewardsOffered
-	fastUpdates []*fumanager.FUManagerInflationRewardsOffered
+	community    []*offers.OffersRewardsOffered
+	inflation    []*offers.OffersInflationRewardsOffered
+	fastUpdates  []*fumanager.FUManagerInflationRewardsOffered
+	fastUpdatesI []*fumanager.FUManagerIncentiveOffered
 }
 
 type VoterInfo struct {
@@ -91,9 +92,10 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		return RewardEpoch{}, errors.Errorf("unable to determine last voting round for epoch %d: no signing policy found for next epoch %d. It may not have been indexed yet or the current epoch is not finished", epoch, epoch+1)
 	}
 
-	actualStartSec := params.Net.Epoch.VotingRoundStartSec(startRound)
+	epochStartSec := params.Net.Epoch.VotingRoundStartSec(startRound)
+	epochEndSec := params.Net.Epoch.VotingRoundEndSec(endRound)
 
-	rewardOffers, err := getRewardOffers(db, epoch, actualStartSec-(epochDuration+epochDuration/2), actualStartSec)
+	rewardOffers, err := getRewardOffers(db, epoch, epochStartSec, epochEndSec)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching reward rewardOffers: %s", err)
 	}
@@ -106,17 +108,17 @@ func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
 
 	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
 
-	voters, err := getVoters(db, epoch, actualStartSec-signingPolicyWindow, actualStartSec)
+	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
 
-	nextVoters, err := getVoters(db, epoch+1, actualStartSec+epochDuration-signingPolicyWindow, actualStartSec+epochDuration)
+	nextVoters, err := getVoters(db, epoch+1, epochStartSec+epochDuration-signingPolicyWindow, epochStartSec+epochDuration)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
 
-	prevVoters, err := getVoters(db, epoch-1, actualStartSec-(epochDuration+signingPolicyWindow), actualStartSec-(epochDuration))
+	prevVoters, err := getVoters(db, epoch-1, epochStartSec-(epochDuration+signingPolicyWindow), epochStartSec-(epochDuration))
 
 	return RewardEpoch{
 		Epoch:         epoch,
@@ -140,71 +142,23 @@ func getOrderedVoters(event *relay.RelaySigningPolicyInitialized) []VoterSigning
 	return voters
 }
 
-//
-//func analyseReveals(revealMap map[uint64][]Reveal, feeds []Feed) {
-//	for round, reveal := range revealMap {
-//		feedValues := make(map[int][]int32)
-//		invalidCount := make([]int, len(feeds))
-//		validCount := make([]int, len(feeds))
-//		for _, r := range reveal {
-//			for feedIndex := range feeds {
-//				if !r.Values[feedIndex].isEmpty {
-//					if isPowerOfTen(int(r.Values[feedIndex].Value)) {
-//						invalidCount[feedIndex]++
-//					} else {
-//						validCount[feedIndex]++
-//					}
-//				}
-//				feedValues[feedIndex] = append(feedValues[feedIndex], r.Values[feedIndex].Value)
-//			}
-//		}
-//
-//		totalInvalid := 0
-//
-//		invalidFeeds := make([]string, 0)
-//		for i, v := range feedValues {
-//			invalidp := float64(invalidCount[i]) / float64(invalidCount[i]+validCount[i]) * 100
-//			feedS := feeds[i].String()
-//			feeds2 := feedS
-//			if invalidp >= 50 {
-//				totalInvalid++
-//				invalidFeeds = append(invalidFeeds, feedS)
-//			}
-//			fmt.Printf("Round %d, feed %10s, total %2d, valid %2d, invalid %2d, invalid%% %.2f: %v\n", round, feeds2, invalidCount[i]+validCount[i], validCount[i], invalidCount[i], invalidp, v)
-//		}
-//
-//		sort.Slice(invalidFeeds, func(i, j int) bool {
-//			return invalidFeeds[i] < invalidFeeds[j]
-//		})
-//
-//		fmt.Printf("Round %d, total invalid > 50%%: %d\n, feeds: %v", round, totalInvalid, invalidFeeds)
-//		break
-//	}
-//}
+func getRewardOffers(db *gorm.DB, epoch types.EpochId, startSec, endSec uint64) (RewardOffers, error) {
+	extraWindow := uint64(6 * 60 * 60)
+	previousStartSec := params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch-1) - extraWindow
 
-func isPowerOfTen(n int) bool {
-	if n < 1 {
-		return false
-	}
-	for n > 1 {
-		if n%10 != 0 {
-			return false
-		}
-		n /= 10
-	}
-	return true
-}
-
-func getRewardOffers(db *gorm.DB, epoch types.EpochId, epochStartSec, epochEndSec uint64) (RewardOffers, error) {
-	community, err := GetRewardOfferEvents(db, epochStartSec, epochEndSec)
+	community, err := GetRewardOfferEvents(db, previousStartSec, startSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching reward offer events: %s", err)
 	}
-	inflation, err := GetInflationRewardOfferEvents(db, epochStartSec, epochEndSec)
+	inflation, err := GetInflationRewardOfferEvents(db, previousStartSec, startSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching inflation reward offer events: %s", err)
 	}
-	fastUpdates, err := GetFURewardOfferEvents(db, epochStartSec, epochEndSec)
+	fastUpdates, err := GetFURewardOfferEvents(db, previousStartSec, startSec)
+	if err != nil {
+		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
+	}
+	fastUpdatesI, err := GetFURIewardOfferEvents(db, startSec, endSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
 	}
@@ -218,11 +172,15 @@ func getRewardOffers(db *gorm.DB, epoch types.EpochId, epochStartSec, epochEndSe
 	fastUpdates = slices.DeleteFunc(fastUpdates, func(offer *fumanager.FUManagerInflationRewardsOffered) bool {
 		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
+	fastUpdatesI = slices.DeleteFunc(fastUpdatesI, func(offer *fumanager.FUManagerIncentiveOffered) bool {
+		return offer.RewardEpochId.Uint64() != uint64(epoch)
+	})
 
 	return RewardOffers{
 		community,
 		inflation,
 		fastUpdates,
+		fastUpdatesI,
 	}, nil
 }
 

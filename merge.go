@@ -22,7 +22,7 @@ func mergeClaims(claims []types.RewardClaim) []types.RewardClaim {
 		isPositive := claim.Amount.Cmp(bigZero) > 0
 		sum, ok := byBeneficiaryTypeAndSign[claim.Beneficiary][claim.Type][isPositive]
 		if !ok {
-			byBeneficiaryTypeAndSign[claim.Beneficiary][claim.Type][isPositive] = big.NewInt(0).Set(claim.Amount)
+			byBeneficiaryTypeAndSign[claim.Beneficiary][claim.Type][isPositive] = new(big.Int).Set(claim.Amount)
 		} else {
 			sum.Add(sum, claim.Amount)
 		}
@@ -79,12 +79,12 @@ func applyPenalties(claims []types.RewardClaim) []types.RewardClaim {
 			}
 
 			// Penalty claim amount should be negative
-			remainder := big.NewInt(0).Add(rewardClaim.Amount, penaltyClaim.Amount)
+			remainder := new(big.Int).Add(rewardClaim.Amount, penaltyClaim.Amount)
 
 			if remainder.Cmp(bigZero) <= 0 {
 				burnAmount.Add(burnAmount, rewardClaim.Amount)
 			} else {
-				burnAmount.Add(burnAmount, big.NewInt(0).Abs(penaltyClaim.Amount))
+				burnAmount.Add(burnAmount, new(big.Int).Abs(penaltyClaim.Amount))
 
 				remainderClaim := types.RewardClaim{
 					Beneficiary: rewardClaim.Beneficiary,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flare-common/contracts/fupdater"
 	"flare-common/database"
 	"flare-common/payload"
 	"flare-common/policy"
@@ -9,8 +10,10 @@ import (
 	"ftsov2-rewarding/types"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
+	ty "github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
+	"math/big"
 )
 
 const (
@@ -52,6 +55,11 @@ type Finalization struct {
 	merkleRoot ProtocolMerkleRoot
 	Signatures []ECDSASignature
 	Info       TxInfo
+}
+
+type FUpdateFeed struct {
+	Values   []*big.Int
+	Decimals []int8
 }
 
 // TODO: Make sure DB query sorts both by timestamp and tx index
@@ -185,7 +193,7 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
 
-	var finalizationsByRound = map[types.RoundId][]*Finalization{}
+	var byRound = map[types.RoundId][]*Finalization{}
 
 	for _, txn := range txns {
 		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(txn.Timestamp) - 1
@@ -204,8 +212,8 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 			continue
 		}
 
-		if _, ok := finalizationsByRound[expectedRound]; !ok {
-			finalizationsByRound[expectedRound] = []*Finalization{}
+		if _, ok := byRound[expectedRound]; !ok {
+			byRound[expectedRound] = []*Finalization{}
 		}
 
 		// TODO: Clean up filling in tx info: should be done on creation
@@ -215,10 +223,87 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 			Reverted:     txn.Status != 1,
 		}
 
-		finalizationsByRound[expectedRound] = append(finalizationsByRound[expectedRound], finalization)
+		byRound[expectedRound] = append(byRound[expectedRound], finalization)
 	}
 
-	return finalizationsByRound, nil
+	return byRound, nil
+}
+
+func getFUpdateFeeds(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]*FUpdateFeed, error) {
+	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound + 1)
+	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(2)) // extra round for buffer
+
+	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
+	parse := func(log ty.Log) (*fupdater.FUpdaterFastUpdateFeeds, error) {
+		return instance.FUpdaterFilterer.ParseFastUpdateFeeds(log)
+	}
+
+	events, err := QueryEvents(
+		db,
+		fromSec,
+		toSec,
+		params.Net.Contracts.FastUpdater,
+		utils.EventTopic0.FastUpdateFeeds,
+		parse,
+	)
+	if err != nil {
+		return nil, errors.Errorf("err fetching events: %s", err)
+	}
+
+	var byRound = map[types.RoundId]*FUpdateFeed{}
+
+	for _, event := range events {
+		round := types.RoundId(event.VotingEpochId.Uint64())
+		if round < fromRound || round > toRound {
+			continue
+		}
+
+		byRound[round] = &FUpdateFeed{
+			Values:   event.Feeds,
+			Decimals: event.Decimals,
+		}
+	}
+
+	return byRound, nil
+}
+
+func getFUpdateSubmits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId][]VoterSigning, error) {
+	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
+	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(1))
+
+	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
+	parse := func(log ty.Log) (*fupdater.FUpdaterFastUpdateFeedsSubmitted, error) {
+		return instance.FUpdaterFilterer.ParseFastUpdateFeedsSubmitted(log)
+	}
+
+	events, err := QueryEvents(
+		db,
+		fromSec,
+		toSec,
+		params.Net.Contracts.FastUpdater,
+		utils.EventTopic0.FastUpdateFeedsSubmitted,
+		parse,
+	)
+	if err != nil {
+		return nil, errors.Errorf("err fetching events: %s", err)
+	}
+
+	var byRound = map[types.RoundId][]VoterSigning{}
+
+	for _, event := range events {
+		round := types.RoundId(event.VotingRoundId)
+		if round < fromRound || round > toRound {
+			continue
+		}
+
+		if _, ok := byRound[round]; !ok {
+			byRound[round] = []VoterSigning{}
+		}
+
+		byRound[round] = append(byRound[round], VoterSigning(event.SigningPolicyAddress))
+	}
+
+	return byRound, nil
 }
 
 func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]byte, contractAddress common.Address) ([]payload.Message, error) {

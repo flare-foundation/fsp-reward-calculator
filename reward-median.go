@@ -33,7 +33,7 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.VoterIndex.totalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
 		epochClaims = append(epochClaims, types.RewardClaim{
 			Beneficiary: BurnAddress,
-			Amount:      big.NewInt(0).Set(rewardShare),
+			Amount:      new(big.Int).Set(rewardShare),
 			Type:        types.Direct,
 		})
 		return epochClaims
@@ -79,15 +79,15 @@ func calcMedianRewardClaims(round types.RoundId, re RewardEpoch, rewardShare *bi
 		// Burn rewardOffer if no eligible submissions
 		epochClaims = append(epochClaims, types.RewardClaim{
 			Beneficiary: BurnAddress,
-			Amount:      big.NewInt(0).Set(rewardShare),
+			Amount:      new(big.Int).Set(rewardShare),
 			Type:        types.Direct,
 		})
 		return epochClaims
 	}
 
 	totalReward := big.NewInt(0)
-	availableReward := big.NewInt(0).Set(rewardShare)
-	availableWeight := big.NewInt(0).Set(totalNormWeight)
+	availableReward := new(big.Int).Set(rewardShare)
+	availableWeight := new(big.Int).Set(totalNormWeight)
 
 	for _, record := range sortedRecords {
 		logger.Debug("Voter %s, weight %d, isPct %t, isIqr %t", hex.EncodeToString(record.voter[:]), record.weight, record.isPct, record.isIqr)
@@ -184,11 +184,11 @@ func randomSelect(feedId FeedId, round types.RoundId, voter VoterSubmit) bool {
 }
 
 func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips uint16) bool {
-	return big.NewInt(0).Mul(
+	return new(big.Int).Mul(
 		participatingWeight,
 		bigTotalBips,
 	).Cmp(
-		big.NewInt(0).Mul(
+		new(big.Int).Mul(
 			totalWeight,
 			big.NewInt(int64(minBips)),
 		),
@@ -201,7 +201,7 @@ func generateClaimsForVoter(voter *VoterInfo, reward *big.Int) []types.RewardCla
 	var claims []types.RewardClaim
 
 	voterFee := voter.DelegationFeeBips
-	fee := big.NewInt(0).Div(
+	fee := new(big.Int).Div(
 		bigTmp.Mul(
 			reward,
 			big.NewInt(int64(voterFee)),
@@ -217,7 +217,7 @@ func generateClaimsForVoter(voter *VoterInfo, reward *big.Int) []types.RewardCla
 		})
 	}
 
-	participationReward := big.NewInt(0).Sub(reward, fee)
+	participationReward := new(big.Int).Sub(reward, fee)
 	if participationReward.Cmp(bigZero) > 0 {
 		claims = append(claims, types.RewardClaim{
 			Beneficiary: common.Address(voter.Delegation),

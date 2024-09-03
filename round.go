@@ -103,3 +103,33 @@ func getFinalizationsByRound(db *gorm.DB, re RewardEpoch) (map[types.RoundId][]*
 	}
 	return finalizationsByRound, nil
 }
+
+type FUpdate struct {
+	feeds      *FUpdateFeed
+	submitters []VoterSigning
+}
+
+func getFUpdatesByRound(db *gorm.DB, re RewardEpoch) (map[types.RoundId]*FUpdate, error) {
+	logger.Info("Fetching FastUpdates data for rounds %d-%d", re.StartRound, re.EndRound)
+
+	feeds, err := getFUpdateFeeds(db, re.StartRound, re.EndRound)
+	if err != nil {
+		return nil, errors.Wrap(err, "error fetching FUpdate feeds")
+	}
+
+	submitters, err := getFUpdateSubmits(db, re.StartRound, re.EndRound)
+	if err != nil {
+		return nil, errors.Wrap(err, "error fetching FUpdate submitters")
+	}
+
+	byRound := make(map[types.RoundId]*FUpdate)
+
+	for round := re.StartRound; round <= re.EndRound; round++ {
+		byRound[round] = &FUpdate{
+			feeds:      feeds[round],
+			submitters: submitters[round],
+		}
+
+	}
+	return byRound, nil
+}

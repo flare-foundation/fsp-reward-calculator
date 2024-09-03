@@ -27,8 +27,7 @@ func calcFinalizationRewardClaims(
 	}
 
 	firstSuccessfulFinalization := finalizations[successIndex]
-	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(round+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec
-	gracePeriodDeadline += 1 // TODO: This is to match TS implementation logic, need to check if it's correct
+	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(round+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec + 1
 
 	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {
 		// No voter provided finalization in grace period. The first successful finalizer gets the full reward.
@@ -59,7 +58,7 @@ func calcFinalizationRewardClaims(
 	// The reward should be distributed equally among all the eligible finalizers.
 	// Note that each finalizer was chosen by probability corresponding to its relative weight.
 	// Consequently, the real weight should not be taken into account here.
-	undistributedAmount := big.NewInt(0).Set(reward)
+	undistributedAmount := new(big.Int).Set(reward)
 	undistributedWeight := big.NewInt(int64(len(eligibleFinalizers)))
 
 	eligibleVoterBySigning := map[VoterSigning]*VoterInfo{}
@@ -72,7 +71,7 @@ func calcFinalizationRewardClaims(
 			continue
 		}
 
-		claimAmount := big.NewInt(0).Div(undistributedAmount, undistributedWeight)
+		claimAmount := new(big.Int).Div(undistributedAmount, undistributedWeight)
 		undistributedAmount.Sub(undistributedAmount, claimAmount)
 		undistributedWeight.Sub(undistributedWeight, big.NewInt(1))
 

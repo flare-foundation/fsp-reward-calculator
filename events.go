@@ -21,15 +21,15 @@ import (
 
 func QueryEvents[T interface{}](
 	db *gorm.DB,
-	searchIntervalStartSec uint64,
-	searchIntervalEndSec uint64,
+	searchIntervalStartSec uint64, //inclusive
+	searchIntervalEndSec uint64, //exclusive
 	contractAddress common.Address,
 	topic0 string,
 	parseEvent func(types.Log) (T, error),
 ) ([]T, error) {
 	var logs []database.Log
 	err := db.Where(
-		"address = ? AND topic0 = ? AND timestamp > ? AND timestamp <= ?",
+		"address = ? AND topic0 = ? AND timestamp >= ? AND timestamp < ?",
 		strings.ToLower(strings.TrimPrefix(contractAddress.String(), "0x")),
 		strings.ToLower(strings.TrimPrefix(topic0, "0x")),
 		searchIntervalStartSec, searchIntervalEndSec,
@@ -151,6 +151,27 @@ func GetFURewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.F
 		to,
 		params.Net.Contracts.FastUpdateIncentiveManager,
 		utils.EventTopic0.FUInflationRewardsOffered,
+		parse,
+	)
+	if err != nil {
+		return nil, errors.Errorf("err fetching events: %s", err)
+	}
+
+	return events, nil
+}
+
+func GetFURIewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.FUManagerIncentiveOffered, error) {
+	instance, _ := fumanager.NewFUManager(common.Address{}, nil)
+	parse := func(log types.Log) (*fumanager.FUManagerIncentiveOffered, error) {
+		return instance.FUManagerFilterer.ParseIncentiveOffered(log)
+	}
+
+	events, err := QueryEvents(
+		db,
+		from,
+		to,
+		params.Net.Contracts.FastUpdateIncentiveManager,
+		utils.EventTopic0.FUIncentiveRewardOffered,
 		parse,
 	)
 	if err != nil {

@@ -84,7 +84,7 @@ func calcSigningRewardClaims(
 	if remainingWeight == 0 {
 		return []types.RewardClaim{burnClaim(reward)}
 	}
-	remainingAmount := big.NewInt(0).Set(reward)
+	remainingAmount := new(big.Int).Set(reward)
 
 	var claims []types.RewardClaim
 	// Sort signatures according to voter order in signing policy
@@ -106,7 +106,7 @@ func calcSigningRewardClaims(
 		}
 
 		// TODO: clean up big.Int calculations
-		claimAmount := big.NewInt(0).Div(
+		claimAmount := new(big.Int).Div(
 			bigTmp.Mul(remainingAmount, big.NewInt(int64(weight))),
 			big.NewInt(int64(remainingWeight)),
 		)
@@ -132,29 +132,29 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.Rewa
 		stakedWeight.Add(stakedWeight, w)
 	}
 
-	totalWeight := big.NewInt(0).Add(voter.CappedWeight, stakedWeight)
+	totalWeight := new(big.Int).Add(voter.CappedWeight, stakedWeight)
 	if totalWeight.Cmp(bigZero) == 0 {
 		logger.Fatal("voter totalWeight is zero, this should never happen")
 	}
 
-	stakingAmount := big.NewInt(0).Div(
+	stakingAmount := new(big.Int).Div(
 		bigTmp.Mul(amount, stakedWeight),
 		totalWeight,
 	)
-	delegationAmount := big.NewInt(0).Sub(amount, stakingAmount)
-	delegationFee := big.NewInt(0).Div(
+	delegationAmount := new(big.Int).Sub(amount, stakingAmount)
+	delegationFee := new(big.Int).Div(
 		bigTmp.Mul(delegationAmount, big.NewInt(int64(voter.DelegationFeeBips))),
 		bigTotalBips,
 	)
 	cappedStakingFeeBips := big.NewInt(min(int64(voter.DelegationFeeBips), params.Net.Ftso.CappedStakingFeeBips))
-	stakingFee := big.NewInt(0).Div(
+	stakingFee := new(big.Int).Div(
 		bigTmp.Mul(stakingAmount, cappedStakingFeeBips),
 		bigTotalBips,
 	)
 	feeBeneficiary := common.Address(voter.Identity)
 	delegationBeneficiary := common.Address(voter.Delegation)
 
-	fee := big.NewInt(0).Add(delegationFee, stakingFee)
+	fee := new(big.Int).Add(delegationFee, stakingFee)
 	if fee.Cmp(bigZero) != 0 {
 		claims = append(claims, types.RewardClaim{
 			Beneficiary: feeBeneficiary,
@@ -163,15 +163,15 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.Rewa
 		})
 	}
 
-	delegationCommunityReward := big.NewInt(0).Sub(delegationAmount, delegationFee)
+	delegationCommunityReward := new(big.Int).Sub(delegationAmount, delegationFee)
 	claims = append(claims, types.RewardClaim{
 		Beneficiary: delegationBeneficiary,
 		Amount:      delegationCommunityReward,
 		Type:        types.WNat,
 	})
 
-	remainingStakeWeight := big.NewInt(0).Set(stakedWeight)
-	remainingStakeAmount := big.NewInt(0).Sub(stakingAmount, stakingFee)
+	remainingStakeWeight := new(big.Int).Set(stakedWeight)
+	remainingStakeAmount := new(big.Int).Sub(stakingAmount, stakingFee)
 
 	for i := range voter.NodeIds {
 		nodeId := voter.NodeIds[i]
@@ -180,7 +180,7 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.Rewa
 		nodeAmount := big.NewInt(0)
 
 		if nodeWeight.Cmp(bigZero) > 0 {
-			nodeAmount = big.NewInt(0).Div(
+			nodeAmount = new(big.Int).Div(
 				bigTmp.Mul(remainingStakeAmount, nodeWeight),
 				remainingStakeWeight,
 			)

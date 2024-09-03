@@ -3,6 +3,7 @@ package utils
 import (
 	"flare-common/contracts/calculator"
 	"flare-common/contracts/fumanager"
+	"flare-common/contracts/fupdater"
 	"flare-common/contracts/offers"
 	"flare-common/contracts/registry"
 	"flare-common/contracts/relay"
@@ -16,6 +17,10 @@ type EventIds struct {
 	RewardsOffered            string
 	InflationRewardsOffered   string
 	FUInflationRewardsOffered string
+	FUIncentiveRewardOffered  string
+
+	FastUpdateFeeds          string
+	FastUpdateFeedsSubmitted string
 
 	RewardEpochStarted       string
 	RandomAcquisitionStarted string
@@ -45,6 +50,9 @@ var EventTopic0 = EventIds{
 	SigningPolicyInitialized: eventIDFromMetadata(relay.RelayMetaData, "SigningPolicyInitialized"),
 	VoterRegistered:          eventIDFromMetadata(registry.RegistryMetaData, "VoterRegistered"),
 	VoterRegistrationInfo:    eventIDFromMetadata(calculator.CalculatorMetaData, "VoterRegistrationInfo"),
+
+	FastUpdateFeeds:          eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeeds"),
+	FastUpdateFeedsSubmitted: eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeedsSubmitted"),
 }
 
 var FunctionSignatures = FunctionSigs{
