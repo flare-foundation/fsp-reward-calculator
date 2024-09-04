@@ -1,22 +1,23 @@
 package rewards
 
 import (
+	"ftsov2-rewarding/data"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"slices"
 )
 
-func calcSigningRewardClaims(
-	round types.RoundId,
-	re RewardEpoch,
+func getSigningClaims(
+	round ty.RoundId,
+	re data.RewardEpoch,
 	reward *big.Int,
-	eligibleVoters []*VoterInfo,
-	signers map[common.Hash]map[VoterSigning]SigInfo,
-	finalizations []*Finalization,
-) []types.RewardClaim {
+	eligibleVoters []*data.VoterInfo,
+	signers map[common.Hash]map[ty.VoterSigning]data.SigInfo,
+	finalizations []*data.Finalization,
+) []ty.RewardClaim {
 	doubleSigners := getDoubleSigners(signers)
 
 	revealDeadline := params.Net.Epoch.RevealDeadlineSec(round + 1)
@@ -24,9 +25,9 @@ func calcSigningRewardClaims(
 		round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows),
 	)
 
-	acceptedSigs := map[common.Hash]map[VoterSigning]SigInfo{}
+	acceptedSigs := map[common.Hash]map[ty.VoterSigning]data.SigInfo{}
 	for hash, sigs := range signers {
-		acceptedSigs[hash] = map[VoterSigning]SigInfo{}
+		acceptedSigs[hash] = map[ty.VoterSigning]data.SigInfo{}
 		for signer, sig := range sigs {
 			if sig.Timestamp < revealDeadline || sig.Timestamp > roundEnd {
 				continue
@@ -35,17 +36,17 @@ func calcSigningRewardClaims(
 		}
 	}
 
-	var rewardEligibleSigs []SigInfo
+	var rewardEligibleSigs []data.SigInfo
 
 	// TODO: Pre-compute
-	successIndex := slices.IndexFunc(finalizations, func(f *Finalization) bool {
+	successIndex := slices.IndexFunc(finalizations, func(f *data.Finalization) bool {
 		return f.Info.Reverted == false
 	})
 
 	if successIndex < 0 {
 		signatures := acceptedHashSignatures(re, acceptedSigs)
 		if signatures == nil {
-			return []types.RewardClaim{burnClaim(reward)}
+			return []ty.RewardClaim{burnClaim(reward)}
 		} else {
 			for _, s := range signatures {
 				if _, ok := doubleSigners[s.Signer]; !ok {
@@ -62,7 +63,7 @@ func calcSigningRewardClaims(
 		)
 		gracePeriod := revealDeadline + params.Net.Ftso.GracePeriodForSignaturesDurationSec
 
-		finalizedHash := successfulFinalization.merkleRoot.EncodedHash()
+		finalizedHash := successfulFinalization.MerkleRoot.EncodedHash()
 
 		for _, s := range acceptedSigs[finalizedHash] {
 			if _, ok := doubleSigners[s.Signer]; ok {
@@ -82,19 +83,19 @@ func calcSigningRewardClaims(
 	}
 
 	if remainingWeight == 0 {
-		return []types.RewardClaim{burnClaim(reward)}
+		return []ty.RewardClaim{burnClaim(reward)}
 	}
 	remainingAmount := new(big.Int).Set(reward)
 
-	var claims []types.RewardClaim
+	var claims []ty.RewardClaim
 	// Sort signatures according to voter order in signing policy
-	slices.SortFunc(rewardEligibleSigs, func(i, j SigInfo) int {
+	slices.SortFunc(rewardEligibleSigs, func(i, j data.SigInfo) int {
 		indexI := re.Policy.Voters.VoterDataMap[common.Address(i.Signer)].Index
 		indexJ := re.Policy.Voters.VoterDataMap[common.Address(j.Signer)].Index
 		return indexI - indexJ
 	})
 
-	eligibleSigners := map[VoterSigning]*VoterInfo{}
+	eligibleSigners := map[ty.VoterSigning]*data.VoterInfo{}
 	for _, voter := range eligibleVoters {
 		eligibleSigners[voter.Signing] = voter
 	}
@@ -115,7 +116,7 @@ func calcSigningRewardClaims(
 		remainingWeight -= weight
 
 		if voter, ok := eligibleSigners[sig.Signer]; ok {
-			claims = append(claims, signingWeightClaimsForVoter(voter, claimAmount)...)
+			claims = append(claims, SigningWeightClaimsForVoter(voter, claimAmount)...)
 		} else {
 			claims = append(claims, burnClaim(claimAmount))
 		}
@@ -124,8 +125,8 @@ func calcSigningRewardClaims(
 	return claims
 }
 
-func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.RewardClaim {
-	var claims []types.RewardClaim
+func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.RewardClaim {
+	var claims []ty.RewardClaim
 
 	stakedWeight := big.NewInt(0)
 	for _, w := range voter.NodeWeights {
@@ -156,18 +157,18 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.Rewa
 
 	fee := new(big.Int).Add(delegationFee, stakingFee)
 	if fee.Cmp(bigZero) != 0 {
-		claims = append(claims, types.RewardClaim{
+		claims = append(claims, ty.RewardClaim{
 			Beneficiary: feeBeneficiary,
 			Amount:      fee,
-			Type:        types.Fee,
+			Type:        ty.Fee,
 		})
 	}
 
 	delegationCommunityReward := new(big.Int).Sub(delegationAmount, delegationFee)
-	claims = append(claims, types.RewardClaim{
+	claims = append(claims, ty.RewardClaim{
 		Beneficiary: delegationBeneficiary,
 		Amount:      delegationCommunityReward,
-		Type:        types.WNat,
+		Type:        ty.WNat,
 	})
 
 	remainingStakeWeight := new(big.Int).Set(stakedWeight)
@@ -189,10 +190,10 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.Rewa
 		remainingStakeAmount.Sub(remainingStakeAmount, nodeAmount)
 		remainingStakeWeight.Sub(remainingStakeWeight, nodeWeight)
 
-		claims = append(claims, types.RewardClaim{
+		claims = append(claims, ty.RewardClaim{
 			Beneficiary: nodeId,
 			Amount:      nodeAmount,
-			Type:        types.Mirror,
+			Type:        ty.Mirror,
 		})
 	}
 
@@ -204,13 +205,13 @@ func signingWeightClaimsForVoter(voter *VoterInfo, amount *big.Int) []types.Rewa
 }
 
 func acceptedHashSignatures(
-	re RewardEpoch,
-	signaturesByHash map[common.Hash]map[VoterSigning]SigInfo,
-) map[VoterSigning]SigInfo {
+	re data.RewardEpoch,
+	signaturesByHash map[common.Hash]map[ty.VoterSigning]data.SigInfo,
+) map[ty.VoterSigning]data.SigInfo {
 	threshold := re.Policy.Voters.TotalWeight * params.Net.Ftso.MinimalRewardedNonConsensusDepositedSignaturesPerHashBips / totalBips
 
 	maxWeight := uint16(0)
-	var result map[VoterSigning]SigInfo
+	var result map[ty.VoterSigning]data.SigInfo
 
 	for _, signatures := range signaturesByHash {
 		hashWeight := uint16(0)
@@ -225,4 +226,20 @@ func acceptedHashSignatures(
 	}
 
 	return result
+}
+
+func getDoubleSigners(roundSigners map[common.Hash]map[ty.VoterSigning]data.SigInfo) map[ty.VoterSigning]bool {
+	signed := map[ty.VoterSigning]bool{}
+	doubleSigners := map[ty.VoterSigning]bool{}
+
+	for _, signers := range roundSigners {
+		for signer := range signers {
+			if _, ok := signed[signer]; ok {
+				doubleSigners[signer] = true
+			}
+			signed[signer] = true
+		}
+	}
+
+	return doubleSigners
 }

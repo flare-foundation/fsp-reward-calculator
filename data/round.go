@@ -1,0 +1,248 @@
+package data
+
+import (
+	"bytes"
+	"ftsov2-rewarding/logger"
+	"ftsov2-rewarding/ty"
+	"ftsov2-rewarding/utils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/pkg/errors"
+	"gorm.io/gorm"
+	"sync"
+)
+
+type SignerMap map[ty.RoundId]map[common.Hash]map[ty.VoterSigning]SigInfo
+
+type SigInfo struct {
+	Signer    ty.VoterSigning
+	Timestamp uint64
+}
+
+// GetSignersByRound fetches all signatures for all rounds in the reward epoch, and for each round
+// computes the list of valid signatures by signed hash.
+// For each signer, only the last signature for a specific round and hash is retained.
+func GetSignersByRound(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
+	logger.Info("Fetching signers for rounds %d-%d", re.StartRound, re.EndRound)
+	allSignatures, err := getSignatures(db, re.StartRound, re.EndRound)
+	if err != nil {
+		return nil, errors.Wrap(err, "error fetching signatures")
+	}
+
+	signers := SignerMap{}
+	for round, signatures := range allSignatures {
+		sigsByHash := map[common.Hash]map[ty.VoterSigning]SigInfo{}
+		for _, signatureSubmission := range signatures {
+			signature := signatureSubmission.Signature
+			signedHash := signature.merkleRoot.EncodedHash()
+			signerKey, err := crypto.SigToPub(
+				signedHash.Bytes(),
+				append(signature.bytes[1:65], signature.bytes[0]-27),
+			)
+			if err != nil {
+				logger.Debug("error recovering signerKey, skipping signature: %s", err)
+				continue
+			}
+
+			signer := ty.VoterSigning(crypto.PubkeyToAddress(*signerKey))
+			if _, ok := re.VoterIndex.BySigning[signer]; ok {
+				if _, ok := sigsByHash[signedHash]; !ok {
+					sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
+				}
+				sigsByHash[signedHash][signer] = SigInfo{
+					Signer:    signer,
+					Timestamp: signatureSubmission.Info.TimestampSec,
+				}
+			} else {
+				logger.Debug("signer %s not registered, skipping signature", signer)
+			}
+		}
+
+		signers[round] = sigsByHash
+	}
+	return signers, nil
+}
+
+func GetFinalizationsByRound(db *gorm.DB, re RewardEpoch) (map[ty.RoundId][]*Finalization, error) {
+	logger.Info("Fetching finalizations for rounds %d-%d", re.StartRound, re.EndRound)
+	allFinalizationsByRound, err := getFinalizations(db, re.StartRound, re.EndRound)
+	if err != nil {
+		return nil, errors.Wrap(err, "error fetching finalizations")
+	}
+
+	logger.Info("Finalizations: %d", len(allFinalizationsByRound))
+
+	finalizationsByRound := make(map[ty.RoundId][]*Finalization)
+
+	for round, finalizations := range allFinalizationsByRound {
+		seenSender := map[common.Address]bool{}
+		for _, finalization := range finalizations {
+			if ty.EpochId(finalization.Policy.RewardEpochId) != re.Epoch {
+				logger.Info("finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
+				continue
+			}
+
+			if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.RawBytes) {
+				logger.Info("finalization signing policy does not match expected, skipping")
+				continue
+			}
+
+			if _, ok := seenSender[finalization.Info.From]; ok {
+				logger.Info("finalization from %s already seen, skipping", finalization.Info.From)
+				continue
+			} else {
+				seenSender[finalization.Info.From] = true
+			}
+
+			finalizationsByRound[round] = append(finalizationsByRound[round], finalization)
+		}
+	}
+	return finalizationsByRound, nil
+}
+
+type FUpdate struct {
+	Feeds      *FUpdateFeed
+	Submitters []ty.VoterSigning
+}
+
+func GetFUpdatesByRound(db *gorm.DB, re RewardEpoch) (map[ty.RoundId]*FUpdate, error) {
+	logger.Info("Fetching FastUpdates data for rounds %d-%d", re.StartRound, re.EndRound)
+
+	feeds, err := getFUpdateFeeds(db, re.StartRound, re.EndRound)
+	if err != nil {
+		return nil, errors.Wrap(err, "error fetching FUpdate feeds")
+	}
+
+	submitters, err := getFUpdateSubmits(db, re.StartRound, re.EndRound)
+	if err != nil {
+		return nil, errors.Wrap(err, "error fetching FUpdate submitters")
+	}
+
+	byRound := make(map[ty.RoundId]*FUpdate)
+
+	for round := re.StartRound; round <= re.EndRound; round++ {
+		byRound[round] = &FUpdate{
+			Feeds:      feeds[round],
+			Submitters: submitters[round],
+		}
+
+	}
+	return byRound, nil
+}
+
+type RoundReveals struct {
+	Reveals   map[ty.VoterSubmit]*Reveal
+	Offenders []ty.VoterSubmit
+}
+
+// GetRoundRevealsAsync fetches all commits and reveals in parallel, and produces a map of valid round reveals and offenders.
+func GetRoundRevealsAsync(
+	db *gorm.DB,
+	windowStart ty.RoundId,
+	windowEnd ty.RoundId,
+	re RewardEpoch,
+) chan map[ty.RoundId]RoundReveals {
+	r := make(chan map[ty.RoundId]RoundReveals)
+
+	go func() {
+		var (
+			allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
+			allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
+		)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+
+			var err error
+			logger.Info("Fetching commits for rounds %d-%d", windowStart, windowEnd)
+			allCommitsByRound, err = GetCommits(db, windowStart, windowEnd)
+			logger.Info("All commits fetched")
+			if err != nil {
+				logger.Fatal("error fetching commitsByRound: %s", err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+
+			var err error
+			logger.Info("Fetching reveals for rounds %d-%d", windowStart, windowEnd)
+			allRevealsByRound, err = GetReveals(db, windowStart, windowEnd)
+			logger.Info("All reveals fetched")
+			if err != nil {
+				logger.Fatal("error fetching revealsByRound: %s", err)
+			}
+		}()
+
+		wg.Wait()
+		logger.Info("All commits and reveals fetched, processing.")
+
+		r <- getRoundReveals(windowStart, windowEnd, re, allCommitsByRound, allRevealsByRound)
+	}()
+	return r
+}
+
+func getRoundReveals(
+	windowStart ty.RoundId,
+	windowEnd ty.RoundId,
+	re RewardEpoch,
+	allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit,
+	allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal,
+) map[ty.RoundId]RoundReveals {
+	roundData := map[ty.RoundId]RoundReveals{}
+
+	for round := windowStart; round < windowEnd; round++ {
+		var voterIndex *VoterIndex
+		switch {
+		case round < re.StartRound:
+			voterIndex = re.PrevVoters
+		case round > re.EndRound:
+			voterIndex = re.NextVoters
+		default:
+			voterIndex = re.VoterIndex
+		}
+
+		validCommits := map[ty.VoterSubmit]*Commit{}
+		for voter, commit := range allCommitsByRound[round] {
+			if voterIndex.BySubmit[voter] != nil {
+				validCommits[voter] = commit
+			}
+		}
+
+		validReveals := map[ty.VoterSubmit]*Reveal{}
+		for voter, reveal := range allRevealsByRound[round] {
+			if voterIndex.BySubmit[voter] != nil {
+				validReveals[voter] = reveal
+			}
+		}
+
+		var offenders []ty.VoterSubmit
+		matchingReveals := map[ty.VoterSubmit]*Reveal{}
+
+		for voter, commit := range validCommits {
+			reveal, ok := validReveals[voter]
+			if !ok {
+				logger.Debug("voter %s committed but did not reveal", common.Address(voter))
+				offenders = append(offenders, voter)
+				continue
+			}
+
+			expected := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
+
+			if expected.Cmp(commit.Hash) != 0 {
+				logger.Debug("voter %s reveal hash did not match commit: %s != %s", common.Address(voter), expected.String(), commit.Hash.String())
+				offenders = append(offenders, voter)
+				continue
+			}
+
+			matchingReveals[voter] = reveal
+		}
+
+		roundData[round] = RoundReveals{
+			Reveals:   matchingReveals,
+			Offenders: offenders,
+		}
+	}
+
+	return roundData
+}

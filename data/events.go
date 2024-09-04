@@ -1,4 +1,4 @@
-package rewards
+package data
 
 import (
 	"flare-common/contracts/calculator"
@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func QueryEvents[T interface{}](
+func queryEvents[T interface{}](
 	db *gorm.DB,
 	searchIntervalStartSec uint64, //inclusive
 	searchIntervalEndSec uint64, //exclusive
@@ -61,7 +61,7 @@ func GetVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]*registry.
 		return instance.RegistryFilterer.ParseVoterRegistered(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		from,
 		to,
@@ -82,7 +82,7 @@ func GetVoterInfoEvents(db *gorm.DB, from uint64, to uint64) ([]*calculator.Calc
 		return instance.CalculatorFilterer.ParseVoterRegistrationInfo(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		from,
 		to,
@@ -103,7 +103,7 @@ func GetRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offers.Offers
 		return instance.OffersFilterer.ParseRewardsOffered(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		from,
 		to,
@@ -124,7 +124,7 @@ func GetInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offe
 		return instance.OffersFilterer.ParseInflationRewardsOffered(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		from,
 		to,
@@ -145,7 +145,7 @@ func GetFURewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.F
 		return instance.FUManagerFilterer.ParseInflationRewardsOffered(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		from,
 		to,
@@ -160,13 +160,13 @@ func GetFURewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.F
 	return events, nil
 }
 
-func GetFURIewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.FUManagerIncentiveOffered, error) {
+func GetFUIncentiveOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.FUManagerIncentiveOffered, error) {
 	instance, _ := fumanager.NewFUManager(common.Address{}, nil)
 	parse := func(log types.Log) (*fumanager.FUManagerIncentiveOffered, error) {
 		return instance.FUManagerFilterer.ParseIncentiveOffered(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		from,
 		to,

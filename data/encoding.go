@@ -1,4 +1,4 @@
-package rewards
+package data
 
 import (
 	"encoding/binary"
@@ -6,7 +6,7 @@ import (
 	"flare-common/policy"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/ty"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -24,7 +24,7 @@ const (
 )
 
 var EmptyFeedValue = FeedValue{
-	isEmpty: true,
+	IsEmpty: true,
 	Value:   NoValue,
 }
 
@@ -52,18 +52,18 @@ func (f *FeedId) Hex() string {
 
 type ProtocolMerkleRoot struct {
 	protocolId     int8
-	round          types.RoundId
+	round          ty.RoundId
 	isSecureRandom bool
 	hash           common.Hash
 	rawEncoded     [ProtocolMerkleRootBytes]byte
 }
 
 type FeedValue struct {
-	isEmpty bool
+	IsEmpty bool
 	Value   int32
 }
 
-func (t *TxInfo) RoundId() types.RoundId {
+func (t *TxInfo) RoundId() ty.RoundId {
 	return params.Net.Epoch.VotingRoundForTimeSec(t.TimestampSec)
 }
 func (t *TxInfo) RoundOffset() uint64 {
@@ -207,7 +207,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 
 	return &Finalization{
 		Policy:     *policy,
-		merkleRoot: merkleRoot,
+		MerkleRoot: merkleRoot,
 		Signatures: signatures,
 	}, nil
 }
@@ -266,7 +266,7 @@ func DecodeProtocolMerkleRoot(bytes []byte) (ProtocolMerkleRoot, error) {
 	p := 0
 	id := bytes[p]
 	p++
-	round := types.RoundId(DecodeUint32(bytes[p : p+4]))
+	round := ty.RoundId(DecodeUint32(bytes[p : p+4]))
 	p += 4
 	isSecureRandom := bytes[p] == 1
 	p++
@@ -298,7 +298,7 @@ func DecodeFeedValues(bytes []byte, feeds []Feed) ([]FeedValue, error) {
 			feedValue = EmptyFeedValue
 		} else {
 			feedValue = FeedValue{
-				isEmpty: false,
+				IsEmpty: false,
 				Value:   int32(rawValue - 1<<31), // Values encoded in Excess-2^31
 			}
 		}

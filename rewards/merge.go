@@ -2,18 +2,18 @@ package rewards
 
 import (
 	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 )
 
 // MergeClaims merges claims with the same beneficiary, type, and amount sign (penalty or reward).
-func MergeClaims(claims []types.RewardClaim) []types.RewardClaim {
-	byBeneficiaryTypeAndSign := make(map[common.Address]map[types.ClaimType]map[bool]*big.Int)
+func MergeClaims(claims []ty.RewardClaim) []ty.RewardClaim {
+	byBeneficiaryTypeAndSign := make(map[common.Address]map[ty.ClaimType]map[bool]*big.Int)
 
 	for _, claim := range claims {
 		if _, ok := byBeneficiaryTypeAndSign[claim.Beneficiary]; !ok {
-			byBeneficiaryTypeAndSign[claim.Beneficiary] = make(map[types.ClaimType]map[bool]*big.Int)
+			byBeneficiaryTypeAndSign[claim.Beneficiary] = make(map[ty.ClaimType]map[bool]*big.Int)
 		}
 		if _, ok := byBeneficiaryTypeAndSign[claim.Beneficiary][claim.Type]; !ok {
 			byBeneficiaryTypeAndSign[claim.Beneficiary][claim.Type] = make(map[bool]*big.Int)
@@ -28,11 +28,11 @@ func MergeClaims(claims []types.RewardClaim) []types.RewardClaim {
 		}
 	}
 
-	var merged []types.RewardClaim
+	var merged []ty.RewardClaim
 	for beneficiary, byTypeAndSign := range byBeneficiaryTypeAndSign {
 		for claimType, bySign := range byTypeAndSign {
 			for _, amount := range bySign {
-				merged = append(merged, types.RewardClaim{
+				merged = append(merged, ty.RewardClaim{
 					Beneficiary: beneficiary,
 					Amount:      amount,
 					Type:        claimType,
@@ -44,27 +44,27 @@ func MergeClaims(claims []types.RewardClaim) []types.RewardClaim {
 	return merged
 }
 
-func ApplyPenalties(claims []types.RewardClaim) []types.RewardClaim {
-	var result []types.RewardClaim
+func ApplyPenalties(claims []ty.RewardClaim) []ty.RewardClaim {
+	var result []ty.RewardClaim
 
-	rewardByBeneficiaryAndType := make(map[common.Address]map[types.ClaimType]*types.RewardClaim)
-	penaltyByBeneficiaryAndType := make(map[common.Address]map[types.ClaimType]*types.RewardClaim)
+	rewardByBeneficiaryAndType := make(map[common.Address]map[ty.ClaimType]*ty.RewardClaim)
+	penaltyByBeneficiaryAndType := make(map[common.Address]map[ty.ClaimType]*ty.RewardClaim)
 
 	burnAmount := big.NewInt(0)
 
 	for i, claim := range claims {
-		if claim.Beneficiary == BurnAddress {
+		if claim.Beneficiary == burnAddress {
 			burnAmount.Add(burnAmount, claim.Amount)
 			continue
 		}
 		if claim.Amount.Cmp(bigZero) > 0 {
 			if _, ok := rewardByBeneficiaryAndType[claim.Beneficiary]; !ok {
-				rewardByBeneficiaryAndType[claim.Beneficiary] = make(map[types.ClaimType]*types.RewardClaim)
+				rewardByBeneficiaryAndType[claim.Beneficiary] = make(map[ty.ClaimType]*ty.RewardClaim)
 			}
 			rewardByBeneficiaryAndType[claim.Beneficiary][claim.Type] = &claims[i]
 		} else {
 			if _, ok := penaltyByBeneficiaryAndType[claim.Beneficiary]; !ok {
-				penaltyByBeneficiaryAndType[claim.Beneficiary] = make(map[types.ClaimType]*types.RewardClaim)
+				penaltyByBeneficiaryAndType[claim.Beneficiary] = make(map[ty.ClaimType]*ty.RewardClaim)
 			}
 			penaltyByBeneficiaryAndType[claim.Beneficiary][claim.Type] = &claims[i]
 		}
@@ -86,7 +86,7 @@ func ApplyPenalties(claims []types.RewardClaim) []types.RewardClaim {
 			} else {
 				burnAmount.Add(burnAmount, new(big.Int).Abs(penaltyClaim.Amount))
 
-				remainderClaim := types.RewardClaim{
+				remainderClaim := ty.RewardClaim{
 					Beneficiary: rewardClaim.Beneficiary,
 					Amount:      remainder,
 					Type:        rewardClaim.Type,

@@ -1,29 +1,41 @@
 package rewards
 
 import (
+	"flare-common/policy"
+	"ftsov2-rewarding/data"
+	voters "ftsov2-rewarding/lib"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/ty"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/pkg/errors"
 	"math/big"
 	"slices"
 )
 
-func calcFinalizationRewardClaims(
-	round types.RoundId,
+func burnClaim(amount *big.Int) ty.RewardClaim {
+	return ty.RewardClaim{
+		Beneficiary: burnAddress,
+		Amount:      amount,
+		Type:        ty.Direct,
+	}
+}
+
+func getFinalizationClaims(
+	round ty.RoundId,
 	reward *big.Int,
-	finalizations []*Finalization,
-	eligibleVoters []*VoterInfo,
+	finalizations []*data.Finalization,
+	eligibleVoters []*data.VoterInfo,
 	eligibleFinalizers map[common.Address]bool,
-) []types.RewardClaim {
+) []ty.RewardClaim {
 
 	// TODO: Pre-compute
-	successIndex := slices.IndexFunc(finalizations, func(f *Finalization) bool {
+	successIndex := slices.IndexFunc(finalizations, func(f *data.Finalization) bool {
 		return f.Info.Reverted == false
 	})
 
 	if successIndex < 0 {
-		return []types.RewardClaim{burnClaim(reward)}
+		return []ty.RewardClaim{burnClaim(reward)}
 	}
 
 	firstSuccessfulFinalization := finalizations[successIndex]
@@ -31,18 +43,18 @@ func calcFinalizationRewardClaims(
 
 	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {
 		// No voter provided finalization in grace period. The first successful finalizer gets the full reward.
-		return []types.RewardClaim{
+		return []ty.RewardClaim{
 			{
 				Beneficiary: firstSuccessfulFinalization.Info.From,
 				Amount:      reward,
-				Type:        types.Direct,
+				Type:        ty.Direct,
 			},
 		}
 	}
 
 	// TODO: Handle case when finalization is late and sent in the following round
 
-	var graceFinalizations []*Finalization
+	var graceFinalizations []*data.Finalization
 	for _, finalization := range finalizations {
 		if eligibleFinalizers[finalization.Info.From] && finalization.Info.TimestampSec <= gracePeriodDeadline {
 			graceFinalizations = append(graceFinalizations, finalization)
@@ -50,10 +62,10 @@ func calcFinalizationRewardClaims(
 	}
 	// We have at least one successful finalization in the grace period, but from non-eligible voters -> burn the reward.
 	if len(graceFinalizations) == 0 || len(eligibleVoters) == 0 {
-		return []types.RewardClaim{burnClaim(reward)}
+		return []ty.RewardClaim{burnClaim(reward)}
 	}
 
-	var claims []types.RewardClaim
+	var claims []ty.RewardClaim
 
 	// The reward should be distributed equally among all the eligible finalizers.
 	// Note that each finalizer was chosen by probability corresponding to its relative weight.
@@ -61,12 +73,12 @@ func calcFinalizationRewardClaims(
 	undistributedAmount := new(big.Int).Set(reward)
 	undistributedWeight := big.NewInt(int64(len(eligibleFinalizers)))
 
-	eligibleVoterBySigning := map[VoterSigning]*VoterInfo{}
+	eligibleVoterBySigning := map[ty.VoterSigning]*data.VoterInfo{}
 	for _, voter := range eligibleVoters {
 		eligibleVoterBySigning[voter.Signing] = voter
 	}
 	for _, finalization := range graceFinalizations {
-		voter := eligibleVoterBySigning[VoterSigning(finalization.Info.From)]
+		voter := eligibleVoterBySigning[ty.VoterSigning(finalization.Info.From)]
 		if voter == nil {
 			continue
 		}
@@ -75,7 +87,7 @@ func calcFinalizationRewardClaims(
 		undistributedAmount.Sub(undistributedAmount, claimAmount)
 		undistributedWeight.Sub(undistributedWeight, big.NewInt(1))
 
-		claims = append(claims, signingWeightClaimsForVoter(voter, claimAmount)...)
+		claims = append(claims, SigningWeightClaimsForVoter(voter, claimAmount)...)
 	}
 
 	if undistributedAmount.Cmp(bigZero) != 0 {
@@ -84,4 +96,25 @@ func calcFinalizationRewardClaims(
 	}
 
 	return claims
+}
+
+func selectFinalizers(
+	round ty.RoundId,
+	policy *policy.SigningPolicy,
+	threshold uint16,
+) (map[common.Address]bool, error) {
+	// TODO: We have duplicate VoterSet definitions
+	seed := voters.InitialHashSeed(policy.Seed, params.Net.Ftso.ProtocolId, uint32(round))
+	vs := voters.NewVoterSet(policy.Voters.Voters, policy.Voters.Weights)
+	res, err := vs.RandomSelectThresholdWeightVoters(seed, threshold)
+	if err != nil {
+		return nil, errors.Wrap(err, "error selecting finalizers")
+	}
+
+	selected := map[common.Address]bool{}
+	for voter := range res.Iter() {
+		selected[voter] = true
+	}
+
+	return selected, nil
 }

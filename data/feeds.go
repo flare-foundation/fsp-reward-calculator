@@ -1,4 +1,4 @@
-package rewards
+package data
 
 import (
 	"bytes"
@@ -11,10 +11,10 @@ import (
 	"sort"
 )
 
-func GetOrderedFeeds(of RewardOffers) []Feed {
-	feeds := getInflationFeeds(of.inflation)
+func getOrderedFeeds(of RewardOffers) []Feed {
+	feeds := getInflationFeeds(of.Inflation)
 
-	communityFeeds := getCommunityFeeds(of.community)
+	communityFeeds := getCommunityFeeds(of.Community)
 	for i := range communityFeeds {
 		found := slices.IndexFunc(feeds, func(j Feed) bool {
 			return communityFeeds[i].Id == j.Id

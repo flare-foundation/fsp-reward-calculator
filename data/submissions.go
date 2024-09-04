@@ -1,4 +1,4 @@
-package rewards
+package data
 
 import (
 	"flare-common/contracts/fupdater"
@@ -7,10 +7,10 @@ import (
 	"flare-common/policy"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/ty"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
-	ty "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
@@ -52,7 +52,7 @@ type Signature struct {
 
 type Finalization struct {
 	Policy     policy.SigningPolicy
-	merkleRoot ProtocolMerkleRoot
+	MerkleRoot ProtocolMerkleRoot
 	Signatures []ECDSASignature
 	Info       TxInfo
 }
@@ -64,8 +64,8 @@ type FUpdateFeed struct {
 
 // TODO: Make sure DB query sorts both by timestamp and tx index
 
-// getCommits retrieves the last commit submission for each voter for each round in the given range
-func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]map[VoterSubmit]*Commit, error) {
+// GetCommits retrieves the last commit submission for each voter for each round in the given range
+func GetCommits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId]map[ty.VoterSubmit]*Commit, error) {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
 
@@ -74,9 +74,9 @@ func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
 
-	var commitsByRound = map[types.RoundId]map[VoterSubmit]*Commit{}
+	var commitsByRound = map[ty.RoundId]map[ty.VoterSubmit]*Commit{}
 	for _, msg := range msgs {
-		round := types.RoundId(msg.VotingRound)
+		round := ty.RoundId(msg.VotingRound)
 		submitRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
 		if round != submitRound {
 			logger.Debug("commit round %d does not match expected round %d, skipping", round, submitRound)
@@ -90,18 +90,18 @@ func getCommits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 		}
 
 		if _, ok := commitsByRound[round]; !ok {
-			commitsByRound[round] = map[VoterSubmit]*Commit{}
+			commitsByRound[round] = map[ty.VoterSubmit]*Commit{}
 		}
 
-		from := VoterSubmit(common.HexToAddress(msg.From))
+		from := ty.VoterSubmit(common.HexToAddress(msg.From))
 		commitsByRound[round][from] = commit
 	}
 
 	return commitsByRound, nil
 }
 
-// getReveals retrieves the last reveal submission for voter for each round in the given range
-func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]map[VoterSubmit]*Reveal, error) {
+// GetReveals retrieves the last reveal submission for voter for each round in the given range
+func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId]map[ty.VoterSubmit]*Reveal, error) {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1))
 
@@ -110,9 +110,9 @@ func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
 
-	var revealsByRound = map[types.RoundId]map[VoterSubmit]*Reveal{}
+	var revealsByRound = map[ty.RoundId]map[ty.VoterSubmit]*Reveal{}
 	for _, msg := range msgs {
-		round := types.RoundId(msg.VotingRound)
+		round := ty.RoundId(msg.VotingRound)
 		submitRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
 		if round != submitRound.Add(-1) {
 			logger.Debug("reveal round %d does not match expected round %d, skipping", round, submitRound.Add(-1))
@@ -132,17 +132,17 @@ func getReveals(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (ma
 		}
 
 		if _, ok := revealsByRound[round]; !ok {
-			revealsByRound[round] = map[VoterSubmit]*Reveal{}
+			revealsByRound[round] = map[ty.VoterSubmit]*Reveal{}
 		}
 
-		from := VoterSubmit(common.HexToAddress(msg.From))
+		from := ty.VoterSubmit(common.HexToAddress(msg.From))
 		revealsByRound[round][from] = reveal
 	}
 
 	return revealsByRound, nil
 }
 
-func getSignatures(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId][]*SignatureSubmission, error) {
+func getSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId][]*SignatureSubmission, error) {
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
@@ -151,9 +151,9 @@ func getSignatures(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) 
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
 
-	var signaturesByRound = map[types.RoundId][]*SignatureSubmission{}
+	var signaturesByRound = map[ty.RoundId][]*SignatureSubmission{}
 	for _, msg := range msgs {
-		round := types.RoundId(msg.VotingRound)
+		round := ty.RoundId(msg.VotingRound)
 		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp) - 1
 		if round != expectedRound {
 			logger.Debug("Signature round %d does not match expected round %d, skipping", round, expectedRound)
@@ -184,7 +184,7 @@ func getSignatures(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) 
 	return signaturesByRound, nil
 }
 
-func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId][]*Finalization, error) {
+func getFinalizations(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId][]*Finalization, error) {
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
@@ -193,7 +193,7 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
 
-	var byRound = map[types.RoundId][]*Finalization{}
+	var byRound = map[ty.RoundId][]*Finalization{}
 
 	for _, txn := range txns {
 		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(txn.Timestamp) - 1
@@ -203,12 +203,12 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 			logger.Info("error parsing finalization, skipping: %+v", err)
 			continue
 		}
-		if finalization.merkleRoot.protocolId != FtsoScalingProtocolId {
-			logger.Debug("finalization protocol %d does not match expected protocol %d, skipping", finalization.merkleRoot.protocolId, FtsoScalingProtocolId)
+		if finalization.MerkleRoot.protocolId != FtsoScalingProtocolId {
+			logger.Debug("finalization protocol %d does not match expected protocol %d, skipping", finalization.MerkleRoot.protocolId, FtsoScalingProtocolId)
 			continue
 		}
-		if finalization.merkleRoot.round != expectedRound {
-			logger.Debug("finalization round %d does not match expected round %d, skipping", finalization.merkleRoot.round, expectedRound)
+		if finalization.MerkleRoot.round != expectedRound {
+			logger.Debug("finalization round %d does not match expected round %d, skipping", finalization.MerkleRoot.round, expectedRound)
 			continue
 		}
 
@@ -229,16 +229,16 @@ func getFinalizations(db *gorm.DB, fromRound types.RoundId, toRound types.RoundI
 	return byRound, nil
 }
 
-func getFUpdateFeeds(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId]*FUpdateFeed, error) {
+func getFUpdateFeeds(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId]*FUpdateFeed, error) {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound + 1)
 	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(2)) // extra round for buffer
 
 	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
-	parse := func(log ty.Log) (*fupdater.FUpdaterFastUpdateFeeds, error) {
+	parse := func(log types.Log) (*fupdater.FUpdaterFastUpdateFeeds, error) {
 		return instance.FUpdaterFilterer.ParseFastUpdateFeeds(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		fromSec,
 		toSec,
@@ -250,10 +250,10 @@ func getFUpdateFeeds(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId
 		return nil, errors.Errorf("err fetching events: %s", err)
 	}
 
-	var byRound = map[types.RoundId]*FUpdateFeed{}
+	var byRound = map[ty.RoundId]*FUpdateFeed{}
 
 	for _, event := range events {
-		round := types.RoundId(event.VotingEpochId.Uint64())
+		round := ty.RoundId(event.VotingEpochId.Uint64())
 		if round < fromRound || round > toRound {
 			continue
 		}
@@ -267,16 +267,16 @@ func getFUpdateFeeds(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId
 	return byRound, nil
 }
 
-func getFUpdateSubmits(db *gorm.DB, fromRound types.RoundId, toRound types.RoundId) (map[types.RoundId][]VoterSigning, error) {
+func getFUpdateSubmits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId][]ty.VoterSigning, error) {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
 	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(1))
 
 	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
-	parse := func(log ty.Log) (*fupdater.FUpdaterFastUpdateFeedsSubmitted, error) {
+	parse := func(log types.Log) (*fupdater.FUpdaterFastUpdateFeedsSubmitted, error) {
 		return instance.FUpdaterFilterer.ParseFastUpdateFeedsSubmitted(log)
 	}
 
-	events, err := QueryEvents(
+	events, err := queryEvents(
 		db,
 		fromSec,
 		toSec,
@@ -288,19 +288,19 @@ func getFUpdateSubmits(db *gorm.DB, fromRound types.RoundId, toRound types.Round
 		return nil, errors.Errorf("err fetching events: %s", err)
 	}
 
-	var byRound = map[types.RoundId][]VoterSigning{}
+	var byRound = map[ty.RoundId][]ty.VoterSigning{}
 
 	for _, event := range events {
-		round := types.RoundId(event.VotingRoundId)
+		round := ty.RoundId(event.VotingRoundId)
 		if round < fromRound || round > toRound {
 			continue
 		}
 
 		if _, ok := byRound[round]; !ok {
-			byRound[round] = []VoterSigning{}
+			byRound[round] = []ty.VoterSigning{}
 		}
 
-		byRound[round] = append(byRound[round], VoterSigning(event.SigningPolicyAddress))
+		byRound[round] = append(byRound[round], ty.VoterSigning(event.SigningPolicyAddress))
 	}
 
 	return byRound, nil

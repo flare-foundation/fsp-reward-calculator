@@ -1,281 +1,279 @@
 package rewards
 
 import (
-	"flare-common/contracts/fumanager"
-	"flare-common/contracts/offers"
-	"flare-common/contracts/relay"
-	"flare-common/policy"
+	"encoding/hex"
+	"fmt"
+	"ftsov2-rewarding/data"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/ty"
 	"ftsov2-rewarding/utils"
-	"github.com/ethereum/go-ethereum/common"
-	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
-	"time"
+	"sync"
 )
 
-type RewardEpoch struct {
-	Epoch         types.EpochId
-	StartRound    types.RoundId
-	EndRound      types.RoundId
-	Policy        *policy.SigningPolicy
-	Offers        RewardOffers
-	OrderedFeeds  []Feed
-	OrderedVoters []VoterSigning
-	VoterIndex    *VoterIndex
-	// TODO: Move next voter calculation elsewhere
-	NextVoters *VoterIndex // Voters for the following reward epoch
-	PrevVoters *VoterIndex // Voters for the previous reward epoch
-}
-
-type RewardOffers struct {
-	community    []*offers.OffersRewardsOffered
-	inflation    []*offers.OffersInflationRewardsOffered
-	fastUpdates  []*fumanager.FUManagerInflationRewardsOffered
-	fastUpdatesI []*fumanager.FUManagerIncentiveOffered
-}
-
-type VoterInfo struct {
-	Identity          VoterId
-	Submit            VoterSubmit
-	SubmitSignatures  VoterSubmitSignatures
-	Signing           VoterSigning
-	Delegation        VoterDelegation
-	CappedWeight      *big.Int
-	DelegationFeeBips uint16
-	NodeIds           [][20]byte
-	NodeWeights       []*big.Int
-}
-
-// TODO: Use proper timings for event search instead of approximate
-func getRewardEpoch(epoch types.EpochId, db *gorm.DB) (RewardEpoch, error) {
-	currentTimestamp := time.Now().Unix()
-
-	// TODO: Use lowest index in indexer db as start
-	expectedStartSec := params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch)
-	epochDuration := params.Net.Epoch.RewardEpochDurationInVotingEpochs * params.Net.Epoch.VotingRoundDurationSeconds
-
-	searchIntervalStartSec := expectedStartSec - (epochDuration * 2)
-	searchIntervalEndSec := min(expectedStartSec+(epochDuration*2), uint64(currentTimestamp))
-
-	relayInst, _ := relay.NewRelay(common.Address{}, nil)
-	parsePolicyInitialized := func(log etypes.Log) (*relay.RelaySigningPolicyInitialized, error) {
-		return relayInst.RelayFilterer.ParseSigningPolicyInitialized(log)
-	}
-	policies, err := QueryEvents(db, searchIntervalStartSec, searchIntervalEndSec, params.Net.Contracts.Relay, utils.EventTopic0.SigningPolicyInitialized, parsePolicyInitialized)
+// GetEpochClaims calculates the reward claims for a reward epoch
+func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
+	re, err := data.GetRewardEpoch(epoch, db)
 	if err != nil {
-		return RewardEpoch{}, errors.Errorf("error fetching signing policy events: %s", err)
+		return nil, errors.Wrap(err, "err fetching reward epoch")
 	}
 
-	var policyEvent *relay.RelaySigningPolicyInitialized
-	var startRound types.RoundId
-	var endRound types.RoundId
+	windowStart := ty.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
+	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
 
-	for _, event := range policies {
-		if event.RewardEpochId.Uint64() == uint64(epoch) {
-			policyEvent = event
-			startRound = types.RoundId(event.StartVotingRoundId)
+	var (
+		revealsByRound       map[ty.RoundId]data.RoundReveals
+		signersByRound       data.SignerMap
+		finalizationsByRound map[ty.RoundId][]*data.Finalization
+		fUpdatesByRound      map[ty.RoundId]*data.FUpdate
+	)
+
+	revealsByRoundChan := data.GetRoundRevealsAsync(db, windowStart, windowEnd, re)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	// TODO: Better error handling
+	go func() {
+		defer wg.Done()
+
+		var err error
+		signersByRound, err = data.GetSignersByRound(db, re)
+		logger.Info("Signers fetched")
+		if err != nil {
+			logger.Fatal("error calculating signers: %s", err)
 		}
-		if event.RewardEpochId.Uint64() == uint64(epoch)+1 {
-			endRound = types.RoundId(event.StartVotingRoundId - 1)
+	}()
+	go func() {
+		defer wg.Done()
+
+		var err error
+		finalizationsByRound, err = data.GetFinalizationsByRound(db, re)
+		logger.Info("Finalizations fetched")
+		if err != nil {
+			logger.Fatal("err fetching finalizations: %s", err)
 		}
-	}
+	}()
+	go func() {
+		defer wg.Done()
 
-	if policyEvent == nil {
-		return RewardEpoch{}, errors.Errorf("no signing policy found for epoch %d", epoch)
-	}
-	if endRound == 0 {
-		return RewardEpoch{}, errors.Errorf("unable to determine last voting round for epoch %d: no signing policy found for next epoch %d. It may not have been indexed yet or the current epoch is not finished", epoch, epoch+1)
-	}
+		var err error
+		fUpdatesByRound, err = data.GetFUpdatesByRound(db, re)
+		logger.Info("Fast update data fetched")
+		if err != nil {
+			logger.Fatal("err fetching fast updates: %s", err)
+		}
+	}()
 
-	epochStartSec := params.Net.Epoch.VotingRoundStartSec(startRound)
-	epochEndSec := params.Net.Epoch.VotingRoundEndSec(endRound)
-
-	rewardOffers, err := getRewardOffers(db, epoch, epochStartSec, epochEndSec)
+	revealsByRound = <-revealsByRoundChan
+	results, err := data.CalculateResults(re, revealsByRound)
 	if err != nil {
-		return RewardEpoch{}, errors.Errorf("error fetching reward rewardOffers: %s", err)
+		return nil, errors.Wrap(err, "error calculating results")
 	}
 
-	feeds := GetOrderedFeeds(rewardOffers)
-	logger.Info("Feeds: %v", len(feeds))
-	for _, f := range feeds {
-		logger.Info("Feed: %s, Decimals: %d", f.String(), f.Decimals)
-	}
+	feedSelectionRandoms := getFeedSelectionRandoms(re, windowEnd, revealsByRound, results)
+	roundRewards := calculateRoundRewards(re, feedSelectionRandoms)
+	fuRoundRewards := calculateFURoundRewards(re, feedSelectionRandoms)
 
-	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
+	wg.Wait()
+	logger.Info("All data fetched, calculating rewards.")
 
-	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec)
-	if err != nil {
-		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
-	}
+	epochClaims := make([]ty.RewardClaim, 0)
 
-	nextVoters, err := getVoters(db, epoch+1, epochStartSec+epochDuration-signingPolicyWindow, epochStartSec+epochDuration)
-	if err != nil {
-		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
-	}
+	// Calculate reward claims
+	for round := re.StartRound; round <= re.EndRound; round++ {
 
-	prevVoters, err := getVoters(db, epoch-1, epochStartSec-(epochDuration+signingPolicyWindow), epochStartSec-(epochDuration))
+		totalRoundReward := roundRewards[round]
 
-	return RewardEpoch{
-		Epoch:         epoch,
-		StartRound:    startRound,
-		EndRound:      endRound,
-		Policy:        policy.NewSigningPolicy(policyEvent),
-		Offers:        rewardOffers,
-		OrderedFeeds:  feeds,
-		OrderedVoters: getOrderedVoters(policyEvent),
-		VoterIndex:    voters,
-		NextVoters:    nextVoters,
-		PrevVoters:    prevVoters,
-	}, nil
-}
+		logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), hex.EncodeToString(totalRoundReward.Feed.Id[:]))
+		logger.Debug("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
 
-func getOrderedVoters(event *relay.RelaySigningPolicyInitialized) []VoterSigning {
-	voters := make([]VoterSigning, len(event.Voters))
-	for i, addr := range event.Voters {
-		voters[i] = VoterSigning(addr)
-	}
-	return voters
-}
-
-func getRewardOffers(db *gorm.DB, epoch types.EpochId, startSec, endSec uint64) (RewardOffers, error) {
-	extraWindow := uint64(6 * 60 * 60)
-	previousStartSec := params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch-1) - extraWindow
-
-	community, err := GetRewardOfferEvents(db, previousStartSec, startSec)
-	if err != nil {
-		return RewardOffers{}, errors.Errorf("error fetching reward offer events: %s", err)
-	}
-	inflation, err := GetInflationRewardOfferEvents(db, previousStartSec, startSec)
-	if err != nil {
-		return RewardOffers{}, errors.Errorf("error fetching inflation reward offer events: %s", err)
-	}
-	fastUpdates, err := GetFURewardOfferEvents(db, previousStartSec, startSec)
-	if err != nil {
-		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
-	}
-	fastUpdatesI, err := GetFURIewardOfferEvents(db, startSec, endSec)
-	if err != nil {
-		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
-	}
-
-	community = slices.DeleteFunc(community, func(offer *offers.OffersRewardsOffered) bool {
-		return offer.RewardEpochId.Uint64() != uint64(epoch)
-	})
-	inflation = slices.DeleteFunc(inflation, func(offer *offers.OffersInflationRewardsOffered) bool {
-		return offer.RewardEpochId.Uint64() != uint64(epoch)
-	})
-	fastUpdates = slices.DeleteFunc(fastUpdates, func(offer *fumanager.FUManagerInflationRewardsOffered) bool {
-		return offer.RewardEpochId.Uint64() != uint64(epoch)
-	})
-	fastUpdatesI = slices.DeleteFunc(fastUpdatesI, func(offer *fumanager.FUManagerIncentiveOffered) bool {
-		return offer.RewardEpochId.Uint64() != uint64(epoch)
-	})
-
-	return RewardOffers{
-		community,
-		inflation,
-		fastUpdates,
-		fastUpdatesI,
-	}, nil
-}
-
-func getVoters(db *gorm.DB, epoch types.EpochId, fromSec, toSec uint64) (*VoterIndex, error) {
-	regs, err := GetVoterRegisteredEvents(db, fromSec, toSec)
-	if err != nil {
-		return nil, errors.Errorf("error fetching voter registered regs: %s", err)
-	}
-
-	infos, err := GetVoterInfoEvents(db, fromSec, toSec)
-	if err != nil {
-		return nil, errors.Errorf("error fetching voter info events: %s", err)
-	}
-
-	if len(regs) != len(infos) {
-		return nil, errors.Errorf("voter registered and voter info event count mismatch: %d != %d", len(regs), len(infos))
-	}
-
-	var voters []*VoterInfo
-	for i := range regs {
-		if regs[i].RewardEpochId.Uint64() != uint64(epoch) {
+		if totalRoundReward.ShouldBurn {
+			epochClaims = append(epochClaims, ty.RewardClaim{
+				Beneficiary: burnAddress,
+				Amount:      new(big.Int).Set(totalRoundReward.Amount),
+				Type:        ty.Direct,
+			})
 			continue
 		}
 
-		voters = append(voters, &VoterInfo{
-			Identity:          VoterId(regs[i].Voter),
-			Submit:            VoterSubmit(regs[i].SubmitAddress),
-			SubmitSignatures:  VoterSubmitSignatures(regs[i].SubmitSignaturesAddress),
-			Signing:           VoterSigning(regs[i].SigningPolicyAddress),
-			Delegation:        VoterDelegation(infos[i].DelegationAddress),
-			CappedWeight:      infos[i].WNatCappedWeight,
-			DelegationFeeBips: infos[i].DelegationFeeBIPS,
-			NodeIds:           infos[i].NodeIds,
-			NodeWeights:       infos[i].NodeWeights,
+		signingReward := new(big.Int).Div(
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.SigningBips),
+			bigTotalBips,
+		)
+		finalizationReward := new(big.Int).Div(
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.FinalizationBips),
+			bigTotalBips,
+		)
+		medianReward := new(big.Int).Sub(
+			totalRoundReward.Amount,
+			bigTmp.Add(signingReward, finalizationReward),
+		)
+
+		logger.Info("Reward shares for round %d: signing %s, finalization %s, median %s", round, signingReward.String(), finalizationReward.String(), medianReward.String())
+
+		logger.Info("Calculating median claims for round %d", round)
+		medianClaims := getMedianClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
+
+		utils.PrintResults(medianClaims, fmt.Sprintf("%d-median-claims", round))
+
+		// Only voters receiving median rewards are eligible for signing and finalization rewards
+		var eligibleVoters []*data.VoterInfo
+		for _, claim := range medianClaims {
+			if claim.Type != ty.WNat || claim.Amount.Cmp(bigZero) <= 0 {
+				continue
+			}
+			voter, ok := re.VoterIndex.ByDelegation[ty.VoterDelegation(claim.Beneficiary)]
+			if ok {
+				eligibleVoters = append(eligibleVoters, voter)
+			}
+		}
+		logger.Info("Calculating signing claims for round %d", round)
+		signingClaims := getSigningClaims(round, re, signingReward, eligibleVoters, signersByRound[round], finalizationsByRound[round])
+
+		utils.PrintResults(signingClaims, fmt.Sprintf("%d-signing-claims", round))
+
+		logger.Info("Calculating finalization claims for round %d", round)
+		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+		if err != nil {
+			return nil, errors.Wrap(err, "error selecting finalizers")
+		}
+		finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
+
+		utils.PrintResults(finalizationClaims, fmt.Sprintf("%d-finalz-claims", round))
+
+		dSigners := getDoubleSigners(signersByRound[round])
+		var dSignerInfos []*data.VoterInfo
+		for dSigner := range dSigners {
+			dSignerInfos = append(dSignerInfos, re.VoterIndex.BySigning[dSigner])
+		}
+
+		doubleSigningPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
+
+		var offenderInfos []*data.VoterInfo
+		for _, offender := range revealsByRound[round].Offenders {
+			info := re.VoterIndex.BySubmit[offender]
+			if info != nil {
+				offenderInfos = append(offenderInfos, re.VoterIndex.BySubmit[offender])
+			}
+		}
+		revealPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
+
+		logger.Info("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
+
+		var roundClaims []ty.RewardClaim
+
+		roundClaims = append(roundClaims, medianClaims...)
+		roundClaims = append(roundClaims, signingClaims...)
+		roundClaims = append(roundClaims, finalizationClaims...)
+		roundClaims = append(roundClaims, doubleSigningPenalties...)
+		roundClaims = append(roundClaims, revealPenalties...)
+
+		utils.PrintResults(doubleSigningPenalties, fmt.Sprintf("%d-doublesig-claims", round))
+		utils.PrintResults(revealPenalties, fmt.Sprintf("%d-reveal-claims", round))
+
+		// Fast updates
+		reward := fuRoundRewards[round]
+		feedId := data.FeedId(reward.FeedConfig.FeedId)
+		feedIndex := slices.IndexFunc(re.OrderedFeeds, func(f data.Feed) bool {
+			return f.Id == feedId
 		})
+		if feedIndex == -1 {
+			logger.Fatal("FastUpdate feed not found for round %d, feedId %s", round, feedId)
+		}
+		medianDecimals := int(re.OrderedFeeds[feedIndex].Decimals)
+		logger.Info("Calculating FastUpdate claims for round %d, feed %s", round, feedId.Hex())
+		fuClaims := gatFUpdateClaims(re, fUpdatesByRound[round], fuRoundRewards[round], results[round].Median[feedId], medianDecimals)
+		roundClaims = append(roundClaims, fuClaims...)
+		utils.PrintResults(fuClaims, fmt.Sprintf("%d-fu-claims", round))
 
-		logger.Info("voter %s, submit %s, submit signatures %s, signing policy %s", regs[i].Voter.String(), regs[i].SubmitAddress.String(), regs[i].SubmitSignaturesAddress.String(), regs[i].SigningPolicyAddress.String())
+		logger.Info("Round %d, computed FU claims: %d", round, len(fuClaims))
+
+		utils.PrintResults(roundClaims, fmt.Sprintf("%d-round-claims", round))
+		epochClaims = append(epochClaims, roundClaims...)
 	}
 
-	return NewVoterIndex(voters), nil
+	return epochClaims, nil
 }
 
-type VoterId common.Address
-type VoterSubmit common.Address
-type VoterSubmitSignatures common.Address
-type VoterSigning common.Address
-type VoterDelegation common.Address
+func getFeedSelectionRandoms(
+	re data.RewardEpoch,
+	windowEnd ty.RoundId,
+	reveals map[ty.RoundId]data.RoundReveals,
+	results map[ty.RoundId]data.RoundResult,
+) []*big.Int {
+	totalRounds := int64(re.EndRound - re.StartRound + 1)
 
-func (v VoterId) String() string {
-	return common.Address(v).String()
-}
-func (v VoterSubmit) String() string {
-	return common.Address(v).String()
-}
+	feedSelectionRandoms := make([]*big.Int, 0, totalRounds)
 
-func (v VoterSubmitSignatures) String() string {
-	return common.Address(v).String()
-}
+	for round := re.StartRound + 1; round <= re.EndRound; round++ {
+		logger.Info("Calculating feed selection random for round %d", round)
 
-func (v VoterSigning) String() string {
-	return common.Address(v).String()
-}
-
-type VoterIndex struct {
-	byId               map[VoterId]*VoterInfo
-	bySubmit           map[VoterSubmit]*VoterInfo
-	bySubmitSignatures map[VoterSubmitSignatures]*VoterInfo
-	bySigning          map[VoterSigning]*VoterInfo
-	byDelegation       map[VoterDelegation]*VoterInfo
-	totalCappedWeight  *big.Int
-}
-
-func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
-	byId := make(map[VoterId]*VoterInfo)
-	bySubmit := make(map[VoterSubmit]*VoterInfo)
-	bySubmitSignatures := make(map[VoterSubmitSignatures]*VoterInfo)
-	bySigning := make(map[VoterSigning]*VoterInfo)
-	byDelegation := make(map[VoterDelegation]*VoterInfo)
-	for _, v := range voters {
-		byId[v.Identity] = v
-		bySubmit[v.Submit] = v
-		bySubmitSignatures[v.SubmitSignatures] = v
-		bySigning[v.Signing] = v
-		byDelegation[v.Delegation] = v
+		if results[round].Random.IsSecure {
+			feedRandom := utils.FeedSelectionRandom(results[round].Random.Value, round)
+			for len(feedSelectionRandoms) < int(round-re.StartRound) {
+				feedSelectionRandoms = append(feedSelectionRandoms, feedRandom)
+			}
+		}
 	}
-	totalCappedWeight := big.NewInt(0)
-	for _, v := range voters {
-		totalCappedWeight.Add(totalCappedWeight, v.CappedWeight)
+
+	var lastRandom *data.RandomResult
+	var lastRandomRound ty.RoundId
+
+	for round := re.EndRound + 1; round < windowEnd; round++ {
+		validReveals := reveals[round].Reveals
+
+		eligibleReveals := map[ty.VoterSubmit]*data.Reveal{}
+		for voter, reveal := range validReveals {
+			if _, ok := re.NextVoters.BySubmit[voter]; ok {
+				eligibleReveals[voter] = reveal
+			}
+		}
+		random := data.CalculateRandom(round, reveals, eligibleReveals)
+		if random.IsSecure {
+			lastRandom = &random
+			lastRandomRound = round
+			break
+		}
+		logger.Info("Extra random: %d %+v", lastRandom)
 	}
-	return &VoterIndex{
-		byId:               byId,
-		bySubmit:           bySubmit,
-		bySubmitSignatures: bySubmitSignatures,
-		bySigning:          bySigning,
-		byDelegation:       byDelegation,
-		totalCappedWeight:  totalCappedWeight,
+
+	// Random for last round is the first secure random from next reward epoch,
+	// or nil if none found within a certain window.
+	if lastRandom != nil {
+		rnd := utils.FeedSelectionRandom(lastRandom.Value, lastRandomRound)
+		for len(feedSelectionRandoms) < int(totalRounds) {
+			feedSelectionRandoms = append(feedSelectionRandoms, rnd)
+		}
 	}
+	return feedSelectionRandoms
+}
+
+func getPenalties(
+	reward *big.Int,
+	penaltyFactor *big.Int,
+	offenders []*data.VoterInfo,
+	voters *data.VoterIndex,
+) []ty.RewardClaim {
+	var penalties []ty.RewardClaim
+	for _, offender := range offenders {
+		amount := new(big.Int).Div(
+			bigTmp.Mul(offender.CappedWeight, bigTmp.Mul(reward, penaltyFactor)),
+			voters.TotalCappedWeight,
+		)
+
+		claims := SigningWeightClaimsForVoter(offender, amount)
+		// big.Int uses Euclidean division behaves differently when dividing negative numbers compared
+		// to BigInt in JS. So we calculate an absolute penalty amount first and then negate it.
+		for i := range claims {
+			claims[i].Amount.Neg(claims[i].Amount)
+		}
+
+		penalties = append(penalties, claims...)
+	}
+	return penalties
 }

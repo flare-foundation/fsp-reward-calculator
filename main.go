@@ -7,10 +7,11 @@ import (
 	"fmt"
 	"ftsov2-rewarding/logger"
 	"ftsov2-rewarding/rewards"
-	"ftsov2-rewarding/types"
+	"ftsov2-rewarding/ty"
 	"ftsov2-rewarding/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
+	"math/big"
 	"net/http"
 	"os"
 	"strconv"
@@ -67,10 +68,10 @@ func calculateRewardClaimsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	epoch := types.EpochId(epochNo)
+	epoch := ty.EpochId(epochNo)
 
 	start := time.Now()
-	res := getResult(epoch, err)
+	res := getEpochResult(epoch, err)
 	printEpochResult(res)
 	elapsed := time.Since(start)
 	logger.Info("Merkle root for epoch %d: %s, no weight based %d, duration: %s", epoch, res.MerkleRoot, res.NoOfWeightBasedClaims, elapsed)
@@ -83,10 +84,10 @@ func calculateRewardClaimsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getResult(epoch types.EpochId, err error) roundResult {
+func getEpochResult(epoch ty.EpochId, err error) epochResult {
 	logger.Info("Calculating reward claims for epoch %d", epoch)
 
-	allClaims, err := rewards.CalculateRewardClaims(db, epoch)
+	allClaims, err := rewards.GetEpochClaims(db, epoch)
 	if err != nil {
 		logger.Fatal("Error calculating reward claims for epoch %d: %s", epoch, err)
 	}
@@ -102,7 +103,7 @@ func getResult(epoch types.EpochId, err error) roundResult {
 	var hashes []common.Hash
 	var weightBasedClaims = 0
 	for _, claim := range finalClaims {
-		if claim.Type == types.WNat || claim.Type == types.Mirror || claim.Type == types.CChain {
+		if claim.Type == ty.WNat || claim.Type == ty.Mirror || claim.Type == ty.CChain {
 			weightBasedClaims++
 		}
 		hash := utils.RewardClaimHash(epoch, claim)
@@ -113,25 +114,65 @@ func getResult(epoch types.EpochId, err error) roundResult {
 	merkleTree := merkle.Build(hashes, false)
 
 	root, err := merkleTree.Root()
+
+	var cl []ClaimWithProof
+	for i := range finalClaims {
+		claim := finalClaims[i]
+
+		proof, err := merkleTree.GetProofFromHash(hashes[i])
+		if err != nil {
+			logger.Fatal("Error calculating proof: %s", err)
+		}
+
+		proofHex := make([]string, len(proof))
+		for i, p := range proof {
+			proofHex[i] = p.Hex()
+		}
+
+		cl = append(cl, ClaimWithProof{
+			Proof: proof,
+			Claim: claim2{
+				Beneficiary: claim.Beneficiary,
+				Amount:      claim.Amount,
+				Type:        int(claim.Type),
+				Epoch:       epoch,
+			},
+		})
+	}
+
 	if err != nil {
 		logger.Fatal("Error calculating merkle root: %s", err)
 	}
 
-	res := roundResult{
+	res := epochResult{
 		RewardEpochId:         int(epoch),
 		NoOfWeightBasedClaims: weightBasedClaims,
 		MerkleRoot:            root.Hex(),
+		RewardClaims:          cl,
 	}
 	return res
 }
 
-type roundResult struct {
-	RewardEpochId         int    `json:"rewardEpochId"`
-	NoOfWeightBasedClaims int    `json:"noOfWeightBasedClaims"`
-	MerkleRoot            string `json:"merkleRoot"`
+type claim2 struct {
+	Beneficiary common.Address `json:"beneficiary"`
+	Amount      *big.Int       `json:"amount"`
+	Type        int            `json:"claimType"`
+	Epoch       ty.EpochId     `json:"rewardEpochId"`
 }
 
-func printEpochResult(result roundResult) {
+type ClaimWithProof struct {
+	Proof []common.Hash `json:"merkleProof"`
+	Claim claim2        `json:"body"`
+}
+
+type epochResult struct {
+	RewardEpochId         int              `json:"rewardEpochId"`
+	NoOfWeightBasedClaims int              `json:"noOfWeightBasedClaims"`
+	MerkleRoot            string           `json:"merkleRoot"`
+	RewardClaims          []ClaimWithProof `json:"rewardClaims"`
+}
+
+func printEpochResult(result epochResult) {
 	jsonData, err := json.MarshalIndent(result, "", "    ")
 	if err != nil {
 		fmt.Println("Error serializing to JSON:", err)
