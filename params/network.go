@@ -58,6 +58,8 @@ func init() {
 		Net = coston
 	case "songbird":
 		Net = songbird
+	case "flare":
+		Net = flare
 	}
 
 	logger.Info("Network: %s", network)
