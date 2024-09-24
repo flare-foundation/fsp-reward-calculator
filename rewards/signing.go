@@ -208,16 +208,16 @@ func acceptedHashSignatures(
 	re data.RewardEpoch,
 	signaturesByHash map[common.Hash]map[ty.VoterSigning]data.SigInfo,
 ) map[ty.VoterSigning]data.SigInfo {
-	threshold := re.Policy.Voters.TotalWeight * params.Net.Ftso.MinimalRewardedNonConsensusDepositedSignaturesPerHashBips / totalBips
+	threshold := uint64(re.Policy.Voters.TotalWeight) * uint64(params.Net.Ftso.MinimalRewardedNonConsensusDepositedSignaturesPerHashBips) / uint64(totalBips)
 
-	maxWeight := uint16(0)
+	maxWeight := uint64(0)
 	var result map[ty.VoterSigning]data.SigInfo
 
 	for _, signatures := range signaturesByHash {
-		hashWeight := uint16(0)
+		hashWeight := uint64(0)
 		for _, info := range signatures {
 			signerWeight := re.Policy.Voters.VoterDataMap[common.Address(info.Signer)].Weight
-			hashWeight += signerWeight
+			hashWeight += uint64(signerWeight)
 		}
 		if hashWeight > threshold && hashWeight > maxWeight {
 			maxWeight = hashWeight

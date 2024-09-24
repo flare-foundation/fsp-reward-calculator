@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"flare-common/database"
 	"flare-common/merkle"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"gorm.io/gorm"
 	"math/big"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -21,6 +21,14 @@ import (
 var db *gorm.DB
 
 func main() {
+	epochFlag := flag.Uint64("e", 0, "Epoch number")
+	flag.Parse()
+
+	if *epochFlag == 0 {
+		flag.PrintDefaults()
+		logger.Fatal("Epoch number is required")
+	}
+
 	dbHost := os.Getenv("DB_HOST")
 	if dbHost == "" {
 		dbHost = "localhost"
@@ -40,48 +48,18 @@ func main() {
 	}
 
 	logger.Info("Connecting to database: +%v", config)
-
 	db, err = database.Connect(&config)
 	if err != nil {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/rewards/{epoch}/{ignored...}", calculateRewardClaimsHandler)
-	logger.Info("Starting server on port 8089")
-	err = http.ListenAndServe(":8089", mux)
-	if err != nil {
-		logger.Fatal("Error starting server: %s", err)
-	}
-}
-
-func calculateRewardClaimsHandler(w http.ResponseWriter, r *http.Request) {
-	epochStr := r.PathValue("epoch")
-	if epochStr == "" {
-		http.Error(w, "Missing epoch parameter", http.StatusBadRequest)
-		return
-	}
-
-	epochNo, err := strconv.Atoi(epochStr)
-	if err != nil {
-		http.Error(w, "Invalid epoch parameter", http.StatusBadRequest)
-		return
-	}
-
-	epoch := ty.EpochId(epochNo)
+	epoch := ty.EpochId(*epochFlag)
 
 	start := time.Now()
 	res := getEpochResult(epoch, err)
 	printEpochResult(res)
 	elapsed := time.Since(start)
 	logger.Info("Merkle root for epoch %d: %s, no weight based %d, duration: %s", epoch, res.MerkleRoot, res.NoOfWeightBasedClaims, elapsed)
-
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(res)
-	if err != nil {
-		return
-	}
 }
 
 func getEpochResult(epoch ty.EpochId, err error) epochResult {
@@ -179,7 +157,7 @@ func printEpochResult(result epochResult) {
 		return
 	}
 
-	file, err := os.Create(fmt.Sprintf("results/result-%d.json", result.RewardEpochId))
+	file, err := os.Create(fmt.Sprintf("results/%s/result-%d.json", os.Getenv("NETWORK"), result.RewardEpochId))
 	if err != nil {
 		fmt.Println("Error creating file:", err)
 		return
