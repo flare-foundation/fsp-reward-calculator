@@ -1,6 +1,7 @@
 package data
 
 import (
+	"encoding/hex"
 	"flare-common/contracts/fupdater"
 	"flare-common/database"
 	"flare-common/payload"
@@ -188,7 +189,7 @@ func getFinalizations(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (ma
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
-	txns, err := database.FetchTransactionsByAddressAndSelectorTimestamp(db, relayContractAddress, utils.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
+	txns, err := fetchTransactions(db, relayContractAddress, utils.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
 	if err != nil {
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
@@ -307,7 +308,7 @@ func getFUpdateSubmits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (m
 }
 
 func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]byte, contractAddress common.Address) ([]payload.Message, error) {
-	txns, err := database.FetchTransactionsByAddressAndSelectorTimestamp(db, contractAddress, signature, int64(fromSec), int64(toSec))
+	txns, err := fetchTransactions(db, contractAddress, signature, int64(fromSec), int64(toSec))
 	if err != nil {
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
@@ -329,4 +330,24 @@ func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]by
 	}
 
 	return payloads, nil
+}
+
+// fetchTransactions retrieves transactions from the database that match the given criteria.
+// This is an optimised version that selects only the necessary columns.
+func fetchTransactions(
+	db *gorm.DB, toAddress common.Address, functionSel [4]byte, from int64, to int64,
+) ([]database.Transaction, error) {
+	var transactions []database.Transaction
+
+	err := db.Model(database.Transaction{}).Where(
+		"to_address = ? AND function_sig = ? AND timestamp >= ? AND timestamp <= ?",
+		hex.EncodeToString(toAddress[:]), // encodes without 0x prefix and without checksum
+		hex.EncodeToString(functionSel[:]),
+		from, to,
+	).Order("timestamp").Select("function_sig", "input", "block_number", "from_address", "status", "timestamp").Find(&transactions).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return transactions, nil
 }
