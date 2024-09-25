@@ -1,7 +1,7 @@
 package params
 
 import (
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/ty"
 	"math"
 
 	"github.com/pkg/errors"

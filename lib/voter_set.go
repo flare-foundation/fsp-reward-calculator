@@ -9,44 +9,69 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/relay"
 )
 
+type SigningPolicy struct {
+	RewardEpochId      int64
+	StartVotingRoundId uint32
+	Threshold          uint16
+	Seed               *big.Int
+	RawBytes           []byte
+	BlockTimestamp     uint64
+
+	// The set of all Voters and their weights
+	Voters *VoterSet
+}
+
+func NewSigningPolicy(r *relay.RelaySigningPolicyInitialized) *SigningPolicy {
+	return &SigningPolicy{
+		RewardEpochId:      r.RewardEpochId.Int64(),
+		StartVotingRoundId: r.StartVotingRoundId,
+		Threshold:          r.Threshold,
+		Seed:               r.Seed,
+		RawBytes:           r.SigningPolicyBytes,
+		BlockTimestamp:     r.Timestamp,
+		Voters:             NewVoterSet(r.Voters, r.Weights),
+	}
+}
+
 type VoterData struct {
-	index  int
-	weight uint16
+	Index  int
+	Weight uint16
 }
 
 type VoterSet struct {
-	voters      []common.Address
-	weights     []uint16
-	totalWeight uint16
-	thresholds  []uint16
+	Voters      []common.Address
+	Weights     []uint16
+	TotalWeight uint16
+	Thresholds  []uint16
 
-	voterDataMap map[common.Address]VoterData
+	VoterDataMap map[common.Address]VoterData
 }
 
 func NewVoterSet(voters []common.Address, weights []uint16) *VoterSet {
 	vs := VoterSet{
-		voters:     voters,
-		weights:    weights,
-		thresholds: make([]uint16, len(weights)),
+		Voters:     voters,
+		Weights:    weights,
+		Thresholds: make([]uint16, len(weights)),
 	}
 	// sum does not exceed uint16, guaranteed by the smart contract
 	for i, w := range weights {
-		vs.thresholds[i] = vs.totalWeight
-		vs.totalWeight += w
+		vs.Thresholds[i] = vs.TotalWeight
+		vs.TotalWeight += w
 	}
 
 	vMap := make(map[common.Address]VoterData)
-	for i, voter := range vs.voters {
+	for i, voter := range vs.Voters {
 		if _, ok := vMap[voter]; !ok {
 			vMap[voter] = VoterData{
-				index:  i,
-				weight: vs.weights[i],
+				Index:  i,
+				Weight: vs.Weights[i],
 			}
 		}
 	}
-	vs.voterDataMap = vMap
+	vs.VoterDataMap = vMap
 	return &vs
 }
 
@@ -89,17 +114,17 @@ func (vs *VoterSet) RandomSelectThresholdWeightVoters(randomSeed common.Hash, th
 	}
 
 	selectedWeight := uint16(0)
-	thresholdWeight := uint16(uint64(vs.totalWeight) * uint64(thresholdBIPS) / 10000)
+	thresholdWeight := uint16(uint64(vs.TotalWeight) * uint64(thresholdBIPS) / 10000)
 	currentSeed := randomSeed
 	selectedVoters := mapset.NewSet[common.Address]()
 
 	// If threshold weight is not too big, the loop should end quickly
 	for selectedWeight < thresholdWeight {
 		index := vs.selectVoterIndex(currentSeed)
-		selectedAddress := vs.voters[index]
+		selectedAddress := vs.Voters[index]
 		if !selectedVoters.Contains(selectedAddress) {
 			selectedVoters.Add(selectedAddress)
-			selectedWeight += vs.weights[index]
+			selectedWeight += vs.Weights[index]
 		}
 		currentSeed = crypto.Keccak256Hash(currentSeed.Bytes())
 	}
@@ -109,27 +134,27 @@ func (vs *VoterSet) RandomSelectThresholdWeightVoters(randomSeed common.Hash, th
 // Selects a random voter based provided random number.
 func (vs *VoterSet) selectVoterIndex(randomNumber common.Hash) int {
 	randomWeight := big.NewInt(0).SetBytes(randomNumber.Bytes())
-	randomWeight = randomWeight.Mod(randomWeight, big.NewInt(int64(vs.totalWeight)))
+	randomWeight = randomWeight.Mod(randomWeight, big.NewInt(int64(vs.TotalWeight)))
 	return vs.BinarySearch(uint16(randomWeight.Uint64()))
 }
 
 // Searches for the highest index of the threshold that is less than or equal to the value.
 // Binary search is used.
 func (vs *VoterSet) BinarySearch(value uint16) int {
-	if value > vs.totalWeight {
+	if value > vs.TotalWeight {
 		panic("Value must be between 0 and total weight")
 	}
 	left := 0
-	right := len(vs.thresholds) - 1
+	right := len(vs.Thresholds) - 1
 	mid := 0
-	if vs.thresholds[right] <= value {
+	if vs.Thresholds[right] <= value {
 		return right
 	}
 	for left < right {
 		mid = (left + right) / 2
-		if vs.thresholds[mid] < value {
+		if vs.Thresholds[mid] < value {
 			left = mid + 1
-		} else if vs.thresholds[mid] > value {
+		} else if vs.Thresholds[mid] > value {
 			right = mid
 		} else {
 			return mid
@@ -138,21 +163,18 @@ func (vs *VoterSet) BinarySearch(value uint16) int {
 	return left - 1
 }
 
-func (vs *VoterSet) TotalWeight() uint16 {
-	return vs.totalWeight
-}
 func (vs *VoterSet) VoterWeight(index int) uint16 {
-	return vs.weights[index]
+	return vs.Weights[index]
 }
 
 func (vs *VoterSet) Count() int {
-	return len(vs.voters)
+	return len(vs.Voters)
 }
 
 func (vs *VoterSet) VoterIndex(address common.Address) int {
-	voterData, ok := vs.voterDataMap[address]
+	voterData, ok := vs.VoterDataMap[address]
 	if !ok {
 		return -1
 	}
-	return voterData.index
+	return voterData.Index
 }

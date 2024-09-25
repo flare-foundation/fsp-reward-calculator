@@ -1,10 +1,10 @@
 package rewards
 
 import (
-	"flare-common/contracts/fumanager"
-	"ftsov2-rewarding/data"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/ty"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fumanager"
 	"math/big"
 )
 

@@ -2,17 +2,17 @@ package data
 
 import (
 	"encoding/hex"
-	"flare-common/contracts/fupdater"
-	"flare-common/database"
-	"flare-common/payload"
-	"flare-common/policy"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/ty"
-	"ftsov2-rewarding/utils"
+	voters "fsp-rewards-calculator/lib"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/params"
+	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fupdater"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/database"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
 	"math/big"
 )
@@ -52,7 +52,7 @@ type Signature struct {
 }
 
 type Finalization struct {
-	Policy     policy.SigningPolicy
+	Policy     voters.SigningPolicy
 	MerkleRoot ProtocolMerkleRoot
 	Signatures []ECDSASignature
 	Info       TxInfo
@@ -94,7 +94,7 @@ func GetCommits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.R
 			commitsByRound[round] = map[ty.VoterSubmit]*Commit{}
 		}
 
-		from := ty.VoterSubmit(common.HexToAddress(msg.From))
+		from := ty.VoterSubmit(msg.From)
 		commitsByRound[round][from] = commit
 	}
 
@@ -122,7 +122,7 @@ func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.R
 
 		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitRound) {
 			// TODO: all seem to fail here??
-			logger.Debug("reveal from %s too late", common.HexToAddress(msg.From))
+			logger.Debug("reveal from %s too late", msg.From)
 			continue
 		}
 
@@ -136,7 +136,7 @@ func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.R
 			revealsByRound[round] = map[ty.VoterSubmit]*Reveal{}
 		}
 
-		from := ty.VoterSubmit(common.HexToAddress(msg.From))
+		from := ty.VoterSubmit(msg.From)
 		revealsByRound[round][from] = reveal
 	}
 
@@ -174,7 +174,7 @@ func getSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[t
 		signaturesByRound[round] = append(signaturesByRound[round], &SignatureSubmission{
 			Signature: signature,
 			Info: TxInfo{
-				From:         common.HexToAddress(msg.From),
+				From:         msg.From,
 				TimestampSec: msg.Timestamp,
 				Reverted:     false,
 			},

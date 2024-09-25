@@ -1,11 +1,11 @@
-module ftsov2-rewarding
+module fsp-rewards-calculator
 
-go 1.22
+go 1.23.0
 
-replace flare-common => ./lib/flare-common
+toolchain go1.23.1
 
 require (
-	flare-common v0.0.0-00010101000000-000000000000compiler
+	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/ethereum/go-ethereum v1.13.15
 	github.com/pkg/errors v0.9.1
 	go.uber.org/zap v1.27.0
@@ -25,7 +25,6 @@ require (
 	github.com/consensys/gnark-crypto v0.12.1 // indirect
 	github.com/crate-crypto/go-kzg-4844 v0.7.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/ethereum/c-kzg-4844 v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -46,6 +45,7 @@ require (
 	github.com/supranational/blst v0.3.11 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
+	gitlab.com/flarenetwork/libs/go-flare-common v0.0.0-20240925105406-f2e1a3cbfbea // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/mod v0.14.0 // indirect

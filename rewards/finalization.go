@@ -1,12 +1,11 @@
 package rewards
 
 import (
-	"flare-common/policy"
-	"ftsov2-rewarding/data"
-	voters "ftsov2-rewarding/lib"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/data"
+	voters "fsp-rewards-calculator/lib"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/params"
+	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"math/big"
@@ -100,7 +99,7 @@ func getFinalizationClaims(
 
 func selectFinalizers(
 	round ty.RoundId,
-	policy *policy.SigningPolicy,
+	policy *voters.SigningPolicy,
 	threshold uint16,
 ) (map[common.Address]bool, error) {
 	// TODO: We have duplicate VoterSet definitions

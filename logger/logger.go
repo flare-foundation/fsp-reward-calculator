@@ -2,7 +2,7 @@ package logger
 
 import (
 	"errors"
-	"ftsov2-rewarding/config"
+	"fsp-rewards-calculator/config"
 	"log"
 	"os"
 	"syscall"

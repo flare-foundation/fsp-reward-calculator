@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"

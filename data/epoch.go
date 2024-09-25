@@ -1,17 +1,17 @@
 package data
 
 import (
-	"flare-common/contracts/fumanager"
-	"flare-common/contracts/offers"
-	"flare-common/contracts/relay"
-	"flare-common/policy"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/ty"
-	"ftsov2-rewarding/utils"
+	votersLib "fsp-rewards-calculator/lib"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/params"
+	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/pkg/errors"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fumanager"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/offers"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/relay"
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
@@ -22,7 +22,7 @@ type RewardEpoch struct {
 	Epoch         ty.EpochId
 	StartRound    ty.RoundId
 	EndRound      ty.RoundId
-	Policy        *policy.SigningPolicy
+	Policy        *votersLib.SigningPolicy
 	Offers        RewardOffers
 	OrderedFeeds  []Feed
 	OrderedVoters []ty.VoterSigning
@@ -124,7 +124,7 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		Epoch:         epoch,
 		StartRound:    startRound,
 		EndRound:      endRound,
-		Policy:        policy.NewSigningPolicy(policyEvent),
+		Policy:        votersLib.NewSigningPolicy(policyEvent),
 		Offers:        rewardOffers,
 		OrderedFeeds:  feeds,
 		OrderedVoters: getOrderedVoters(policyEvent),

@@ -1,8 +1,8 @@
 package data
 
 import (
-	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/params"
+	"fsp-rewards-calculator/ty"
 	"math/big"
 )
 

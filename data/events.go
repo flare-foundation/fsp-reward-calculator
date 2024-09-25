@@ -1,15 +1,15 @@
 package data
 
 import (
-	"flare-common/contracts/calculator"
-	"flare-common/contracts/fumanager"
-	"flare-common/contracts/offers"
-	"flare-common/contracts/registry"
-	"flare-common/database"
-	"flare-common/events"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/utils"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/params"
+	"fsp-rewards-calculator/utils"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/calculator"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fumanager"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/offers"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/registry"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/database"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/events"
 	"strings"
 
 	"github.com/pkg/errors"

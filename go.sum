@@ -74,6 +74,10 @@ github.com/tklauser/go-sysconf v0.3.12 h1:0QaGUFOdQaIVdPgfITYzaTegZvdCjmYO52cSFA
 github.com/tklauser/go-sysconf v0.3.12/go.mod h1:Ho14jnntGE1fpdOqQEEaiKRpvIavV0hSfmBq8nJbHYI=
 github.com/tklauser/numcpus v0.6.1 h1:ng9scYS7az0Bk4OZLvrNXNSAO2Pxr1XXRAPyjhIx+Fk=
 github.com/tklauser/numcpus v0.6.1/go.mod h1:1XfjsgE2zo8GVw7POkMbHENHzVg3GzmoZ9fESEdAacY=
+gitlab.com/flarenetwork/libs/go-flare-common v0.0.0-20240924143511-f85c0d54c49a h1:Wxr0wSD2FT3fnTAplmF4C08MuxlvvJ5ElktG04OFQYo=
+gitlab.com/flarenetwork/libs/go-flare-common v0.0.0-20240924143511-f85c0d54c49a/go.mod h1:1x6CiiAwzYaNvaloh49KMu18Ur60oe8OdlqNL7wU+r0=
+gitlab.com/flarenetwork/libs/go-flare-common v0.0.0-20240925105406-f2e1a3cbfbea h1:82HbUpMVTfe2FJ19TOzgzzV1krQqMLXbaltiNAzFB5k=
+gitlab.com/flarenetwork/libs/go-flare-common v0.0.0-20240925105406-f2e1a3cbfbea/go.mod h1:1x6CiiAwzYaNvaloh49KMu18Ur60oe8OdlqNL7wU+r0=
 go.uber.org/multierr v1.11.0 h1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=
 go.uber.org/multierr v1.11.0/go.mod h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN80Y=
 go.uber.org/zap v1.27.0 h1:aJMhYGrd5QSmlpLMr2MftRKl7t8J8PTZPA732ud/XR8=

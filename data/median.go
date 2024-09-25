@@ -3,8 +3,8 @@ package data
 import (
 	"encoding/hex"
 	"fmt"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/ty"
 	"github.com/pkg/errors"
 	"math/big"
 	"sort"

@@ -2,9 +2,9 @@ package data
 
 import (
 	"bytes"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/ty"
-	"ftsov2-rewarding/utils"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"

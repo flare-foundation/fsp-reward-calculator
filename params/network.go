@@ -1,7 +1,7 @@
 package params
 
 import (
-	"ftsov2-rewarding/logger"
+	"fsp-rewards-calculator/logger"
 	"math/big"
 	"os"
 

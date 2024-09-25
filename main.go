@@ -3,17 +3,18 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"flare-common/database"
-	"flare-common/merkle"
 	"fmt"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/rewards"
-	"ftsov2-rewarding/ty"
-	"ftsov2-rewarding/utils"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/rewards"
+	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/database"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/merkle"
 	"gorm.io/gorm"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -157,7 +158,15 @@ func printEpochResult(result epochResult) {
 		return
 	}
 
-	file, err := os.Create(fmt.Sprintf("results/%s/result-%d.json", os.Getenv("NETWORK"), result.RewardEpochId))
+	filePath := fmt.Sprintf("results/%s/result-%d.json", os.Getenv("NETWORK"), result.RewardEpochId)
+
+	dir := filepath.Dir(filePath)
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		fmt.Println("Error creating folders:", err)
+	}
+
+	file, err := os.Create(filePath)
 	if err != nil {
 		fmt.Println("Error creating file:", err)
 		return

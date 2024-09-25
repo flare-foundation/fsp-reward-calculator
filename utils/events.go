@@ -1,16 +1,16 @@
 package utils
 
 import (
-	"flare-common/contracts/calculator"
-	"flare-common/contracts/fumanager"
-	"flare-common/contracts/fupdater"
-	"flare-common/contracts/offers"
-	"flare-common/contracts/registry"
-	"flare-common/contracts/relay"
-	"flare-common/contracts/submission"
-	"flare-common/contracts/system"
-	"ftsov2-rewarding/logger"
+	"fsp-rewards-calculator/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/calculator"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fumanager"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fupdater"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/offers"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/registry"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/relay"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/submission"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/system"
 )
 
 type EventIds struct {

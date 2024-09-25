@@ -3,10 +3,10 @@ package data
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"flare-common/policy"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/ty"
+	voters "fsp-rewards-calculator/lib"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/params"
+	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -71,23 +71,18 @@ func (t *TxInfo) RoundOffset() uint64 {
 	return t.TimestampSec - roundStartSec
 }
 
-func DecodeCommit(message string) (*Commit, error) {
-	if len(message) != 64 {
+func DecodeCommit(bytes []byte) (*Commit, error) {
+	if len(bytes) != common.HashLength {
 		return nil, errors.New("invalid message length")
 	}
-	hash := common.HexToHash(message)
+	hash := common.BytesToHash(bytes)
 	return &Commit{
 		Hash: hash,
 	}, nil
 
 }
 
-func DecodeReveal(message string) (*Reveal, error) {
-	bytes, err := hex.DecodeString(message)
-	if err != nil {
-		return nil, errors.Wrap(err, "message is not a valid hex string")
-	}
-
+func DecodeReveal(bytes []byte) (*Reveal, error) {
 	// The message should be long enough to contain the random and at least one feed value
 	if len(bytes) < (common.HashLength + FeedValueBytes) {
 		return nil, errors.New("message too short")
@@ -102,14 +97,9 @@ func DecodeReveal(message string) (*Reveal, error) {
 	}, nil
 }
 
-func DecodeSignature(message string) (*Signature, error) {
-	bytes, err := hex.DecodeString(message)
-	if err != nil {
-		return nil, errors.Wrapf(err, "message is not a valid hex string: %s", message)
-	}
-
+func DecodeSignature(bytes []byte) (*Signature, error) {
 	if len(bytes) < 1+ProtocolMerkleRootBytes+SignatureBytes {
-		return nil, errors.Errorf("Signature message too short: %s", message)
+		return nil, errors.Errorf("Signature message too short: %s", bytes)
 	}
 
 	p := 1 // Type byte not used
@@ -212,7 +202,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 	}, nil
 }
 
-func DecodeSigningPolicy(bytes []byte) (*policy.SigningPolicy, int, error) {
+func DecodeSigningPolicy(bytes []byte) (*voters.SigningPolicy, int, error) {
 	p := 0
 	size := int(DecodeUint32(bytes[p : p+2]))
 	p += 2
@@ -248,14 +238,14 @@ func DecodeSigningPolicy(bytes []byte) (*policy.SigningPolicy, int, error) {
 		return nil, p, errors.New("total weight exceeds maximum uint16 value")
 	}
 
-	return &policy.SigningPolicy{
+	return &voters.SigningPolicy{
 		RewardEpochId:      int64(epoch),
 		StartVotingRoundId: startingRound,
 		Threshold:          threshold,
 		Seed:               new(big.Int).SetBytes(seed[:]),
 		RawBytes:           bytes[:p],
 		BlockTimestamp:     0,
-		Voters:             policy.NewVoterSet(signers, weights),
+		Voters:             voters.NewVoterSet(signers, weights),
 	}, p, nil
 }
 

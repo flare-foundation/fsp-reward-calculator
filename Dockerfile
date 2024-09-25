@@ -4,7 +4,6 @@ FROM golang:1.22 AS builder
 WORKDIR /build
 
 # Copy and download dependencies using go mod
-COPY fdc-client/flare-common ./fdc-client/flare-common
 COPY go.mod go.sum ./
 RUN go mod download
 
@@ -12,7 +11,7 @@ RUN go mod download
 COPY . ./
 
 # Build the applications
-RUN go build -o /app/fsc-rewards ftsov2-rewarding
+RUN go build -o /app/fsp-rewards-calculator fsp-rewards-calculator
 
 FROM debian:latest AS execution
 
@@ -22,7 +21,7 @@ ARG type=voting
 #RUN apt-get -y update && apt-get -y install curl
 
 WORKDIR /app
-COPY --from=builder /app/fsc-rewards .
+COPY --from=builder /app/fsp-rewards-calculator .
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-CMD ["./fsc-rewards" ]
+CMD ["./fsp-rewards-calculator" ]

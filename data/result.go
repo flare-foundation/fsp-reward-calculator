@@ -1,8 +1,8 @@
 package data
 
 import (
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/ty"
 )
 
 type RoundResult struct {

@@ -1,10 +1,10 @@
 package rewards
 
 import (
-	"ftsov2-rewarding/data"
-	"ftsov2-rewarding/logger"
-	"ftsov2-rewarding/params"
-	"ftsov2-rewarding/ty"
+	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/params"
+	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"slices"

@@ -3,8 +3,8 @@ package data
 import (
 	"bytes"
 	"encoding/binary"
-	"flare-common/contracts/offers"
-	"ftsov2-rewarding/logger"
+	"fsp-rewards-calculator/logger"
+	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/offers"
 	"golang.org/x/exp/maps"
 	"math/big"
 	"slices"
