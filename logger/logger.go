@@ -2,14 +2,12 @@ package logger
 
 import (
 	"errors"
-	"fsp-rewards-calculator/config"
 	"log"
 	"os"
 	"syscall"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
@@ -21,22 +19,14 @@ const (
 )
 
 func init() {
-	sugar = createSugaredLogger(DefaultLoggerConfig())
+	sugar = createSugaredLogger()
 }
 
-func Configure(config config.LoggerConfig) {
-	sugar = createSugaredLogger(config)
-}
-
-func createSugaredLogger(config config.LoggerConfig) *zap.SugaredLogger {
+func createSugaredLogger() *zap.SugaredLogger {
 	atom := zap.NewAtomicLevel()
 	cores := make([]zapcore.Core, 0)
-	if config.Console {
-		cores = append(cores, createConsoleLoggerCore(atom))
-	}
-	if len(config.File) > 0 {
-		cores = append(cores, createFileLoggerCore(config, atom))
-	}
+
+	cores = append(cores, createConsoleLoggerCore(atom))
 
 	core := zapcore.NewTee(cores...)
 	logger := zap.New(core,
@@ -54,27 +44,16 @@ func createSugaredLogger(config config.LoggerConfig) *zap.SugaredLogger {
 
 	sugar = logger.Sugar()
 
-	level, err := zapcore.ParseLevel(config.Level)
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "INFO"
+	}
+	level, err := zapcore.ParseLevel(logLevel)
 	if err != nil {
-		sugar.Errorf("Wrong level %s", config.Level)
+		sugar.Errorf("Wrong level %s", logLevel)
 	}
 	atom.SetLevel(level)
 	return sugar
-}
-
-func createFileLoggerCore(config config.LoggerConfig, atom zap.AtomicLevel) zapcore.Core {
-	w := zapcore.AddSync(&lumberjack.Logger{
-		Filename: config.File,
-		MaxSize:  config.MaxFileSize,
-	})
-	encoderCfg := zap.NewProductionEncoderConfig()
-	encoderCfg.EncodeLevel = fileLevelEncoder
-	encoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(timeFormat)
-	return zapcore.NewCore(
-		zapcore.NewConsoleEncoder(encoderCfg),
-		w,
-		atom,
-	)
 }
 
 func createConsoleLoggerCore(atom zap.AtomicLevel) zapcore.Core {
@@ -94,21 +73,6 @@ func consoleColorLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder
 		s = unknownLevelColor.Wrap(l.CapitalString())
 	}
 	enc.AppendString(s)
-}
-
-func fileLevelEncoder(l zapcore.Level, enc zapcore.PrimitiveArrayEncoder) {
-	enc.AppendString(l.CapitalString())
-}
-
-func DefaultLoggerConfig() config.LoggerConfig {
-	logLevel := os.Getenv("LOG_LEVEL")
-	if logLevel == "" {
-		logLevel = "INFO"
-	}
-	return config.LoggerConfig{
-		Level:   logLevel,
-		Console: true,
-	}
 }
 
 func Warn(msg string, args ...interface{}) {

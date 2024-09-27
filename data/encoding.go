@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	voters "fsp-rewards-calculator/lib"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -61,14 +60,6 @@ type ProtocolMerkleRoot struct {
 type FeedValue struct {
 	IsEmpty bool
 	Value   int32
-}
-
-func (t *TxInfo) RoundId() ty.RoundId {
-	return params.Net.Epoch.VotingRoundForTimeSec(t.TimestampSec)
-}
-func (t *TxInfo) RoundOffset() uint64 {
-	roundStartSec := params.Net.Epoch.VotingRoundStartSec(t.RoundId())
-	return t.TimestampSec - roundStartSec
 }
 
 func DecodeCommit(bytes []byte) (*Commit, error) {

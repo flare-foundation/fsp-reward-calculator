@@ -1,7 +1,6 @@
 package rewards
 
 import (
-	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
@@ -103,14 +102,11 @@ func ApplyPenalties(claims []ty.RewardClaim) []ty.RewardClaim {
 	claimSum := big.NewInt(0)
 	for _, claim := range claims {
 		if claim.Amount.Cmp(bigZero) > 0 {
-			logger.Debug("Original Claim: %s, %s, %d", claim.Beneficiary.Hex(), claim.Type, claim.Amount)
-
 			claimSum.Add(claimSum, claim.Amount)
 		}
 	}
 	resultSum := big.NewInt(0)
 	for _, claim := range result {
-		logger.Debug("Result Claim: %s, %s, %d", claim.Beneficiary.Hex(), claim.Type, claim.Amount)
 		resultSum.Add(resultSum, claim.Amount)
 	}
 

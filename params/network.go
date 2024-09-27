@@ -60,6 +60,8 @@ func init() {
 		Net = songbird
 	case "flare":
 		Net = flare
+	default:
+		logger.Fatal("Unknown network: %s, please specify in NETWORK env variable.", network)
 	}
 
 	logger.Info("Network: %s", network)

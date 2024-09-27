@@ -211,8 +211,6 @@ func getFeedSelectionRandoms(
 	feedSelectionRandoms := make([]*big.Int, 0, totalRounds)
 
 	for round := re.StartRound + 1; round <= re.EndRound; round++ {
-		logger.Info("Calculating feed selection random for round %d", round)
-
 		if results[round].Random.IsSecure {
 			feedRandom := utils.FeedSelectionRandom(results[round].Random.Value, round)
 			for len(feedSelectionRandoms) < int(round-re.StartRound) {

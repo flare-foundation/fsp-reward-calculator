@@ -21,11 +21,23 @@ import (
 
 var db *gorm.DB
 
-func main() {
+type ClientFlags struct {
+	Epoch uint64
+}
+
+func parseFlags() *ClientFlags {
 	epochFlag := flag.Uint64("e", 0, "Epoch number")
 	flag.Parse()
 
-	if *epochFlag == 0 {
+	return &ClientFlags{
+		Epoch: *epochFlag,
+	}
+}
+
+func main() {
+	flags := parseFlags()
+
+	if flags.Epoch == 0 {
 		flag.PrintDefaults()
 		logger.Fatal("Epoch number is required")
 	}
@@ -54,16 +66,16 @@ func main() {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
 
-	epoch := ty.EpochId(*epochFlag)
+	epoch := ty.EpochId(flags.Epoch)
 
 	start := time.Now()
-	res := getEpochResult(epoch, err)
+	res := getEpochResult(epoch)
 	printEpochResult(res)
 	elapsed := time.Since(start)
 	logger.Info("Merkle root for epoch %d: %s, no weight based %d, duration: %s", epoch, res.MerkleRoot, res.NoOfWeightBasedClaims, elapsed)
 }
 
-func getEpochResult(epoch ty.EpochId, err error) epochResult {
+func getEpochResult(epoch ty.EpochId) epochResult {
 	logger.Info("Calculating reward claims for epoch %d", epoch)
 
 	allClaims, err := rewards.GetEpochClaims(db, epoch)

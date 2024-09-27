@@ -103,11 +103,6 @@ func getMedianClaims(round ty.RoundId, re data.RewardEpoch, rewardShare *big.Int
 				),
 				availableWeight,
 			)
-			logger.Debug("Dividing for %s: %d * %d / %d, res %d",
-				hex.EncodeToString(record.voter[:]),
-				record.weight,
-				availableReward, availableWeight, reward)
-
 		}
 
 		availableReward.Sub(availableReward, reward)

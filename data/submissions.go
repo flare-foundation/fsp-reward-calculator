@@ -21,11 +21,6 @@ const (
 	FtsoScalingProtocolId = 100
 )
 
-var (
-	submissionContractAddress = params.Net.Contracts.Submission
-	relayContractAddress      = params.Net.Contracts.Relay
-)
-
 type Commit struct {
 	Hash common.Hash
 }
@@ -70,7 +65,7 @@ func GetCommits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.R
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
 
-	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit1, submissionContractAddress)
+	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit1, params.Net.Contracts.Submission)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -106,7 +101,7 @@ func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.R
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1))
 
-	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit2, submissionContractAddress)
+	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit2, params.Net.Contracts.Submission)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -121,7 +116,6 @@ func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.R
 		}
 
 		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitRound) {
-			// TODO: all seem to fail here??
 			logger.Debug("reveal from %s too late", msg.From)
 			continue
 		}
@@ -147,7 +141,7 @@ func getSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[t
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
-	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.SubmitSignatures, submissionContractAddress)
+	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.SubmitSignatures, params.Net.Contracts.Submission)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -189,7 +183,7 @@ func getFinalizations(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (ma
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
-	txns, err := fetchTransactions(db, relayContractAddress, utils.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
+	txns, err := fetchTransactions(db, params.Net.Contracts.Relay, utils.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
 	if err != nil {
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
