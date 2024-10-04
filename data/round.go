@@ -78,17 +78,17 @@ func GetFinalizationsByRound(db *gorm.DB, re RewardEpoch) (map[ty.RoundId][]*Fin
 		seenSender := map[common.Address]bool{}
 		for _, finalization := range finalizations {
 			if ty.EpochId(finalization.Policy.RewardEpochId) != re.Epoch {
-				logger.Info("finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
+				logger.Info("Finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
 				continue
 			}
 
 			if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.RawBytes) {
-				logger.Info("finalization signing policy does not match expected, skipping")
+				logger.Info("Finalization signing policy does not match expected, skipping")
 				continue
 			}
 
 			if _, ok := seenSender[finalization.Info.From]; ok {
-				logger.Info("finalization from %s already seen, skipping", finalization.Info.From)
+				logger.Info("Finalization from %s already seen, skipping", finalization.Info.From)
 				continue
 			} else {
 				seenSender[finalization.Info.From] = true

@@ -6,6 +6,7 @@ import (
 )
 
 var songbird = Network{
+	Name: "songbird",
 
 	Contracts: ContractAddresses{
 		FlareSystemsManager:        common.HexToAddress("0x421c69E22f48e14Fc2d2Ee3812c59bfb81c38516"),

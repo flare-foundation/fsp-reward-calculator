@@ -6,6 +6,7 @@ import (
 )
 
 var flare = Network{
+	Name: "flare",
 
 	Contracts: ContractAddresses{
 		FlareSystemsManager:        common.HexToAddress("0x89e50DC0380e597ecE79c8494bAAFD84537AD0D4"),

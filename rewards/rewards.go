@@ -41,7 +41,7 @@ func calculateFURoundRewards(re data.RewardEpoch, feedSelectionRandoms []*big.In
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		random := feedSelectionRandoms[round-re.StartRound]
 
-		logger.Info("[FU] Selected random for round %d: %d", round, random)
+		logger.Debug("[FU] Selected random for round %d: %d", round, random)
 
 		amount := new(big.Int).Set(perRound)
 		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
@@ -87,7 +87,7 @@ func calculateRoundRewards(re data.RewardEpoch, feedSelectionRandoms []*big.Int)
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		random := feedSelectionRandoms[round-re.StartRound]
 
-		logger.Info("Selected random for round %d: %d", round, random)
+		logger.Debug("Selected random for round %d: %d", round, random)
 
 		amount := new(big.Int).Set(perRound)
 		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {

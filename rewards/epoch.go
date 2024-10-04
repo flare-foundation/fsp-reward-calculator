@@ -2,7 +2,6 @@ package rewards
 
 import (
 	"encoding/hex"
-	"fmt"
 	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
@@ -119,7 +118,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		logger.Info("Calculating median claims for round %d", round)
 		medianClaims := getMedianClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
 
-		utils.PrintResults(medianClaims, fmt.Sprintf("%d-median-claims", round))
+		utils.PrintRoundResults(medianClaims, epoch, round, "median-claims")
 
 		// Only voters receiving median rewards are eligible for signing and finalization rewards
 		var eligibleVoters []*data.VoterInfo
@@ -135,7 +134,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		logger.Info("Calculating signing claims for round %d", round)
 		signingClaims := getSigningClaims(round, re, signingReward, eligibleVoters, signersByRound[round], finalizationsByRound[round])
 
-		utils.PrintResults(signingClaims, fmt.Sprintf("%d-signing-claims", round))
+		utils.PrintRoundResults(signingClaims, epoch, round, "signing-claims")
 
 		logger.Info("Calculating finalization claims for round %d", round)
 		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
@@ -144,7 +143,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		}
 		finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
 
-		utils.PrintResults(finalizationClaims, fmt.Sprintf("%d-finalz-claims", round))
+		utils.PrintRoundResults(finalizationClaims, epoch, round, "finalz-claims")
 
 		dSigners := getDoubleSigners(signersByRound[round])
 		var dSignerInfos []*data.VoterInfo
@@ -173,8 +172,8 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		roundClaims = append(roundClaims, doubleSigningPenalties...)
 		roundClaims = append(roundClaims, revealPenalties...)
 
-		utils.PrintResults(doubleSigningPenalties, fmt.Sprintf("%d-doublesig-claims", round))
-		utils.PrintResults(revealPenalties, fmt.Sprintf("%d-reveal-claims", round))
+		utils.PrintRoundResults(doubleSigningPenalties, epoch, round, "doublesig-pen")
+		utils.PrintRoundResults(revealPenalties, epoch, round, "reveal-pen")
 
 		// Fast updates
 		reward := fuRoundRewards[round]
@@ -189,11 +188,11 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		logger.Info("Calculating FastUpdate claims for round %d, feed %s", round, feedId.Hex())
 		fuClaims := gatFUpdateClaims(re, fUpdatesByRound[round], fuRoundRewards[round], results[round].Median[feedId], medianDecimals)
 		roundClaims = append(roundClaims, fuClaims...)
-		utils.PrintResults(fuClaims, fmt.Sprintf("%d-fu-claims", round))
+		utils.PrintRoundResults(fuClaims, epoch, round, "fu-claims")
 
 		logger.Info("Round %d, computed FU claims: %d", round, len(fuClaims))
+		utils.PrintRoundResults(roundClaims, epoch, round, "round-claims")
 
-		utils.PrintResults(roundClaims, fmt.Sprintf("%d-round-claims", round))
 		epochClaims = append(epochClaims, roundClaims...)
 	}
 

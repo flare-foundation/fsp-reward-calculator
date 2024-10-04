@@ -20,7 +20,7 @@ func CalculateResults(
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		validReveals := reveals[round].Reveals
 
-		logger.Info("Reveals for round %d: %d", round, len(validReveals))
+		logger.Debug("Reveals for round %d: %d", round, len(validReveals))
 
 		eligibleReveals := map[ty.VoterSubmit]*Reveal{}
 		for voter, reveal := range validReveals {
@@ -29,7 +29,7 @@ func CalculateResults(
 			}
 		}
 
-		logger.Info("Eligible reveals for round %d: %d", round, len(eligibleReveals))
+		logger.Debug("Eligible reveals for round %d: %d", round, len(eligibleReveals))
 
 		// Median
 		feedValues := map[ty.VoterSubmit][]FeedValue{}
@@ -42,7 +42,7 @@ func CalculateResults(
 			feedValues[voter] = values
 		}
 
-		logger.Info("Calculating median for round %d", round)
+		logger.Debug("Calculating median for round %d", round)
 
 		median, err := calculateMedians(re, feedValues)
 		if err != nil {
@@ -50,7 +50,7 @@ func CalculateResults(
 		}
 
 		random := CalculateRandom(round, reveals, eligibleReveals)
-		logger.Info("Round %d, random result: %d", round, random.Value)
+		logger.Debug("Round %d, random result: %d", round, random.Value)
 
 		results[round] = RoundResult{
 			Round:  round,

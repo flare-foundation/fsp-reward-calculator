@@ -6,6 +6,7 @@ import (
 )
 
 var coston = Network{
+	Name: "coston",
 
 	Contracts: ContractAddresses{
 		FlareSystemsManager:        common.HexToAddress("0x85680Dd93755Fe5d0789773fd0896cEE51F9e358"),

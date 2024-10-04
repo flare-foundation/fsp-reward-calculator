@@ -2,13 +2,12 @@ package params
 
 import (
 	"fsp-rewards-calculator/logger"
-	"math/big"
-	"os"
-
 	"github.com/ethereum/go-ethereum/common"
+	"math/big"
 )
 
 type Network struct {
+	Name                 string
 	Contracts            ContractAddresses
 	InitialRewardEpochId int
 	Epoch                Epoch
@@ -50,9 +49,7 @@ type Ftso struct {
 
 var Net Network
 
-func init() {
-	network := os.Getenv("NETWORK")
-
+func InitNetwork(network string) {
 	switch network {
 	case "coston":
 		Net = coston
@@ -61,7 +58,7 @@ func init() {
 	case "flare":
 		Net = flare
 	default:
-		logger.Fatal("Unknown network: %s, please specify in NETWORK env variable.", network)
+		logger.Fatal("Unsupported network: %s.", network)
 	}
 
 	logger.Info("Network: %s", network)
