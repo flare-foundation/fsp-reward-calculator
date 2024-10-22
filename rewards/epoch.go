@@ -236,8 +236,9 @@ func getFeedSelectionRandoms(
 			lastRandomRound = round
 			break
 		}
-		logger.Info("Extra random: %d %+v", lastRandom)
 	}
+
+	logger.Info("Extra random: %+v", lastRandom)
 
 	// Random for last round is the first secure random from next reward epoch,
 	// or nil if none found within a certain window.

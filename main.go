@@ -12,47 +12,47 @@ import (
 )
 
 type ClientFlags struct {
-	Network string
-	Epoch   uint64
+	Network *string
+	Epoch   *uint64
 
-	DbHost string
-	DbPort int
-	DbName string
-	DbUser string
-	DbPass string
+	DbHost *string
+	DbPort *int
+	DbName *string
+	DbUser *string
+	DbPass *string
 }
 
 func parseFlags() *ClientFlags {
-	flag.Parse()
-
-	return &ClientFlags{
-		Network: *flag.String("n", "coston", "Network"),
-		Epoch:   *flag.Uint64("e", 0, "Epoch number"),
-		DbHost:  *flag.String("h", "localhost", "Database host"),
-		DbPort:  *flag.Int("p", 3306, "Database port"),
-		DbName:  *flag.String("d", "flare_ftso_indexer", "Database name"),
-		DbUser:  *flag.String("u", "root", "Database user"),
-		DbPass:  *flag.String("p", "root", "Database password"),
+	f := &ClientFlags{
+		Network: flag.String("n", "coston", "Network"),
+		Epoch:   flag.Uint64("e", 0, "Epoch number"),
+		DbHost:  flag.String("h", "localhost", "Database host"),
+		DbPort:  flag.Int("p", 3306, "Database port"),
+		DbName:  flag.String("d", "flare_ftso_indexer", "Database name"),
+		DbUser:  flag.String("u", "root", "Database user"),
+		DbPass:  flag.String("w", "root", "Database password"),
 	}
+	flag.Parse()
+	return f
 }
 
 func main() {
 	flags := parseFlags()
 
-	if flags.Network == "" {
+	if *flags.Network == "" {
 		flag.PrintDefaults()
 		logger.Fatal("Network is required: coston, songbird, flare")
 	}
-	params.InitNetwork(flags.Network)
+	params.InitNetwork(*flags.Network)
 
-	if flags.Epoch == 0 {
+	if *flags.Epoch == 0 {
 		flag.PrintDefaults()
 		logger.Fatal("Epoch number is required")
 	}
 
 	db := getDb(flags)
 
-	epoch := ty.EpochId(flags.Epoch)
+	epoch := ty.EpochId(*flags.Epoch)
 
 	start := time.Now()
 	res := calculateResults(db, epoch)
@@ -64,11 +64,11 @@ func main() {
 
 func getDb(flags *ClientFlags) *gorm.DB {
 	var config = database.DBConfig{
-		Host:     flags.DbHost,
-		Port:     flags.DbPort,
-		Database: flags.DbName,
-		Username: flags.DbUser,
-		Password: flags.DbPass,
+		Host:     *flags.DbHost,
+		Port:     *flags.DbPort,
+		Database: *flags.DbName,
+		Username: *flags.DbUser,
+		Password: *flags.DbPass,
 	}
 
 	logger.Info("Connecting to database: +%v", config)
