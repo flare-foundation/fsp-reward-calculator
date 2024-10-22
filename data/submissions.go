@@ -264,7 +264,7 @@ func getFUpdateFeeds(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map
 
 func getFUpdateSubmits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId][]ty.VoterSigning, error) {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
-	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(1))
+	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(2)) // Add extra round as buffer
 
 	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
 	parse := func(log types.Log) (*fupdater.FUpdaterFastUpdateFeedsSubmitted, error) {
