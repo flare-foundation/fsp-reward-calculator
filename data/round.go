@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"sync"
 )
 
 type SignerMap map[ty.RoundId]map[common.Hash]map[ty.VoterSigning]SigInfo
@@ -19,12 +18,12 @@ type SigInfo struct {
 	Timestamp uint64
 }
 
-// GetSignersByRound fetches all signatures for all rounds in the reward epoch, and for each round
+// GetSignersByRound fetches signatures for the specified round range, and for each round
 // computes the list of valid signatures by signed hash.
 // For each signer, only the last signature for a specific round and hash is retained.
-func GetSignersByRound(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
-	logger.Info("Fetching signers for rounds %d-%d", re.StartRound, re.EndRound)
-	allSignatures, err := getSignatures(db, re.StartRound, re.EndRound)
+func GetSignersByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch) (SignerMap, error) {
+	logger.Info("Fetching signers for rounds %d-%d", from, to)
+	allSignatures, err := getSignatures(db, from, to)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching signatures")
 	}
@@ -63,9 +62,9 @@ func GetSignersByRound(db *gorm.DB, re RewardEpoch) (SignerMap, error) {
 	return signers, nil
 }
 
-func GetFinalizationsByRound(db *gorm.DB, re RewardEpoch) (map[ty.RoundId][]*Finalization, error) {
-	logger.Info("Fetching finalizations for rounds %d-%d", re.StartRound, re.EndRound)
-	allFinalizationsByRound, err := getFinalizations(db, re.StartRound, re.EndRound)
+func GetFinalizationsByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch) (map[ty.RoundId][]*Finalization, error) {
+	logger.Info("Fetching finalizations for rounds %d-%d", from, to)
+	allFinalizationsByRound, err := getFinalizations(db, from, to)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching finalizations")
 	}
@@ -105,22 +104,22 @@ type FUpdate struct {
 	Submitters []ty.VoterSigning
 }
 
-func GetFUpdatesByRound(db *gorm.DB, re RewardEpoch) (map[ty.RoundId]*FUpdate, error) {
-	logger.Info("Fetching FastUpdates data for rounds %d-%d", re.StartRound, re.EndRound)
+func GetFUpdatesByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId) (map[ty.RoundId]*FUpdate, error) {
+	logger.Info("Fetching FastUpdates data for rounds %d-%d", from, to)
 
-	feeds, err := getFUpdateFeeds(db, re.StartRound, re.EndRound)
+	feeds, err := getFUpdateFeeds(db, from, to)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching FUpdate feeds")
 	}
 
-	submitters, err := getFUpdateSubmits(db, re.StartRound, re.EndRound)
+	submitters, err := getFUpdateSubmits(db, from, to)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching FUpdate submitters")
 	}
 
 	byRound := make(map[ty.RoundId]*FUpdate)
 
-	for round := re.StartRound; round <= re.EndRound; round++ {
+	for round := from; round <= to; round++ {
 		byRound[round] = &FUpdate{
 			Feeds:      feeds[round],
 			Submitters: submitters[round],
@@ -135,63 +134,41 @@ type RoundReveals struct {
 	Offenders []ty.VoterSubmit
 }
 
-// GetRoundRevealsAsync fetches all commits and reveals in parallel, and produces a map of valid round reveals and offenders.
-func GetRoundRevealsAsync(
-	db *gorm.DB,
-	windowStart ty.RoundId,
-	windowEnd ty.RoundId,
-	re RewardEpoch,
-) chan map[ty.RoundId]RoundReveals {
-	r := make(chan map[ty.RoundId]RoundReveals)
+func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch) map[ty.RoundId]RoundReveals {
+	var (
+		allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
+		allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
+	)
 
-	go func() {
-		var (
-			allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
-			allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
-		)
-		var wg sync.WaitGroup
-		wg.Add(2)
-		go func() {
-			defer wg.Done()
+	logger.Info("Fetching commits for rounds %d-%d", from, to)
+	allCommitsByRound, err := GetCommits(db, from, to)
+	logger.Info("All commits fetched")
+	if err != nil {
+		logger.Fatal("error fetching commitsByRound: %s", err)
+	}
 
-			var err error
-			logger.Info("Fetching commits for rounds %d-%d", windowStart, windowEnd)
-			allCommitsByRound, err = GetCommits(db, windowStart, windowEnd)
-			logger.Info("All commits fetched")
-			if err != nil {
-				logger.Fatal("error fetching commitsByRound: %s", err)
-			}
-		}()
-		go func() {
-			defer wg.Done()
+	logger.Info("Fetching reveals for rounds %d-%d", from, to)
+	allRevealsByRound, err = GetReveals(db, from, to)
+	logger.Info("All reveals fetched")
+	if err != nil {
+		logger.Fatal("error fetching revealsByRound: %s", err)
+	}
 
-			var err error
-			logger.Info("Fetching reveals for rounds %d-%d", windowStart, windowEnd)
-			allRevealsByRound, err = GetReveals(db, windowStart, windowEnd)
-			logger.Info("All reveals fetched")
-			if err != nil {
-				logger.Fatal("error fetching revealsByRound: %s", err)
-			}
-		}()
+	logger.Info("All commits and reveals fetched, processing.")
 
-		wg.Wait()
-		logger.Info("All commits and reveals fetched, processing.")
-
-		r <- getRoundReveals(windowStart, windowEnd, re, allCommitsByRound, allRevealsByRound)
-	}()
-	return r
+	return getRoundReveals(from, to, re, allCommitsByRound, allRevealsByRound)
 }
 
 func getRoundReveals(
-	windowStart ty.RoundId,
-	windowEnd ty.RoundId,
+	from ty.RoundId,
+	to ty.RoundId,
 	re RewardEpoch,
 	allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit,
 	allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal,
 ) map[ty.RoundId]RoundReveals {
 	roundData := map[ty.RoundId]RoundReveals{}
 
-	for round := windowStart; round < windowEnd; round++ {
+	for round := from; round < to; round++ {
 		var voterIndex *VoterIndex
 		switch {
 		case round < re.StartRound:

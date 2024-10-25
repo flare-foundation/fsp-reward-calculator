@@ -12,12 +12,14 @@ type RoundResult struct {
 }
 
 func CalculateResults(
+	from ty.RoundId,
+	to ty.RoundId,
 	re RewardEpoch,
 	reveals map[ty.RoundId]RoundReveals,
 ) (map[ty.RoundId]RoundResult, error) {
 	var results = map[ty.RoundId]RoundResult{}
 
-	for round := re.StartRound; round <= re.EndRound; round++ {
+	for round := from; round <= to; round++ {
 		validReveals := reveals[round].Reveals
 
 		logger.Debug("Reveals for round %d: %d", round, len(validReveals))

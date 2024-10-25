@@ -11,7 +11,6 @@ import (
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
-	"sync"
 )
 
 // GetEpochClaims calculates the reward claims for a reward epoch
@@ -31,45 +30,23 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		fUpdatesByRound      map[ty.RoundId]*data.FUpdate
 	)
 
-	revealsByRoundChan := data.GetRoundRevealsAsync(db, windowStart, windowEnd, re)
+	signersByRound, err = data.GetSignersByRound(db, re.StartRound, re.EndRound, re)
+	logger.Info("Signers fetched")
+	if err != nil {
+		logger.Fatal("error calculating signers: %s", err)
+	}
 
-	var wg sync.WaitGroup
-	wg.Add(3)
+	finalizationsByRound, err = data.GetFinalizationsByRound(db, re.StartRound, re.EndRound, re)
+	logger.Info("Finalizations fetched")
+	if err != nil {
+		logger.Fatal("err fetching finalizations: %s", err)
+	}
 
-	// TODO: Better error handling
-	go func() {
-		defer wg.Done()
+	fUpdatesByRound, err = data.GetFUpdatesByRound(db, re.StartRound, re.EndRound)
+	logger.Info("Fast update data fetched")
 
-		var err error
-		signersByRound, err = data.GetSignersByRound(db, re)
-		logger.Info("Signers fetched")
-		if err != nil {
-			logger.Fatal("error calculating signers: %s", err)
-		}
-	}()
-	go func() {
-		defer wg.Done()
-
-		var err error
-		finalizationsByRound, err = data.GetFinalizationsByRound(db, re)
-		logger.Info("Finalizations fetched")
-		if err != nil {
-			logger.Fatal("err fetching finalizations: %s", err)
-		}
-	}()
-	go func() {
-		defer wg.Done()
-
-		var err error
-		fUpdatesByRound, err = data.GetFUpdatesByRound(db, re)
-		logger.Info("Fast update data fetched")
-		if err != nil {
-			logger.Fatal("err fetching fast updates: %s", err)
-		}
-	}()
-
-	revealsByRound = <-revealsByRoundChan
-	results, err := data.CalculateResults(re, revealsByRound)
+	revealsByRound = data.GetRoundReveals(db, windowStart, windowEnd, re)
+	results, err := data.CalculateResults(re.StartRound, re.EndRound, re, revealsByRound)
 	if err != nil {
 		return nil, errors.Wrap(err, "error calculating results")
 	}
@@ -78,7 +55,6 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 	roundRewards := calculateRoundRewards(re, feedSelectionRandoms)
 	fuRoundRewards := calculateFURoundRewards(re, feedSelectionRandoms)
 
-	wg.Wait()
 	logger.Info("All data fetched, calculating rewards.")
 
 	epochClaims := make([]ty.RewardClaim, 0)

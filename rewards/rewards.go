@@ -83,7 +83,6 @@ func calculateRoundRewards(re data.RewardEpoch, feedSelectionRandoms []*big.Int)
 
 	perRound, rem := totalReward.DivMod(totalReward, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))
 	numFeeds := big.NewInt(int64(len(re.OrderedFeeds)))
-	// TODO: Can reduce allocations in loop by re-using big.Int vars OR use uint64 if safe
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		random := feedSelectionRandoms[round-re.StartRound]
 

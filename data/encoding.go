@@ -82,6 +82,10 @@ func DecodeReveal(bytes []byte) (*Reveal, error) {
 	random := common.BytesToHash(bytes[:common.HashLength])
 	encodedFeeds := bytes[common.HashLength:]
 
+	if (len(encodedFeeds) % FeedValueBytes) != 0 {
+		return nil, errors.Errorf("invalid message length %d for feed values", len(encodedFeeds))
+	}
+
 	return &Reveal{
 		Random:        random,
 		EncodedValues: encodedFeeds,
