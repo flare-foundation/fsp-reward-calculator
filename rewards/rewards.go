@@ -4,7 +4,7 @@ import (
 	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fumanager"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"math/big"
 )
 

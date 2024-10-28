@@ -6,7 +6,7 @@ import (
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/rewards"
 	"fsp-rewards-calculator/ty"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/database"
+	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"gorm.io/gorm"
 	"time"
 )
@@ -63,7 +63,7 @@ func main() {
 }
 
 func getDb(flags *ClientFlags) *gorm.DB {
-	var config = database.DBConfig{
+	var config = database.Config{
 		Host:     *flags.DbHost,
 		Port:     *flags.DbPort,
 		Database: *flags.DbName,

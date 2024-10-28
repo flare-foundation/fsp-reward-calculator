@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/relay"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 )
 
 type SigningPolicy struct {

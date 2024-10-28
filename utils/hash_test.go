@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"testing"

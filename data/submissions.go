@@ -9,10 +9,10 @@ import (
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fupdater"
+	"github.com/flare-foundation/go-flare-common/pkg/database"
+	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"github.com/pkg/errors"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fupdater"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/database"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
 	"math/big"
 )

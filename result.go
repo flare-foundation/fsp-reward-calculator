@@ -9,7 +9,7 @@ import (
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/merkle"
+	"github.com/flare-foundation/go-flare-common/pkg/merkle"
 	"math/big"
 )
 

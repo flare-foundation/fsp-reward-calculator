@@ -61,7 +61,6 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 
 	// Calculate reward claims
 	for round := re.StartRound; round <= re.EndRound; round++ {
-
 		totalRoundReward := roundRewards[round]
 
 		logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), hex.EncodeToString(totalRoundReward.Feed.Id[:]))

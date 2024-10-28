@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fsp-rewards-calculator/logger"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/offers"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 	"golang.org/x/exp/maps"
 	"math/big"
 	"slices"

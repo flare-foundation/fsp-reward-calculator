@@ -19,7 +19,6 @@ func (r *RoundId) Add(n int) RoundId {
 
 type ClaimType uint8
 
-// TODO: Check correct
 const (
 	Direct ClaimType = iota
 	Fee

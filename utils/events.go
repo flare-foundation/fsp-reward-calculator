@@ -3,14 +3,14 @@ package utils
 import (
 	"fsp-rewards-calculator/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/calculator"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fumanager"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/fupdater"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/offers"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/registry"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/relay"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/submission"
-	"gitlab.com/flarenetwork/libs/go-flare-common/pkg/contracts/system"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fupdater"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/registry"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/submission"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/system"
 )
 
 type EventIds struct {
