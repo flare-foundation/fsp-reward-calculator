@@ -1,0 +1,19 @@
+stages:
+    - build
+
+variables:
+    GOPATH: /go
+    GOLANG_VERSION: "1.23"
+
+cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+        - ${GOPATH}/pkg/mod
+        - ${GOPATH}/bin
+
+build:
+    stage: build
+    image: golang:${GOLANG_VERSION}
+    needs: []
+    script:
+        - go build ./...
