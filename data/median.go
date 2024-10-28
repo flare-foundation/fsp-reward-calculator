@@ -50,19 +50,13 @@ func calculateMedians(re RewardEpoch, validReveals map[ty.VoterSubmit][]FeedValu
 			})
 		}
 
-		//logger.Info("Calculating median for round %d feed %s, valid values: %d", round, feed.Id.Hex(), len(weightedValues))
-
 		median, err := calculateFeedMedian(weightedValues)
 		if err != nil {
 			logger.Error("error calculating median for feed %s: %s", feed.String(), err)
 			continue
 		}
 
-		//logger.Info("Calculated median for round %s feed %s, %s: result %+v", round, feed.String(), hex.EncodeToString(feed.Id[:]), median)
-
 		medianResults[feed.Id] = median
-
-		//logger.Info("Feed: %s, Median: %+v", feed.String(), median)
 	}
 
 	return medianResults, nil
@@ -72,8 +66,6 @@ func calculateFeedMedian(voterValues []VoterValue) (*Result, error) {
 	if len(voterValues) < 1 {
 		return nil, nil
 	}
-
-	//logger.Info("Calculating median for %d values: %+v", len(voterValues), voterValues)
 
 	sort.Slice(voterValues, func(i, j int) bool {
 		return voterValues[i].Value < voterValues[j].Value

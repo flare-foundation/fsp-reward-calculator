@@ -58,8 +58,6 @@ type FUpdateFeed struct {
 	Decimals []int8
 }
 
-// TODO: Make sure DB query sorts both by timestamp and tx index
-
 // GetCommits retrieves the last commit submission for each voter for each round in the given range
 func GetCommits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.RoundId]map[ty.VoterSubmit]*Commit, error) {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
@@ -333,12 +331,19 @@ func fetchTransactions(
 ) ([]database.Transaction, error) {
 	var transactions []database.Transaction
 
-	err := db.Model(database.Transaction{}).Where(
-		"to_address = ? AND function_sig = ? AND timestamp >= ? AND timestamp <= ?",
-		hex.EncodeToString(toAddress[:]), // encodes without 0x prefix and without checksum
-		hex.EncodeToString(functionSel[:]),
-		from, to,
-	).Order("timestamp").Select("function_sig", "input", "block_number", "from_address", "status", "timestamp").Find(&transactions).Error
+	err := db.Model(database.Transaction{}).
+		Where(
+			"to_address = ? AND function_sig = ? AND timestamp >= ? AND timestamp <= ?",
+			hex.EncodeToString(toAddress[:]), // encodes without 0x prefix and without checksum
+			hex.EncodeToString(functionSel[:]),
+			from, to,
+		).
+		Order("timestamp ASC").
+		Order("block_number ASC").
+		Order("transaction_index ASC").
+		// Optimisation: select only the necessary columns
+		Select("function_sig", "input", "block_number", "from_address", "status", "timestamp").
+		Find(&transactions).Error
 	if err != nil {
 		return nil, err
 	}
