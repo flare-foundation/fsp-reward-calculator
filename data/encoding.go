@@ -73,7 +73,7 @@ func DecodeCommit(bytes []byte) (*Commit, error) {
 
 }
 
-func DecodeReveal(bytes []byte) (*Reveal, error) {
+func DecodeReveal(bytes []byte, expectedFeeds int) (*Reveal, error) {
 	// The message should be long enough to contain the random and at least one feed value
 	if len(bytes) < (common.HashLength + FeedValueBytes) {
 		return nil, errors.New("message too short")
@@ -84,6 +84,9 @@ func DecodeReveal(bytes []byte) (*Reveal, error) {
 
 	if (len(encodedFeeds) % FeedValueBytes) != 0 {
 		return nil, errors.Errorf("invalid message length %d for feed values", len(encodedFeeds))
+	}
+	if (len(encodedFeeds) / FeedValueBytes) > expectedFeeds {
+		return nil, errors.Errorf("encoded feed values paylaod %d exceeds expected number of feeds %d", len(encodedFeeds)/FeedValueBytes, expectedFeeds)
 	}
 
 	return &Reveal{

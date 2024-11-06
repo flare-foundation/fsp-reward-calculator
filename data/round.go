@@ -2,7 +2,10 @@ package data
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -134,6 +137,41 @@ type RoundReveals struct {
 	Offenders []ty.VoterSubmit
 }
 
+type PrintReveals struct {
+	Submitted string
+	Random    string
+}
+
+type RoundPrintReveals struct {
+	Reveals   []PrintReveals
+	Offenders []string
+}
+
+func PrintRoundReveals(reveals RoundReveals, epoch ty.EpochId, round ty.RoundId, suffix string) {
+	var roundReveals RoundPrintReveals
+	roundReveals.Reveals = make([]PrintReveals, 0)
+	roundReveals.Offenders = make([]string, 0)
+
+	for voter, reveal := range reveals.Reveals {
+		roundReveals.Reveals = append(roundReveals.Reveals, PrintReveals{
+			Submitted: common.Address(voter).String(),
+			Random:    reveal.Random.String(),
+		})
+	}
+
+	for _, offender := range reveals.Offenders {
+		roundReveals.Offenders = append(roundReveals.Offenders, common.Address(offender).String())
+	}
+
+	jsonData, err := json.MarshalIndent(roundReveals, "", "    ")
+	if err != nil {
+		logger.Error("Error serializing to JSON:", err)
+		return
+	}
+	filePath := fmt.Sprintf("results/%s/%d/%d/data-%s.json", params.Net.Name, epoch, round, suffix)
+	utils.WriteToFile(jsonData, filePath)
+}
+
 func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch) map[ty.RoundId]RoundReveals {
 	var (
 		allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
@@ -148,7 +186,7 @@ func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch
 	}
 
 	logger.Info("Fetching reveals for rounds %d-%d", from, to)
-	allRevealsByRound, err = GetReveals(db, from, to)
+	allRevealsByRound, err = GetReveals(db, from, to, re.OrderedFeeds)
 	logger.Info("All reveals fetched")
 	if err != nil {
 		logger.Fatal("error fetching revealsByRound: %s", err)
@@ -190,6 +228,8 @@ func getRoundReveals(
 		for voter, reveal := range allRevealsByRound[round] {
 			if voterIndex.BySubmit[voter] != nil {
 				validReveals[voter] = reveal
+			} else {
+				logger.Info("Voter %s not found in voterIndex, skipping reveal", common.Address(voter))
 			}
 		}
 
