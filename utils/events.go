@@ -42,6 +42,7 @@ var EventTopic0 = EventIds{
 	RewardsOffered:            eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
 	InflationRewardsOffered:   eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
 	FUInflationRewardsOffered: eventIDFromMetadata(fumanager.FUManagerMetaData, "InflationRewardsOffered"),
+	FUIncentiveRewardOffered:  eventIDFromMetadata(fumanager.FUManagerMetaData, "IncentiveOffered"),
 
 	RewardEpochStarted:       eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RewardEpochStarted"),
 	RandomAcquisitionStarted: eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RandomAcquisitionStarted"),
