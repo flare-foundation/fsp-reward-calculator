@@ -20,6 +20,8 @@ func gatFUpdateClaims(re data.RewardEpoch, roundUpdates *data.FUpdate, rewardOff
 	subs := big.NewInt(int64(len(roundUpdates.Submitters)))
 	perRound, rem := new(big.Int).DivMod(rewardOffer.Amount, subs, big.NewInt(0))
 
+	logger.Info("Reward offer amount %s, per round %s, remainder %s", rewardOffer.Amount, perRound, rem)
+
 	for i := range roundUpdates.Submitters {
 		signing := roundUpdates.Submitters[i]
 		voter := re.VoterIndex.BySigning[signing]

@@ -46,6 +46,10 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 	logger.Info("Fast update data fetched")
 
 	revealsByRound = data.GetRoundReveals(db, windowStart, windowEnd, re)
+	for round := windowStart; round <= windowEnd; round++ {
+		data.PrintRoundReveals(revealsByRound[round], epoch, round, "reveals")
+	}
+
 	results, err := data.CalculateResults(re.StartRound, re.EndRound, re, revealsByRound)
 	if err != nil {
 		return nil, errors.Wrap(err, "error calculating results")
@@ -61,7 +65,6 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 
 	// Calculate reward claims
 	for round := re.StartRound; round <= re.EndRound; round++ {
-		data.PrintRoundReveals(revealsByRound[round], epoch, round, "reveals")
 		totalRoundReward := roundRewards[round]
 
 		logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), hex.EncodeToString(totalRoundReward.Feed.Id[:]))
@@ -130,7 +133,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		doubleSigningPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
 
 		var offenderInfos []*data.VoterInfo
-		for _, offender := range revealsByRound[round].Offenders {
+		for _, offender := range revealsByRound[round].RegisteredOffenders {
 			info := re.VoterIndex.BySubmit[offender]
 			if info != nil {
 				offenderInfos = append(offenderInfos, re.VoterIndex.BySubmit[offender])

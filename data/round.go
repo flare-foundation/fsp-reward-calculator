@@ -133,8 +133,9 @@ func GetFUpdatesByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId) (map[ty.Rou
 }
 
 type RoundReveals struct {
-	Reveals   map[ty.VoterSubmit]*Reveal
-	Offenders []ty.VoterSubmit
+	Reveals             map[ty.VoterSubmit]*Reveal
+	RegisteredOffenders []ty.VoterSubmit
+	AllOffenders        []ty.VoterSubmit
 }
 
 type PrintReveals struct {
@@ -159,7 +160,7 @@ func PrintRoundReveals(reveals RoundReveals, epoch ty.EpochId, round ty.RoundId,
 		})
 	}
 
-	for _, offender := range reveals.Offenders {
+	for _, offender := range reveals.RegisteredOffenders {
 		roundReveals.Offenders = append(roundReveals.Offenders, common.Address(offender).String())
 	}
 
@@ -233,33 +234,40 @@ func getRoundReveals(
 			}
 		}
 
-		var offenders []ty.VoterSubmit
-		matchingReveals := map[ty.VoterSubmit]*Reveal{}
-
-		for voter, commit := range validCommits {
-			reveal, ok := validReveals[voter]
-			if !ok {
-				logger.Debug("voter %s committed but did not reveal", common.Address(voter))
-				offenders = append(offenders, voter)
-				continue
-			}
-
-			expected := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
-
-			if expected.Cmp(commit.Hash) != 0 {
-				logger.Debug("voter %s reveal hash did not match commit: %s != %s", common.Address(voter), expected.String(), commit.Hash.String())
-				offenders = append(offenders, voter)
-				continue
-			}
-
-			matchingReveals[voter] = reveal
-		}
+		registeredOffenders, matchingReveals := getRevealsAndOffenders(validCommits, validReveals, round)
+		allOffenders, _ := getRevealsAndOffenders(allCommitsByRound[round], allRevealsByRound[round], round)
 
 		roundData[round] = RoundReveals{
-			Reveals:   matchingReveals,
-			Offenders: offenders,
+			Reveals:             matchingReveals,
+			RegisteredOffenders: registeredOffenders,
+			AllOffenders:        allOffenders,
 		}
 	}
 
 	return roundData
+}
+
+func getRevealsAndOffenders(commits map[ty.VoterSubmit]*Commit, reveals map[ty.VoterSubmit]*Reveal, round ty.RoundId) ([]ty.VoterSubmit, map[ty.VoterSubmit]*Reveal) {
+	var offenders []ty.VoterSubmit
+	matchingReveals := map[ty.VoterSubmit]*Reveal{}
+
+	for voter, commit := range commits {
+		reveal, ok := reveals[voter]
+		if !ok {
+			logger.Debug("voter %s committed but did not reveal", common.Address(voter))
+			offenders = append(offenders, voter)
+			continue
+		}
+
+		expected := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
+
+		if expected.Cmp(commit.Hash) != 0 {
+			logger.Debug("voter %s reveal hash did not match commit: %s != %s", common.Address(voter), expected.String(), commit.Hash.String())
+			offenders = append(offenders, voter)
+			continue
+		}
+
+		matchingReveals[voter] = reveal
+	}
+	return offenders, matchingReveals
 }

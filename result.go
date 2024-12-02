@@ -45,7 +45,6 @@ func buildResults(epoch ty.EpochId, claims []ty.RewardClaim) epochResult {
 		}
 		hash := utils.RewardClaimHash(epoch, claim)
 		hashes = append(hashes, hash)
-		logger.Info("Claim: %s, claim +v", hash.Hex(), claim)
 	}
 
 	merkleTree := merkle.Build(hashes, false)
