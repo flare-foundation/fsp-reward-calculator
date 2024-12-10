@@ -28,9 +28,43 @@ type RewardEpoch struct {
 	OrderedFeeds  []Feed
 	OrderedVoters []ty.VoterSigning
 	VoterIndex    *VoterIndex
-	// TODO: Move next voter calculation elsewhere
-	NextVoters *VoterIndex // Voters for the following reward epoch
-	PrevVoters *VoterIndex // Voters for the previous reward epoch
+}
+
+type RewardEpochs struct {
+	prev    *RewardEpoch
+	Current *RewardEpoch
+	next    *RewardEpoch
+}
+
+func LoadRewardEpochs(epoch ty.EpochId, db *gorm.DB) (RewardEpochs, error) {
+	prev, err := GetRewardEpoch(epoch-1, db)
+	if err != nil {
+		return RewardEpochs{}, errors.Wrap(err, "error fetching previous epoch")
+	}
+	current, err := GetRewardEpoch(epoch, db)
+	if err != nil {
+		return RewardEpochs{}, errors.Wrap(err, "error fetching current epoch")
+	}
+	next, err := GetRewardEpoch(epoch+1, db)
+	if err != nil {
+		return RewardEpochs{}, errors.Wrap(err, "error fetching next epoch")
+	}
+	return RewardEpochs{
+		prev:    &prev,
+		Current: &current,
+		next:    &next,
+	}, nil
+}
+
+func (re *RewardEpochs) EpochForRound(round ty.RoundId) *RewardEpoch {
+	switch {
+	case round < re.Current.StartRound:
+		return re.prev
+	case round > re.Current.EndRound:
+		return re.next
+	default:
+		return re.Current
+	}
 }
 
 type RewardOffers struct {
@@ -52,7 +86,6 @@ type VoterInfo struct {
 	NodeWeights       []*big.Int
 }
 
-// TODO: Use proper timings for event search instead of approximate
 func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	currentTimestamp := time.Now().Unix()
 
@@ -89,12 +122,13 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	if policyEvent == nil {
 		return RewardEpoch{}, errors.Errorf("no signing policy found for epoch %d", epoch)
 	}
-	if endRound == 0 {
-		return RewardEpoch{}, errors.Errorf("unable to determine last voting round for epoch %d: no signing policy found for next epoch %d. It may not have been indexed yet or the current epoch is not finished", epoch, epoch+1)
-	}
 
 	epochStartSec := params.Net.Epoch.VotingRoundStartSec(startRound)
 	epochEndSec := params.Net.Epoch.VotingRoundEndSec(endRound)
+
+	if endRound == 0 {
+		epochEndSec = params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch + 1)
+	}
 
 	rewardOffers, err := getRewardOffers(db, epoch, epochStartSec, epochEndSec)
 	if err != nil {
@@ -114,13 +148,6 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
 
-	nextVoters, err := getVoters(db, epoch+1, epochStartSec+epochDuration-signingPolicyWindow, epochStartSec+epochDuration)
-	if err != nil {
-		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
-	}
-
-	prevVoters, err := getVoters(db, epoch-1, epochStartSec-(epochDuration+signingPolicyWindow), epochStartSec-(epochDuration))
-
 	return RewardEpoch{
 		Epoch:         epoch,
 		StartRound:    startRound,
@@ -130,8 +157,6 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		OrderedFeeds:  feeds,
 		OrderedVoters: getOrderedVoters(policyEvent),
 		VoterIndex:    voters,
-		NextVoters:    nextVoters,
-		PrevVoters:    prevVoters,
 	}, nil
 }
 

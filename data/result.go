@@ -14,7 +14,7 @@ type RoundResult struct {
 func CalculateResults(
 	from ty.RoundId,
 	to ty.RoundId,
-	re RewardEpoch,
+	re *RewardEpoch,
 	reveals map[ty.RoundId]RoundReveals,
 ) (map[ty.RoundId]RoundResult, error) {
 	var results = map[ty.RoundId]RoundResult{}

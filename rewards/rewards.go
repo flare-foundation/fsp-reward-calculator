@@ -22,7 +22,7 @@ type FUFeedReward struct {
 }
 
 // calculateFURoundRewards total FastUpdates reward offer share per round
-func calculateFURoundRewards(re data.RewardEpoch, feedSelectionRandoms []*big.Int) map[ty.RoundId]FUFeedReward {
+func calculateFURoundRewards(re *data.RewardEpoch, feedSelectionRandoms []*big.Int) map[ty.RoundId]FUFeedReward {
 	totalReward := big.NewInt(0)
 	for i := range re.Offers.FastUpdates {
 		totalReward.Add(totalReward, re.Offers.FastUpdates[i].Amount)
@@ -69,7 +69,7 @@ func calculateFURoundRewards(re data.RewardEpoch, feedSelectionRandoms []*big.In
 }
 
 // calculateRoundRewards total reward offer share per round
-func calculateRoundRewards(re data.RewardEpoch, feedSelectionRandoms []*big.Int) map[ty.RoundId]FeedReward {
+func calculateRoundRewards(re *data.RewardEpoch, feedSelectionRandoms []*big.Int) map[ty.RoundId]FeedReward {
 	totalReward := big.NewInt(0)
 	for i := range re.Offers.Inflation {
 		offer := re.Offers.Inflation[i]

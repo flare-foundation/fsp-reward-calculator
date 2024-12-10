@@ -25,7 +25,7 @@ type SigInfo struct {
 // GetSignersByRound fetches signatures for the specified round range, and for each round
 // computes the list of valid signatures by signed hash.
 // For each signer, only the last signature for a specific round and hash is retained.
-func GetSignersByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch) (SignerMap, error) {
+func GetSignersByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re *RewardEpoch) (SignerMap, error) {
 	logger.Info("Fetching signers for rounds %d-%d", from, to)
 	allSignatures, err := getSignatures(db, from, to)
 	if err != nil {
@@ -66,7 +66,7 @@ func GetSignersByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpo
 	return signers, nil
 }
 
-func GetFinalizationsByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch) (map[ty.RoundId][]*Finalization, error) {
+func GetFinalizationsByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re *RewardEpoch) (map[ty.RoundId][]*Finalization, error) {
 	logger.Info("Fetching finalizations for rounds %d-%d", from, to)
 	allFinalizationsByRound, err := getFinalizations(db, from, to)
 	if err != nil {
@@ -200,7 +200,7 @@ func PrintRoundData(results RoundResult, reveals RoundReveals, feed *Feed, selec
 	utils.WriteToFile(jsonData, filePath)
 }
 
-func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch) map[ty.RoundId]RoundReveals {
+func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, epochs RewardEpochs) map[ty.RoundId]RoundReveals {
 	var (
 		allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
 		allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
@@ -214,7 +214,7 @@ func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch
 	}
 
 	logger.Info("Fetching reveals for rounds %d-%d", from, to)
-	allRevealsByRound, err = GetReveals(db, from, to, re.OrderedFeeds)
+	allRevealsByRound, err = GetReveals(db, from, to, epochs)
 	logger.Info("All reveals fetched")
 	if err != nil {
 		logger.Fatal("error fetching revealsByRound: %s", err)
@@ -222,28 +222,20 @@ func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, re RewardEpoch
 
 	logger.Info("All commits and reveals fetched, processing.")
 
-	return getRoundReveals(from, to, re, allCommitsByRound, allRevealsByRound)
+	return getRoundReveals(from, to, epochs, allCommitsByRound, allRevealsByRound)
 }
 
 func getRoundReveals(
 	from ty.RoundId,
 	to ty.RoundId,
-	re RewardEpoch,
+	epochs RewardEpochs,
 	allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit,
 	allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal,
 ) map[ty.RoundId]RoundReveals {
 	roundData := map[ty.RoundId]RoundReveals{}
 
 	for round := from; round < to; round++ {
-		var voterIndex *VoterIndex
-		switch {
-		case round < re.StartRound:
-			voterIndex = re.PrevVoters
-		case round > re.EndRound:
-			voterIndex = re.NextVoters
-		default:
-			voterIndex = re.VoterIndex
-		}
+		voterIndex := epochs.EpochForRound(round).VoterIndex
 
 		validCommits := map[ty.VoterSubmit]*Commit{}
 		for voter, commit := range allCommitsByRound[round] {

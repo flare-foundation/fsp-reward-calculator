@@ -8,7 +8,7 @@ import (
 	"math/big"
 )
 
-func gatFUpdateClaims(re data.RewardEpoch, roundUpdates *data.FUpdate, rewardOffer FUFeedReward, medianResult *data.Result, medianDecimals int) []ty.RewardClaim {
+func gatFUpdateClaims(re *data.RewardEpoch, roundUpdates *data.FUpdate, rewardOffer FUFeedReward, medianResult *data.Result, medianDecimals int) []ty.RewardClaim {
 	var claims []ty.RewardClaim
 
 	burnClaim := checkBurnReward(rewardOffer, roundUpdates, medianResult, medianDecimals)

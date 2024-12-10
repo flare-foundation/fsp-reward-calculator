@@ -18,7 +18,7 @@ type voterRecord struct {
 	isPct, isIqr bool
 }
 
-func getMedianClaims(round ty.RoundId, re data.RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *data.Result) []ty.RewardClaim {
+func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *data.Result) []ty.RewardClaim {
 	var epochClaims []ty.RewardClaim
 
 	// Burn rewardOffer if turnout condition not reached
@@ -119,7 +119,7 @@ func getMedianClaims(round ty.RoundId, re data.RewardEpoch, rewardShare *big.Int
 	return claims
 }
 
-func getRecords(round ty.RoundId, re data.RewardEpoch, medianResult *data.Result, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {
+func getRecords(round ty.RoundId, re *data.RewardEpoch, medianResult *data.Result, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {
 	secondaryBandDiff := new(big.Int).Div(
 		new(big.Int).Mul(
 			big.NewInt(int64(abs(medianResult.Median))),

@@ -14,11 +14,12 @@ import (
 
 // GetEpochClaims calculates the reward claims for a reward epoch
 func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
-	re, err := data.GetRewardEpoch(epoch, db)
+	epochs, err := data.LoadRewardEpochs(epoch, db)
 	if err != nil {
-		return nil, errors.Wrap(err, "err fetching reward epoch")
+		return nil, errors.Wrap(err, "err fetching reward epochs")
 	}
 
+	re := epochs.Current
 	windowStart := ty.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
 	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
 
@@ -44,14 +45,14 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 	fUpdatesByRound, err = data.GetFUpdatesByRound(db, re.StartRound, re.EndRound)
 	logger.Info("Fast update data fetched")
 
-	revealsByRound = data.GetRoundReveals(db, windowStart, windowEnd, re)
+	revealsByRound = data.GetRoundReveals(db, windowStart, windowEnd, epochs)
 
 	results, err := data.CalculateResults(re.StartRound, re.EndRound, re, revealsByRound)
 	if err != nil {
 		return nil, errors.Wrap(err, "error calculating results")
 	}
 
-	feedSelectionRandoms := getFeedSelectionRandoms(re, windowEnd, revealsByRound, results)
+	feedSelectionRandoms := getFeedSelectionRandoms(epochs, windowEnd, revealsByRound, results)
 	roundRewards := calculateRoundRewards(re, feedSelectionRandoms)
 	fuRoundRewards := calculateFURoundRewards(re, feedSelectionRandoms)
 
@@ -183,11 +184,12 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 }
 
 func getFeedSelectionRandoms(
-	re data.RewardEpoch,
+	epochs data.RewardEpochs,
 	windowEnd ty.RoundId,
 	reveals map[ty.RoundId]data.RoundReveals,
 	results map[ty.RoundId]data.RoundResult,
 ) []*big.Int {
+	re := epochs.Current
 	totalRounds := int64(re.EndRound - re.StartRound + 1)
 
 	feedSelectionRandoms := make([]*big.Int, 0, totalRounds)
@@ -208,8 +210,9 @@ func getFeedSelectionRandoms(
 		validReveals := reveals[round].Reveals
 
 		eligibleReveals := map[ty.VoterSubmit]*data.Reveal{}
+		voterIndex := epochs.EpochForRound(round).VoterIndex
 		for voter, reveal := range validReveals {
-			if _, ok := re.NextVoters.BySubmit[voter]; ok {
+			if _, ok := voterIndex.BySubmit[voter]; ok {
 				eligibleReveals[voter] = reveal
 			}
 		}

@@ -12,7 +12,7 @@ import (
 
 func getSigningClaims(
 	round ty.RoundId,
-	re data.RewardEpoch,
+	re *data.RewardEpoch,
 	reward *big.Int,
 	eligibleVoters []*data.VoterInfo,
 	signers map[common.Hash]map[ty.VoterSigning]data.SigInfo,
@@ -205,7 +205,7 @@ func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.Re
 }
 
 func acceptedHashSignatures(
-	re data.RewardEpoch,
+	re *data.RewardEpoch,
 	signaturesByHash map[common.Hash]map[ty.VoterSigning]data.SigInfo,
 ) map[ty.VoterSigning]data.SigInfo {
 	threshold := uint64(re.Policy.Voters.TotalWeight) * uint64(params.Net.Ftso.MinimalRewardedNonConsensusDepositedSignaturesPerHashBips) / uint64(totalBips)

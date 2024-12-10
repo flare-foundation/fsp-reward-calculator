@@ -95,7 +95,7 @@ func GetCommits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[ty.R
 }
 
 // GetReveals retrieves the last reveal submission for voter for each round in the given range
-func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId, feeds []Feed) (map[ty.RoundId]map[ty.VoterSubmit]*Reveal, error) {
+func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId, epochs RewardEpochs) (map[ty.RoundId]map[ty.VoterSubmit]*Reveal, error) {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1))
 
@@ -118,6 +118,7 @@ func GetReveals(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId, feeds []F
 			continue
 		}
 
+		feeds := epochs.EpochForRound(round).OrderedFeeds
 		reveal, err := DecodeReveal(msg.Payload, len(feeds))
 		if err != nil {
 			logger.Debug("error parsing reveal, skipping: %s", err)
