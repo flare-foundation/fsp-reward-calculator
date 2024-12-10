@@ -1,7 +1,6 @@
 package rewards
 
 import (
-	"encoding/hex"
 	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
@@ -46,9 +45,6 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 	logger.Info("Fast update data fetched")
 
 	revealsByRound = data.GetRoundReveals(db, windowStart, windowEnd, re)
-	for round := windowStart; round <= windowEnd; round++ {
-		data.PrintRoundReveals(revealsByRound[round], epoch, round, "reveals")
-	}
 
 	results, err := data.CalculateResults(re.StartRound, re.EndRound, re, revealsByRound)
 	if err != nil {
@@ -59,6 +55,10 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 	roundRewards := calculateRoundRewards(re, feedSelectionRandoms)
 	fuRoundRewards := calculateFURoundRewards(re, feedSelectionRandoms)
 
+	for round := re.StartRound; round <= re.EndRound; round++ {
+		data.PrintRoundData(results[round], revealsByRound[round], roundRewards[round].Feed, feedSelectionRandoms[round-re.StartRound], epoch, round)
+	}
+
 	logger.Info("All data fetched, calculating rewards.")
 
 	epochClaims := make([]ty.RewardClaim, 0)
@@ -67,8 +67,12 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		totalRoundReward := roundRewards[round]
 
-		logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), hex.EncodeToString(totalRoundReward.Feed.Id[:]))
-		logger.Debug("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
+		if totalRoundReward.Feed != nil {
+			logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), totalRoundReward.Feed.Id[:])
+			logger.Debug("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
+		} else {
+			logger.Info("Round: %d, total reward: %s, burned", round, totalRoundReward.Amount.String())
+		}
 
 		if totalRoundReward.ShouldBurn {
 			epochClaims = append(epochClaims, ty.RewardClaim{
@@ -219,14 +223,16 @@ func getFeedSelectionRandoms(
 
 	logger.Info("Extra random: %+v", lastRandom)
 
+	var rnd *big.Int
 	// Random for last round is the first secure random from next reward epoch,
 	// or nil if none found within a certain window.
 	if lastRandom != nil {
-		rnd := utils.FeedSelectionRandom(lastRandom.Value, lastRandomRound)
-		for len(feedSelectionRandoms) < int(totalRounds) {
-			feedSelectionRandoms = append(feedSelectionRandoms, rnd)
-		}
+		rnd = utils.FeedSelectionRandom(lastRandom.Value, lastRandomRound)
 	}
+	for len(feedSelectionRandoms) < int(totalRounds) {
+		feedSelectionRandoms = append(feedSelectionRandoms, rnd)
+	}
+
 	return feedSelectionRandoms
 }
 
