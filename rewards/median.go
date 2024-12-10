@@ -120,7 +120,13 @@ func getMedianClaims(round ty.RoundId, re data.RewardEpoch, rewardShare *big.Int
 }
 
 func getRecords(round ty.RoundId, re data.RewardEpoch, medianResult *data.Result, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {
-	secondaryBandDiff := abs(medianResult.Median) * rewardOffer.Feed.SecondaryBandWidthPPMs / totalPpm
+	secondaryBandDiff := new(big.Int).Div(
+		new(big.Int).Mul(
+			big.NewInt(int64(abs(medianResult.Median))),
+			big.NewInt(int64(rewardOffer.Feed.SecondaryBandWidthPPMs)),
+		),
+		bigTotalPPM,
+	).Uint64()
 	lowPct := medianResult.Median - int32(secondaryBandDiff)
 	highPct := medianResult.Median + int32(secondaryBandDiff)
 
