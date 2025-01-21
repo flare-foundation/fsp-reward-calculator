@@ -23,6 +23,7 @@ type TxInfo struct {
 type SignatureType0 struct {
 	bytes      []byte
 	merkleRoot ProtocolMerkleRoot
+	message    []byte // TODO: remove once we stop accepting signature type 0 for FDC submissions
 }
 
 type SignatureType1 struct {

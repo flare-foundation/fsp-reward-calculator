@@ -24,6 +24,7 @@ type ContractAddresses struct {
 	VoterRegistry              common.Address
 	FastUpdateIncentiveManager common.Address
 	FastUpdater                common.Address
+	FdcHub                     common.Address
 }
 
 type Ftso struct {

@@ -4,6 +4,7 @@ import (
 	"fsp-rewards-calculator/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fupdater"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
@@ -29,6 +30,8 @@ type EventIds struct {
 	SigningPolicyInitialized string
 	VoterRegistered          string
 	VoterRegistrationInfo    string
+
+	FdcAttestationRequest string
 }
 
 type FunctionSigs struct {
@@ -54,6 +57,8 @@ var EventTopic0 = EventIds{
 
 	FastUpdateFeeds:          eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeeds"),
 	FastUpdateFeedsSubmitted: eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeedsSubmitted"),
+
+	FdcAttestationRequest: eventIDFromMetadata(fdchub.FdcHubMetaData, "AttestationRequest"),
 }
 
 var FunctionSignatures = FunctionSigs{

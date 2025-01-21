@@ -14,8 +14,9 @@ import (
 type SignerMap map[ty.RoundId]map[common.Hash]map[ty.VoterSigning]SigInfo
 
 type SigInfo struct {
-	Signer    ty.VoterSigning
-	Timestamp uint64
+	Signer          ty.VoterSigning
+	Timestamp       uint64
+	UnsignedMessage []byte // TOOD: Only use by FDC
 }
 
 // GetSignersByRound fetches signatures for the specified round range, and for each round

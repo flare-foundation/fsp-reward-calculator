@@ -147,7 +147,7 @@ func getFUpdateFeeds(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map
 	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(2)) // extra round for buffer
 
 	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
-	parse := func(log types.Log) (*fupdater.FUpdaterFastUpdateFeeds, error) {
+	parse := func(log types.Log, _ uint64) (*fupdater.FUpdaterFastUpdateFeeds, error) {
 		return instance.FUpdaterFilterer.ParseFastUpdateFeeds(log)
 	}
 
@@ -185,7 +185,7 @@ func getFUpdateSubmits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (m
 	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(2)) // Add extra round as buffer
 
 	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
-	parse := func(log types.Log) (*fupdater.FUpdaterFastUpdateFeedsSubmitted, error) {
+	parse := func(log types.Log, _ uint64) (*fupdater.FUpdaterFastUpdateFeedsSubmitted, error) {
 		return instance.FUpdaterFilterer.ParseFastUpdateFeedsSubmitted(log)
 	}
 

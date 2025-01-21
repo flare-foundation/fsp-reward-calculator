@@ -18,6 +18,7 @@ var coston = Network{
 		VoterRegistry:              common.HexToAddress("0xE2c06DF29d175Aa0EcfcD10134eB96f8C94448A3"),
 		FastUpdateIncentiveManager: common.HexToAddress("0x8c45666369B174806E1AB78D989ddd79a3267F3b"),
 		FastUpdater:                common.HexToAddress("0xB8336A96b4b8af89f60EA080002214191Bc8293A"),
+		FdcHub:                     common.HexToAddress("0x1c78A073E3BD2aCa4cc327d55FB0cD4f0549B55b"),
 	},
 
 	InitialRewardEpochId: 2466,

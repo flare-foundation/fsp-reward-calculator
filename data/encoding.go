@@ -107,6 +107,7 @@ func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
 	encodedMerkleRoot := bytes[p : p+ProtocolMerkleRootBytes]
 	p += ProtocolMerkleRootBytes
 	signature := bytes[p : p+SignatureBytes]
+	p += SignatureBytes
 
 	merkleRoot, err := DecodeProtocolMerkleRoot(encodedMerkleRoot)
 	if err != nil {
@@ -116,6 +117,7 @@ func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
 	return &SignatureType0{
 		bytes:      signature,
 		merkleRoot: merkleRoot,
+		message:    bytes[p:],
 	}, nil
 }
 
@@ -125,7 +127,7 @@ func DecodeSignatureType1(bytes []byte) (*SignatureType1, error) {
 	}
 
 	if bytes[0] != 1 {
-		logger.Fatal("invalid signature type: %d, expected 1", bytes[0])
+		return nil, errors.Errorf("invalid signature type: %d, expected 1", bytes[0])
 	}
 	p := 1
 	signature := bytes[p : p+SignatureBytes]

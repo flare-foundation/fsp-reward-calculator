@@ -1,12 +1,17 @@
 package data
 
 import (
+	"encoding/hex"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
+	"gorm.io/gorm"
 )
 
 const (
@@ -19,7 +24,11 @@ type FdcSignatureSubmission struct {
 }
 
 type BitVote struct {
-	bytes []byte
+	value []byte
+}
+
+func (b *BitVote) hex() string {
+	return hex.EncodeToString(b.value)
 }
 
 func ExtractBitVotes(messages []payload.Message) map[ty.RoundId]map[ty.VoterSubmit]BitVote {
@@ -91,8 +100,9 @@ func GetFdcSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]commo
 					sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
 				}
 				sigsByHash[signedHash][signer] = SigInfo{
-					Signer:    signer,
-					Timestamp: signatureSubmission.Info.TimestampSec,
+					Signer:          signer,
+					Timestamp:       signatureSubmission.Info.TimestampSec,
+					UnsignedMessage: signature.message,
 				}
 			}
 		}
@@ -116,10 +126,28 @@ func extractFdcSignatures(messages []payload.Message) map[ty.RoundId][]*FdcSigna
 			continue
 		}
 
-		signature, err := DecodeSignatureType1(msg.Payload)
-		if err != nil {
-			logger.Debug("error parsing Signature, skipping: %s", err)
-			continue
+		var signature *SignatureType1
+		var err error
+
+		sigType := msg.Payload[0]
+		if sigType == 1 {
+			signature, err = DecodeSignatureType1(msg.Payload)
+			if err != nil {
+				logger.Debug("error parsing Signature, skipping: %s", err)
+				continue
+			}
+		} else {
+			// FDC should not be using type 0 signatures, we should punish the submitter in the future
+			// but for now we allow it so adding a temporary workaround
+			signature0, err := DecodeSignatureType0(msg.Payload)
+			if err != nil {
+				logger.Debug("error parsing Signature, skipping: %s", err)
+				continue
+			}
+			signature = &SignatureType1{
+				bytes:   signature0.bytes,
+				message: signature0.message,
+			}
 		}
 
 		if _, ok := signaturesByRound[round]; !ok {
@@ -137,4 +165,48 @@ func extractFdcSignatures(messages []payload.Message) map[ty.RoundId][]*FdcSigna
 	}
 
 	return signaturesByRound
+}
+
+func GetAttestationRequestsByRound(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) map[ty.RoundId][]*fdchub.FdcHubAttestationRequest {
+	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
+	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(1))
+
+	instance, _ := fdchub.NewFdcHub(common.Address{}, nil)
+
+	type eventWithTs struct {
+		event     *fdchub.FdcHubAttestationRequest
+		timestamp uint64
+	}
+
+	parse := func(log types.Log, ts uint64) (eventWithTs, error) {
+		event, err := instance.FdcHubFilterer.ParseAttestationRequest(log)
+		return eventWithTs{event, ts}, err
+	}
+
+	events, err := queryEvents(
+		db,
+		fromSec,
+		toSec,
+		params.Net.Contracts.FdcHub,
+		utils.EventTopic0.FdcAttestationRequest,
+		parse,
+	)
+	if err != nil {
+		logger.Fatal("error fetching events: %s", err)
+	}
+
+	var eventsByRound = map[ty.RoundId][]*fdchub.FdcHubAttestationRequest{}
+
+	for _, event := range events {
+		round := params.Net.Epoch.VotingRoundForTime(event.timestamp * 1000)
+		if round < fromRound || round > toRound {
+			continue
+		}
+		if _, ok := eventsByRound[round]; !ok {
+			eventsByRound[round] = []*fdchub.FdcHubAttestationRequest{}
+		}
+		eventsByRound[round] = append(eventsByRound[round], event.event)
+	}
+
+	return eventsByRound
 }

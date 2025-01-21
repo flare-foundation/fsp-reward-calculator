@@ -244,8 +244,6 @@ func getPenalties(
 		)
 
 		claims := SigningWeightClaimsForVoter(offender, amount)
-		// big.Int uses Euclidean division behaves differently when dividing negative numbers compared
-		// to BigInt in JS. So we calculate an absolute penalty amount first and then negate it.
 		for i := range claims {
 			claims[i].Amount.Neg(claims[i].Amount)
 		}

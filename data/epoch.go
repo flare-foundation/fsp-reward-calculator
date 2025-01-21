@@ -75,15 +75,16 @@ type RewardOffers struct {
 }
 
 type VoterInfo struct {
-	Identity          ty.VoterId
-	Submit            ty.VoterSubmit
-	SubmitSignatures  ty.VoterSubmitSignatures
-	Signing           ty.VoterSigning
-	Delegation        ty.VoterDelegation
-	CappedWeight      *big.Int
-	DelegationFeeBips uint16
-	NodeIds           [][20]byte
-	NodeWeights       []*big.Int
+	Identity            ty.VoterId
+	Submit              ty.VoterSubmit
+	SubmitSignatures    ty.VoterSubmitSignatures
+	Signing             ty.VoterSigning
+	Delegation          ty.VoterDelegation
+	CappedWeight        *big.Int
+	DelegationFeeBips   uint16
+	NodeIds             [][20]byte
+	NodeWeights         []*big.Int
+	SigningPolicyWeight uint16
 }
 
 func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
@@ -97,7 +98,7 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	searchIntervalEndSec := min(expectedStartSec+(epochDuration*2), uint64(currentTimestamp))
 
 	relayInst, _ := relay.NewRelay(common.Address{}, nil)
-	parsePolicyInitialized := func(log types.Log) (*relay.RelaySigningPolicyInitialized, error) {
+	parsePolicyInitialized := func(log types.Log, _ uint64) (*relay.RelaySigningPolicyInitialized, error) {
 		return relayInst.RelayFilterer.ParseSigningPolicyInitialized(log)
 	}
 
