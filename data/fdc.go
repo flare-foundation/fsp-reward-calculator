@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
@@ -12,6 +13,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
+	"math/big"
 )
 
 const (
@@ -172,7 +174,12 @@ func extractFdcSignatures(messages []payload.Message) map[ty.RoundId][]*FdcSigna
 	return signaturesByRound
 }
 
-func GetAttestationRequestsByRound(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) map[ty.RoundId][]*fdchub.FdcHubAttestationRequest {
+type AttestationRequest struct {
+	Data      []byte
+	MergedFee *big.Int // Combined fee for all duplicates
+}
+
+func GetAttestationRequestsByRound(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) map[ty.RoundId][]AttestationRequest {
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
 	toSec := params.Net.Epoch.VotingRoundStartSec(toRound.Add(1))
 
@@ -213,5 +220,37 @@ func GetAttestationRequestsByRound(db *gorm.DB, fromRound ty.RoundId, toRound ty
 		eventsByRound[round] = append(eventsByRound[round], event.event)
 	}
 
-	return eventsByRound
+	return mergeDuplicates(fromRound, toRound, eventsByRound)
+}
+
+// TODO: This deduplication logic is simple to read but n^2, optimise when we have more requests
+func mergeDuplicates(fromRound ty.RoundId, toRound ty.RoundId, eventsByRound map[ty.RoundId][]*fdchub.FdcHubAttestationRequest) map[ty.RoundId][]AttestationRequest {
+	var requestsByRound = map[ty.RoundId][]AttestationRequest{}
+	for round := fromRound; round <= toRound; round++ {
+		events, ok := eventsByRound[round]
+		if !ok {
+			continue
+		}
+
+		var uniqueRequests []AttestationRequest
+		for i := range events {
+			merged := false
+			for j := range uniqueRequests {
+				if bytes.Equal(uniqueRequests[j].Data, events[i].Data) {
+					uniqueRequests[j].MergedFee.Add(uniqueRequests[j].MergedFee, events[i].Fee)
+					merged = true
+					break
+				}
+			}
+			if !merged {
+				uniqueRequests = append(uniqueRequests, AttestationRequest{
+					Data:      events[i].Data,
+					MergedFee: new(big.Int).Set(events[i].Fee),
+				})
+			}
+		}
+
+		requestsByRound[round] = uniqueRequests
+	}
+	return requestsByRound
 }
