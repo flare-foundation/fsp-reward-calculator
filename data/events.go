@@ -5,6 +5,7 @@ import (
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/utils"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/registry"
@@ -33,7 +34,10 @@ func queryEvents[T interface{}](
 		strings.ToLower(strings.TrimPrefix(contractAddress.String(), "0x")),
 		strings.ToLower(strings.TrimPrefix(topic0, "0x")),
 		searchIntervalStartSec, searchIntervalEndSec,
-	).Order("timestamp").Find(&logs).Error
+	).
+		Order("timestamp").
+		Order("log_index").
+		Find(&logs).Error
 	if err != nil {
 		return nil, errors.Errorf("error fetching logs From DB: %s", err)
 	}
@@ -172,6 +176,27 @@ func GetFUIncentiveOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanage
 		to,
 		params.Net.Contracts.FastUpdateIncentiveManager,
 		utils.EventTopic0.FUIncentiveRewardOffered,
+		parse,
+	)
+	if err != nil {
+		return nil, errors.Errorf("err fetching events: %s", err)
+	}
+
+	return events, nil
+}
+
+func GetFdcInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fdchub.FdcHubInflationRewardsOffered, error) {
+	instance, _ := fdchub.NewFdcHub(common.Address{}, nil)
+	parse := func(log types.Log, _ uint64) (*fdchub.FdcHubInflationRewardsOffered, error) {
+		return instance.FdcHubFilterer.ParseInflationRewardsOffered(log)
+	}
+
+	events, err := queryEvents(
+		db,
+		from,
+		to,
+		params.Net.Contracts.FdcHub,
+		utils.EventTopic0.FdcInflationRewardsOffered,
 		parse,
 	)
 	if err != nil {

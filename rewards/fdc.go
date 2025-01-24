@@ -9,13 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
+	"math/big"
 	"slices"
 )
 
-func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, error) {
+func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, error) {
 	re := epochs.Current
 	bitVotesByRound := data.ExtractBitVotes(submit2)
-
 	finalizationsByRound := data.GetFinalizationsByRound(finalizations)
 
 	consensusHashByRound := map[ty.RoundId]common.Hash{}
@@ -31,9 +31,13 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId, 
 
 	signersByRound := data.GetFdcSignersByRound(submitSignatures, consensusHashByRound, re)
 
+	attestationRequestsByRound := data.GetAttestationRequestsByRound(db, re.StartRound, re.EndRound)
+
+	// Get reward offers
+	// calculate
+
 	epochClaims := make([]ty.RewardClaim, 0)
 	for round := re.StartRound; round <= re.EndRound; round++ {
-
 		roundSigs, ok := signersByRound[round]
 		if !ok {
 			logger.Warn("no signatures for round %d", round)
@@ -52,9 +56,10 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId, 
 
 		offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[data.WrongSignatureIndicatorMessageHash], epochs.Current.VoterIndex, consensusBitVote)
 		logger.Info("Offenders for round %d: %v", round, offenders)
-	}
 
-	attestationRequestsByRound := data.GetAttestationRequestsByRound(db, re.StartRound, re.EndRound)
+		//penalties := getFdcPenalties(epochs.Current.Reward, epochs.Current.PenaltyFactor, offenders, epochs.Current.VoterIndex)
+
+	}
 
 	logger.Info("Signers fetched %d", len(signersByRound), len(consensusHashByRound), len(finalizationsByRound), len(bitVotesByRound), len(attestationRequestsByRound))
 
@@ -112,6 +117,7 @@ func getOffenders(
 
 	// TODO: log different types of offenders for debugging
 	logger.Warn("Offenders: reveal %d, wrong signature %d, bitVote %d", len(revealOffenders), len(wrongSignatureOffenders), len(bitVoteOffenders))
+
 	return offenders
 }
 
@@ -145,4 +151,37 @@ func getConsensusBitVote(sigs map[ty.VoterSigning]data.SigInfo, round ty.RoundId
 		}
 	}
 	return consensusBitVote
+}
+
+func getFdcPenalties(
+	reward *big.Int,
+	penaltyFactor *big.Int,
+	offenders map[ty.VoterId]bool,
+	voters *data.VoterIndex,
+) []ty.RewardClaim {
+	var penalties []ty.RewardClaim
+
+	// TODO: precompute?
+	totalSigningWeight := uint64(0)
+	for _, info := range voters.ById {
+		totalSigningWeight += uint64(info.SigningPolicyWeight)
+	}
+	bigTotalSigningWeight := big.NewInt(int64(totalSigningWeight))
+
+	for id := range offenders {
+		offender := voters.ById[id]
+		if offender.SigningPolicyWeight > 0 {
+			bigWeight := big.NewInt(int64(offender.SigningPolicyWeight))
+			amount := new(big.Int).Div(
+				bigTmp.Mul(bigWeight, bigTmp.Mul(reward, penaltyFactor)),
+				bigTotalSigningWeight,
+			)
+			claims := SigningWeightClaimsForVoter(offender, amount)
+			for i := range claims {
+				claims[i].Amount.Neg(claims[i].Amount)
+			}
+			penalties = append(penalties, claims...)
+		}
+	}
+	return penalties
 }

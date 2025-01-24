@@ -15,10 +15,11 @@ import (
 )
 
 type EventIds struct {
-	RewardsOffered            string
-	InflationRewardsOffered   string
-	FUInflationRewardsOffered string
-	FUIncentiveRewardOffered  string
+	RewardsOffered             string
+	InflationRewardsOffered    string
+	FUInflationRewardsOffered  string
+	FUIncentiveRewardOffered   string
+	FdcInflationRewardsOffered string
 
 	FastUpdateFeeds          string
 	FastUpdateFeedsSubmitted string
@@ -42,10 +43,11 @@ type FunctionSigs struct {
 }
 
 var EventTopic0 = EventIds{
-	RewardsOffered:            eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
-	InflationRewardsOffered:   eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
-	FUInflationRewardsOffered: eventIDFromMetadata(fumanager.FUManagerMetaData, "InflationRewardsOffered"),
-	FUIncentiveRewardOffered:  eventIDFromMetadata(fumanager.FUManagerMetaData, "IncentiveOffered"),
+	RewardsOffered:             eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
+	InflationRewardsOffered:    eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
+	FUInflationRewardsOffered:  eventIDFromMetadata(fumanager.FUManagerMetaData, "InflationRewardsOffered"),
+	FUIncentiveRewardOffered:   eventIDFromMetadata(fumanager.FUManagerMetaData, "IncentiveOffered"),
+	FdcInflationRewardsOffered: eventIDFromMetadata(fdchub.FdcHubMetaData, "InflationRewardsOffered"),
 
 	RewardEpochStarted:       eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RewardEpochStarted"),
 	RandomAcquisitionStarted: eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RandomAcquisitionStarted"),

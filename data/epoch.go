@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
@@ -72,6 +73,7 @@ type RewardOffers struct {
 	Inflation    []*offers.OffersInflationRewardsOffered
 	FastUpdates  []*fumanager.FUManagerInflationRewardsOffered
 	FastUpdatesI []*fumanager.FUManagerIncentiveOffered
+	FdcInflation []*fdchub.FdcHubInflationRewardsOffered
 }
 
 type VoterInfo struct {
@@ -195,6 +197,11 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
 	}
 
+	fdcInflation, err := GetFdcInflationRewardOfferEvents(db, startSec, endSec)
+	if err != nil {
+		return RewardOffers{}, errors.Errorf("error fetching fdc inflation reward offer events: %s", err)
+	}
+
 	community = slices.DeleteFunc(community, func(offer *offers.OffersRewardsOffered) bool {
 		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
@@ -207,12 +214,16 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 	fastUpdatesI = slices.DeleteFunc(fastUpdatesI, func(offer *fumanager.FUManagerIncentiveOffered) bool {
 		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
+	fdcInflation = slices.DeleteFunc(fdcInflation, func(offer *fdchub.FdcHubInflationRewardsOffered) bool {
+		return offer.RewardEpochId.Uint64() != uint64(epoch)
+	})
 
 	return RewardOffers{
 		community,
 		inflation,
 		fastUpdates,
 		fastUpdatesI,
+		fdcInflation,
 	}, nil
 }
 

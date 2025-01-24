@@ -99,6 +99,11 @@ func GetFdcSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]commo
 				if _, ok := sigsByHash[signedHash]; !ok {
 					sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
 				}
+				if _, ok := sigsByHash[signedHash][signer]; ok {
+					logger.Debug("earlier signature from %s already added, skipping", signer)
+					continue
+				}
+
 				sigsByHash[signedHash][signer] = SigInfo{
 					Signer:          signer,
 					Timestamp:       signatureSubmission.Info.TimestampSec,
