@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bytes"
 	"encoding/hex"
 	voters "fsp-rewards-calculator/lib"
 	"fsp-rewards-calculator/logger"
@@ -83,7 +84,7 @@ func GetSubmitSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) 
 	return msgs, nil
 }
 
-func GetFinalizations(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint8][]*Finalization, error) {
+func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRound ty.RoundId) (map[uint8][]*Finalization, error) {
 	logger.Info("Fetching finalizations for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
@@ -98,7 +99,17 @@ func GetFinalizations(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (ma
 	for _, txn := range txns {
 		finalization, err := DecodeFinalization(txn.Input[8:])
 		if err != nil {
-			logger.Info("error parsing finalization, skipping: %+v", err)
+			logger.Debug("error parsing finalization, skipping: %+v", err)
+			continue
+		}
+
+		if ty.EpochId(finalization.Policy.RewardEpochId) != re.Epoch {
+			logger.Debug("Finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
+			continue
+		}
+
+		if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.RawBytes) {
+			logger.Debug("Finalization signing policy does not match expected, skipping")
 			continue
 		}
 

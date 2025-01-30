@@ -197,7 +197,7 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
 	}
 
-	fdcInflation, err := GetFdcInflationRewardOfferEvents(db, startSec, endSec)
+	fdcInflation, err := GetFdcInflationRewardOfferEvents(db, previousStartSec, startSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching fdc inflation reward offer events: %s", err)
 	}

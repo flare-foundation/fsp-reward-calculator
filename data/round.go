@@ -65,6 +65,7 @@ func GetSignersByRound(msgs []payload.Message, re *RewardEpoch) (SignerMap, erro
 func GetFinalizationsByRound(fnz []*Finalization) map[ty.RoundId][]*Finalization {
 	finalizationsByRound := make(map[ty.RoundId][]*Finalization)
 
+loop:
 	for _, f := range fnz {
 		round := f.MerkleRoot.round
 
@@ -74,7 +75,7 @@ func GetFinalizationsByRound(fnz []*Finalization) map[ty.RoundId][]*Finalization
 			for _, rf := range finalizationsByRound[round] {
 				if rf.Info.From == f.Info.From {
 					logger.Info("Finalization for round %d from %s already seen, skipping", round, f.Info.From)
-					continue
+					continue loop
 				}
 			}
 		}

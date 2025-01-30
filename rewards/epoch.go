@@ -34,7 +34,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 		logger.Fatal("error fetching submitSignatures")
 	}
 
-	finalizations, err := data.GetFinalizations(db, re.StartRound, re.EndRound)
+	finalizations, err := data.GetFinalizations(db, re, re.StartRound, re.EndRound)
 	if err != nil {
 		logger.Fatal("error fetching finalizations")
 	}
@@ -43,8 +43,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, error) {
 	epochClaims := make([]ty.RewardClaim, 0)
 
 	ftsoClaims, _ := getFtsoRewards(db, epochs, windowEnd, submit1[data.FtsoProtocolId], submit2[data.FtsoProtocolId], submitSignatures[data.FtsoProtocolId], finalizations[data.FtsoProtocolId])
-
-	fdcClaims, _ := getFdcRewards(db, epochs, windowEnd, submit1[data.FdcProtocolId], submit2[data.FdcProtocolId], submitSignatures[data.FdcProtocolId], finalizations[data.FdcProtocolId])
+	fdcClaims, _ := getFdcRewards(db, epochs, submit2[data.FdcProtocolId], submitSignatures[data.FdcProtocolId], finalizations[data.FdcProtocolId])
 
 	epochClaims = append(epochClaims, ftsoClaims...)
 	epochClaims = append(epochClaims, fdcClaims...)
