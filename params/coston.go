@@ -48,4 +48,8 @@ var coston = Network{
 		CappedStakingFeeBips:           2000,
 		NonBenchedRandomVotersMinCount: 2,
 	},
+
+	Fdc: Fdc{
+		FinalizationBips: big.NewInt(1000),
+	},
 }

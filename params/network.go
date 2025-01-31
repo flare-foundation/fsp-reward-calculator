@@ -12,6 +12,7 @@ type Network struct {
 	InitialRewardEpochId int
 	Epoch                Epoch
 	Ftso                 Ftso
+	Fdc                  Fdc
 }
 
 type ContractAddresses struct {
@@ -46,6 +47,11 @@ type Ftso struct {
 	MinimalRewardedNonConsensusDepositedSignaturesPerHashBips uint16
 	FinalizationVoterSelectionThresholdWeightBips             uint16
 	CappedStakingFeeBips                                      int64
+}
+
+type Fdc struct {
+	FinalizationBips *big.Int
+	PenaltyFactor    *big.Int
 }
 
 var Net Network

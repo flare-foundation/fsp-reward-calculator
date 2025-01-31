@@ -149,6 +149,10 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		logger.Info("Feed: %s, Decimals: %d", f.String(), f.Decimals)
 	}
 
+	orderedVoters := getOrderedVoters(policyEvent)
+
+	policy := votersLib.NewSigningPolicy(policyEvent)
+
 	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
 
 	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec)
@@ -160,10 +164,10 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		Epoch:         epoch,
 		StartRound:    startRound,
 		EndRound:      endRound,
-		Policy:        votersLib.NewSigningPolicy(policyEvent),
+		Policy:        policy,
 		Offers:        rewardOffers,
 		OrderedFeeds:  feeds,
-		OrderedVoters: getOrderedVoters(policyEvent),
+		OrderedVoters: orderedVoters,
 		VoterIndex:    voters,
 	}, nil
 }
