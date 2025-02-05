@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
 )
@@ -25,16 +26,8 @@ type FdcSignatureSubmission struct {
 	Info      TxInfo
 }
 
-type BitVote struct {
-	value []byte
-}
-
-func (b *BitVote) hex() string {
-	return hex.EncodeToString(b.value)
-}
-
-func ExtractBitVotes(messages []payload.Message) map[ty.RoundId]map[ty.VoterSubmit]BitVote {
-	var bitVotesByRound = map[ty.RoundId]map[ty.VoterSubmit]BitVote{}
+func ExtractBitVotes(messages []payload.Message) map[ty.RoundId]map[ty.VoterSubmit]*big.Int {
+	var bitVotesByRound = map[ty.RoundId]map[ty.VoterSubmit]*big.Int{}
 	for _, msg := range messages {
 		if msg.ProtocolID != FdcProtocolId {
 			logger.Fatal("message protocol %d does not match expected protocol %d - likely an issue with submission retrieval")
@@ -53,11 +46,16 @@ func ExtractBitVotes(messages []payload.Message) map[ty.RoundId]map[ty.VoterSubm
 		}
 
 		if _, ok := bitVotesByRound[round]; !ok {
-			bitVotesByRound[round] = map[ty.VoterSubmit]BitVote{}
+			bitVotesByRound[round] = map[ty.VoterSubmit]*big.Int{}
 		}
 
 		from := ty.VoterSubmit(msg.From)
-		bitVotesByRound[round][from] = BitVote{msg.Payload}
+		bitVote, err := ParseBitVote(msg.Payload)
+		if err != nil {
+			logger.Debug("error parsing bitVote from %s, skipping: %s", msg.From, err)
+			continue
+		}
+		bitVotesByRound[round][from] = bitVote
 	}
 
 	return bitVotesByRound
@@ -253,4 +251,19 @@ func mergeDuplicates(fromRound ty.RoundId, toRound ty.RoundId, eventsByRound map
 		requestsByRound[round] = uniqueRequests
 	}
 	return requestsByRound
+}
+
+func ParseBitVote(bytes []byte) (*big.Int, error) {
+	if len(bytes) < 2 {
+		return nil, errors.New("bitVote too short")
+	}
+
+	lengthBytes := bytes[0:2]
+	length := binary.BigEndian.Uint16(lengthBytes)
+	bitVector := new(big.Int).SetBytes(bytes[2:])
+
+	if bitVector.BitLen() > int(length) {
+		return nil, errors.New("bitvote length does not match bitvector")
+	}
+	return bitVector, nil
 }
