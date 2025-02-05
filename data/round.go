@@ -48,9 +48,11 @@ func GetSignersByRound(msgs []payload.Message, re *RewardEpoch) (SignerMap, erro
 				if _, ok := sigsByHash[signedHash]; !ok {
 					sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
 				}
-				sigsByHash[signedHash][signer] = SigInfo{
-					Signer:    signer,
-					Timestamp: signatureSubmission.Info.TimestampSec,
+				if _, ok := sigsByHash[signedHash][signer]; !ok {
+					sigsByHash[signedHash][signer] = SigInfo{
+						Signer:    signer,
+						Timestamp: signatureSubmission.Info.TimestampSec,
+					}
 				}
 			} else {
 				logger.Debug("signer %s not registered, skipping signature", signer)
