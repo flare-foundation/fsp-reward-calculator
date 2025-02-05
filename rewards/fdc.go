@@ -70,6 +70,7 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 		for i, r := range attestationRequestsByRound[round] {
 			if len(r.Data) < 64 {
 				logger.Warn("attestation request malformed: data less than 64 bytes")
+				continue
 			}
 			if !isConfirmed(i, consensusBitVote) {
 				continue
@@ -326,8 +327,8 @@ func getOffenders(
 	wrongSigs map[ty.VoterSigning]data.SigInfo,
 	voterIndex *data.VoterIndex,
 	consensusBitVote *big.Int,
-) map[ty.VoterId]bool {
-	offenders := map[ty.VoterId]bool{}
+) map[ty.VoterSigning]bool {
+	offenders := map[ty.VoterSigning]bool{}
 
 	var revealOffenders []ty.VoterId
 	for voterSubmit := range bitVotes {
@@ -335,7 +336,7 @@ func getOffenders(
 		_, ok := consensusSigs[voter.Signing]
 		if !ok {
 			revealOffenders = append(revealOffenders, voter.Identity)
-			offenders[voter.Identity] = true
+			offenders[voter.Signing] = true
 		}
 	}
 
@@ -347,7 +348,7 @@ func getOffenders(
 			continue
 		}
 		wrongSignatureOffenders = append(wrongSignatureOffenders, voter.Identity)
-		offenders[voter.Identity] = true
+		offenders[voter.Signing] = true
 	}
 
 	var bitVoteOffenders []ty.VoterId
@@ -365,7 +366,7 @@ func getOffenders(
 		}
 		if offender {
 			bitVoteOffenders = append(bitVoteOffenders, voter.Identity)
-			offenders[voter.Identity] = true
+			offenders[voter.Signing] = true
 		}
 	}
 
@@ -417,12 +418,7 @@ func getConsensusBitVote(sigs map[ty.VoterSigning]data.SigInfo, round ty.RoundId
 	}
 }
 
-func getFdcPenalties(
-	reward *big.Int,
-	penaltyFactor *big.Int,
-	offenders map[ty.VoterId]bool,
-	voters *data.VoterIndex,
-) []ty.RewardClaim {
+func getFdcPenalties(reward *big.Int, penaltyFactor *big.Int, offenders map[ty.VoterSigning]bool, voters *data.VoterIndex) []ty.RewardClaim {
 	var penalties []ty.RewardClaim
 
 	// TODO: precompute?
@@ -432,8 +428,8 @@ func getFdcPenalties(
 	}
 	bigTotalSigningWeight := big.NewInt(int64(totalSigningWeight))
 
-	for id := range offenders {
-		offender := voters.ById[id]
+	for signing := range offenders {
+		offender := voters.BySigning[signing]
 		if offender.SigningPolicyWeight > 0 {
 			bigWeight := big.NewInt(int64(offender.SigningPolicyWeight))
 			amount := new(big.Int).Div(

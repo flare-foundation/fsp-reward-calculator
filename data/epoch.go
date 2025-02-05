@@ -155,7 +155,7 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 
 	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
 
-	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec)
+	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec, policy)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
@@ -231,7 +231,7 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 	}, nil
 }
 
-func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64) (*VoterIndex, error) {
+func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policy *votersLib.SigningPolicy) (*VoterIndex, error) {
 	regs, err := GetVoterRegisteredEvents(db, fromSec, toSec)
 	if err != nil {
 		return nil, errors.Errorf("error fetching voter registered regs: %s", err)
@@ -260,15 +260,16 @@ func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64) (*VoterInde
 		info := infoByIdentity[reg.Voter]
 
 		voters = append(voters, &VoterInfo{
-			Identity:          ty.VoterId(reg.Voter),
-			Submit:            ty.VoterSubmit(reg.SubmitAddress),
-			SubmitSignatures:  ty.VoterSubmitSignatures(reg.SubmitSignaturesAddress),
-			Signing:           ty.VoterSigning(reg.SigningPolicyAddress),
-			Delegation:        ty.VoterDelegation(info.DelegationAddress),
-			CappedWeight:      info.WNatCappedWeight,
-			DelegationFeeBips: info.DelegationFeeBIPS,
-			NodeIds:           info.NodeIds,
-			NodeWeights:       info.NodeWeights,
+			Identity:            ty.VoterId(reg.Voter),
+			Submit:              ty.VoterSubmit(reg.SubmitAddress),
+			SubmitSignatures:    ty.VoterSubmitSignatures(reg.SubmitSignaturesAddress),
+			Signing:             ty.VoterSigning(reg.SigningPolicyAddress),
+			Delegation:          ty.VoterDelegation(info.DelegationAddress),
+			CappedWeight:        info.WNatCappedWeight,
+			DelegationFeeBips:   info.DelegationFeeBIPS,
+			NodeIds:             info.NodeIds,
+			NodeWeights:         info.NodeWeights,
+			SigningPolicyWeight: policy.Voters.VoterDataMap[reg.SigningPolicyAddress].Weight,
 		})
 		logger.Info("Voter %s, submit %s, submit signatures %s, signing policy %s", reg.Voter.String(), reg.SubmitAddress.String(), reg.SubmitSignaturesAddress.String(), reg.SigningPolicyAddress.String())
 	}

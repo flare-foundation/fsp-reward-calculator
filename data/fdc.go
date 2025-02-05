@@ -2,7 +2,7 @@ package data
 
 import (
 	"bytes"
-	"encoding/hex"
+	"encoding/binary"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
