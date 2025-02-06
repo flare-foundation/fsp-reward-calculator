@@ -87,64 +87,54 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		var roundClaims []ty.RewardClaim
 		roundClaims = append(roundClaims, burnClaim(rewardPerRound[round].burn))
+		utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-claimback")
 
-		// signing rewards
-		reward := rewardPerRound[round].amount
-		finalizationReward := big.NewInt(0).Div(big.NewInt(0).Mul(reward, params.Net.Fdc.FinalizationBips), bigTotalBips)
-		signingReward := big.NewInt(0).Sub(reward, finalizationReward)
+		var fina = getFirst(finalizationsByRound[round])
+		if fina == nil {
+			logger.Warn("no successful finalization for round %d, burning round rewards", round)
+			roundClaims = append(roundClaims, burnClaim(rewardPerRound[round].amount))
+		} else {
+			// signing rewards
+			reward := rewardPerRound[round].amount
+			finalizationReward := big.NewInt(0).Div(big.NewInt(0).Mul(reward, params.Net.Fdc.FinalizationBips), bigTotalBips)
+			signingReward := big.NewInt(0).Sub(reward, finalizationReward)
 
-		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
-		if err != nil {
-			return nil, errors.Wrap(err, "error selecting finalizers")
-		}
-
-		var eligibleVoters []*data.VoterInfo
-		for addr, _ := range finalizers {
-			voter, ok := re.VoterIndex.BySigning[ty.VoterSigning(addr)]
-			if ok {
-				eligibleVoters = append(eligibleVoters, voter)
+			finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+			if err != nil {
+				return nil, errors.Wrap(err, "error selecting finalizers")
 			}
 
+			var eligibleVoters []*data.VoterInfo
+			for addr, _ := range finalizers {
+				voter, ok := re.VoterIndex.BySigning[ty.VoterSigning(addr)]
+				if ok {
+					eligibleVoters = append(eligibleVoters, voter)
+				}
+
+			}
+			finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
+			logger.Info("Finalization rewards calculated for round %d: %d", round, len(finalizationClaims))
+			roundClaims = append(roundClaims, finalizationClaims...)
+			utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "fdc-finalz-claims")
+
+			consensusBitVote := consensusBitVoteByRound[round]
+
+			roundSigs, _ := signersByRound[round]
+
+			hash := consensusHashByRound[round]
+			consensusSigs, _ := roundSigs[hash]
+
+			signingClaims := generateFdcSigningClaims(finalizationsByRound[round], round, signingReward, bitVotesByRound[round], consensusBitVote, consensusSigs, re)
+			roundClaims = append(roundClaims, signingClaims...)
+			utils.PrintRoundResults(signingClaims, re.Epoch, round, "fdc-signing-claims")
+
+			offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[data.WrongSignatureIndicatorMessageHash], epochs.Current.VoterIndex, consensusBitVoteByRound[round])
+			logger.Info("Offenders for round %d: %v", round, offenders)
+
+			penalties := getFdcPenalties(reward, params.Net.Fdc.PenaltyFactor, offenders, epochs.Current.VoterIndex)
+			utils.PrintRoundResults(penalties, re.Epoch, round, "fdc-penalties")
+			roundClaims = append(roundClaims, penalties...)
 		}
-		finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
-		logger.Info("Finalization rewards calculated for round %d: %d", round, len(finalizationClaims))
-		roundClaims = append(roundClaims, finalizationClaims...)
-		utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "fdc-finalz-claims")
-
-		consensusBitVote := consensusBitVoteByRound[round]
-
-		roundSigs, _ := signersByRound[round]
-		//if !ok {
-		//	logger.Warn("no signatures for round %d", round)
-		//
-		//	utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-round-claims")
-		//
-		//	epochClaims = append(epochClaims, roundClaims...)
-		//	continue
-		//}
-
-		hash := consensusHashByRound[round]
-		consensusSigs, _ := roundSigs[hash]
-		//if !ok {
-		//	logger.Warn("no signatures for finalized hash %s in round %d", hash, round)
-		//
-		//	utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-round-claims")
-		//
-		//	epochClaims = append(epochClaims, roundClaims...)
-		//	continue
-		//}
-
-		signingClaims := generateFdcSigningClaims(finalizationsByRound[round], round, signingReward, bitVotesByRound[round], consensusBitVote, consensusSigs, re)
-		roundClaims = append(roundClaims, signingClaims...)
-		utils.PrintRoundResults(signingClaims, re.Epoch, round, "fdc-signing-claims")
-
-		offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[data.WrongSignatureIndicatorMessageHash], epochs.Current.VoterIndex, consensusBitVoteByRound[round])
-		logger.Info("Offenders for round %d: %v", round, offenders)
-
-		penalties := getFdcPenalties(reward, params.Net.Fdc.PenaltyFactor, offenders, epochs.Current.VoterIndex)
-		utils.PrintRoundResults(penalties, re.Epoch, round, "fdc-penalties")
-		roundClaims = append(roundClaims, penalties...)
-
 		utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-round-claims")
 
 		epochClaims = append(epochClaims, roundClaims...)
@@ -155,23 +145,25 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 	return epochClaims, nil
 }
 
-func generateFdcSigningClaims(finalizations []*data.Finalization, round ty.RoundId, reward *big.Int, bitVotes map[ty.VoterSubmit]*big.Int, consensusBitVote *big.Int, consensusSigs map[ty.VoterSigning]data.SigInfo, re *data.RewardEpoch) []ty.RewardClaim {
-	var signingClaims []ty.RewardClaim
-
+func getFirst(finalizations []*data.Finalization) *data.Finalization {
 	successIndex := slices.IndexFunc(finalizations, func(f *data.Finalization) bool {
 		return f.Info.Reverted == false
 	})
 	if successIndex < 0 {
-		logger.Warn("no successful finalization for round %d, burning rewards", round)
-		return []ty.RewardClaim{burnClaim(reward)}
+		return nil
 	}
+	return finalizations[successIndex]
+}
+
+func generateFdcSigningClaims(finalizations []*data.Finalization, round ty.RoundId, reward *big.Int, bitVotes map[ty.VoterSubmit]*big.Int, consensusBitVote *big.Int, consensusSigs map[ty.VoterSigning]data.SigInfo, re *data.RewardEpoch) []ty.RewardClaim {
+	var signingClaims []ty.RewardClaim
 
 	if consensusBitVote == nil || consensusBitVote.Cmp(big.NewInt(0)) == 0 {
 		logger.Warn("no consensus bitVote for round %d, burning rewards", round)
 		return []ty.RewardClaim{burnClaim(reward)}
 	}
 
-	successfulFinalization := finalizations[successIndex]
+	successfulFinalization := getFirst(finalizations)
 
 	revealDeadline := params.Net.Epoch.RevealDeadlineSec(round + 1)
 	roundEnd := params.Net.Epoch.VotingRoundEndSec(

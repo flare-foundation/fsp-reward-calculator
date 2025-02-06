@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 	"math/big"
-	"slices"
 )
 
 func burnClaim(amount *big.Int) ty.RewardClaim {
@@ -27,17 +26,7 @@ func getFinalizationClaims(
 	eligibleVoters []*data.VoterInfo,
 	eligibleFinalizers map[common.Address]bool,
 ) []ty.RewardClaim {
-
-	// TODO: Pre-compute
-	successIndex := slices.IndexFunc(finalizations, func(f *data.Finalization) bool {
-		return f.Info.Reverted == false
-	})
-
-	if successIndex < 0 {
-		return []ty.RewardClaim{burnClaim(reward)}
-	}
-
-	firstSuccessfulFinalization := finalizations[successIndex]
+	firstSuccessfulFinalization := getFirst(finalizations)
 	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(round+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec + 1
 
 	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {
