@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
+	"sort"
 	"time"
 )
 
@@ -155,7 +156,7 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 
 	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
 
-	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec, policy)
+	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec, policy.Voters.VoterDataMap)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
@@ -231,7 +232,7 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 	}, nil
 }
 
-func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policy *votersLib.SigningPolicy) (*VoterIndex, error) {
+func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policyVoters map[common.Address]votersLib.VoterData) (*VoterIndex, error) {
 	regs, err := GetVoterRegisteredEvents(db, fromSec, toSec)
 	if err != nil {
 		return nil, errors.Errorf("error fetching voter registered regs: %s", err)
@@ -269,15 +270,23 @@ func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policy *vot
 			DelegationFeeBips:   info.DelegationFeeBIPS,
 			NodeIds:             info.NodeIds,
 			NodeWeights:         info.NodeWeights,
-			SigningPolicyWeight: policy.Voters.VoterDataMap[reg.SigningPolicyAddress].Weight,
+			SigningPolicyWeight: policyVoters[reg.SigningPolicyAddress].Weight,
 		})
 		logger.Info("Voter %s, submit %s, submit signatures %s, signing policy %s", reg.Voter.String(), reg.SubmitAddress.String(), reg.SubmitSignaturesAddress.String(), reg.SigningPolicyAddress.String())
 	}
+
+	// sort according to signing policy order
+	sort.Slice(voters, func(i, j int) bool {
+		indexI := policyVoters[common.Address(voters[i].Signing)].Index
+		indexJ := policyVoters[common.Address(voters[j].Signing)].Index
+		return indexI < indexJ
+	})
 
 	return NewVoterIndex(voters), nil
 }
 
 type VoterIndex struct {
+	policyOrder        []*VoterInfo
 	ById               map[ty.VoterId]*VoterInfo
 	BySubmit           map[ty.VoterSubmit]*VoterInfo
 	BySubmitSignatures map[ty.VoterSubmitSignatures]*VoterInfo
@@ -304,6 +313,7 @@ func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
 		totalCappedWeight.Add(totalCappedWeight, v.CappedWeight)
 	}
 	return &VoterIndex{
+		policyOrder:        voters,
 		ById:               byId,
 		BySubmit:           bySubmit,
 		BySubmitSignatures: bySubmitSignatures,
