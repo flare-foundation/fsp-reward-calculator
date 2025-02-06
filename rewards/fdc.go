@@ -9,7 +9,6 @@ import (
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
-	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
@@ -20,34 +19,25 @@ type roundReward struct {
 	burn   *big.Int
 }
 
-func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, error) {
+func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) []ty.RewardClaim {
 	re := epochs.Current
 	bitVotesByRound := data.ExtractBitVotes(submit2)
-
 	finalizationsByRound := data.GetFinalizationsByRound(finalizations)
 
 	consensusHashByRound := map[ty.RoundId]common.Hash{}
 	for round, fs := range finalizationsByRound {
-		firstSuccessfulIndex := slices.IndexFunc(fs, func(f *data.Finalization) bool {
-			return f.Info.Reverted == false
-		})
-		if firstSuccessfulIndex < 0 {
+		first := firstSuccessful(fs)
+		if first == nil {
 			continue
 		}
-		consensusHashByRound[round] = fs[firstSuccessfulIndex].MerkleRoot.EncodedHash()
+		consensusHashByRound[round] = first.MerkleRoot.EncodedHash()
 	}
 
 	signersByRound := data.GetFdcSignersByRound(submitSignatures, consensusHashByRound, re)
-
 	attestationRequestsByRound := data.GetAttestationRequestsByRound(db, re.StartRound, re.EndRound)
 
-	// get confirmed/duplicate reuqests
-
-	// calculate
-
 	consensusBitVoteByRound := map[ty.RoundId]*big.Int{}
-	countByType := map[string]int{} // Used for calculating reward offers
-
+	countByType := map[string]int{}
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		roundSigs, ok := signersByRound[round]
 		if !ok {
@@ -67,45 +57,42 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 		consensusBitVoteByRound[round] = consensusBitVote
 
 		// Get appearances by type
-		for i, r := range attestationRequestsByRound[round] {
-			if len(r.Data) < 64 {
+		for i, request := range attestationRequestsByRound[round] {
+			if len(request.Data) < 64 {
 				logger.Warn("attestation request malformed: data less than 64 bytes")
 				continue
 			}
 			if !isConfirmed(i, consensusBitVote) {
 				continue
 			}
-			t := hex.EncodeToString(r.Data[0:64])
+			t := hex.EncodeToString(request.Data[0:64])
 			countByType[t]++
 		}
 	}
 
-	rewardPerRound := calculateFdcRoundRewards(re, countByType, attestationRequestsByRound, consensusBitVoteByRound)
+	rewardByRound := calculateFdcRoundRewards(re, countByType, attestationRequestsByRound, consensusBitVoteByRound)
 
 	epochClaims := make([]ty.RewardClaim, 0)
-
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		var roundClaims []ty.RewardClaim
-		roundClaims = append(roundClaims, burnClaim(rewardPerRound[round].burn))
+		roundClaims = append(roundClaims, burnClaim(rewardByRound[round].burn))
 		utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-claimback")
 
-		var fina = getFirst(finalizationsByRound[round])
-		if fina == nil {
+		if firstSuccessful(finalizationsByRound[round]) == nil {
 			logger.Warn("no successful finalization for round %d, burning round rewards", round)
-			roundClaims = append(roundClaims, burnClaim(rewardPerRound[round].amount))
+			roundClaims = append(roundClaims, burnClaim(rewardByRound[round].amount))
 		} else {
-			// signing rewards
-			reward := rewardPerRound[round].amount
-			finalizationReward := big.NewInt(0).Div(big.NewInt(0).Mul(reward, params.Net.Fdc.FinalizationBips), bigTotalBips)
-			signingReward := big.NewInt(0).Sub(reward, finalizationReward)
+			roundReward := rewardByRound[round].amount
+			finalizationReward := big.NewInt(0).Div(big.NewInt(0).Mul(roundReward, params.Net.Fdc.FinalizationBips), bigTotalBips)
+			signingReward := big.NewInt(0).Sub(roundReward, finalizationReward)
 
 			finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
 			if err != nil {
-				return nil, errors.Wrap(err, "error selecting finalizers")
+				logger.Fatal("error selecting finalizers for round %d: %s", round, err)
 			}
 
 			var eligibleVoters []*data.VoterInfo
-			for addr, _ := range finalizers {
+			for addr := range finalizers {
 				voter, ok := re.VoterIndex.BySigning[ty.VoterSigning(addr)]
 				if ok {
 					eligibleVoters = append(eligibleVoters, voter)
@@ -118,34 +105,30 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 			utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "fdc-finalz-claims")
 
 			consensusBitVote := consensusBitVoteByRound[round]
-
 			roundSigs, _ := signersByRound[round]
-
 			hash := consensusHashByRound[round]
 			consensusSigs, _ := roundSigs[hash]
 
-			signingClaims := generateFdcSigningClaims(finalizationsByRound[round], round, signingReward, bitVotesByRound[round], consensusBitVote, consensusSigs, re)
+			signingClaims := generateFdcSigningClaims(finalizationsByRound[round], round, signingReward, bitVotesByRound[round], consensusBitVote, consensusSigs, re.VoterIndex)
 			roundClaims = append(roundClaims, signingClaims...)
 			utils.PrintRoundResults(signingClaims, re.Epoch, round, "fdc-signing-claims")
 
 			offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[data.WrongSignatureIndicatorMessageHash], epochs.Current.VoterIndex, consensusBitVoteByRound[round])
-			logger.Info("Offenders for round %d: %v", round, offenders)
 
-			penalties := getFdcPenalties(reward, params.Net.Fdc.PenaltyFactor, offenders, epochs.Current.VoterIndex)
+			penalties := getFdcPenalties(roundReward, params.Net.Fdc.PenaltyFactor, offenders, epochs.Current.VoterIndex)
 			utils.PrintRoundResults(penalties, re.Epoch, round, "fdc-penalties")
 			roundClaims = append(roundClaims, penalties...)
 		}
-		utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-round-claims")
 
+		utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-round-claims")
 		epochClaims = append(epochClaims, roundClaims...)
 	}
 
 	logger.Info("FDC rewards calculated for epoch %d: %d", re.Epoch, len(epochClaims))
-
-	return epochClaims, nil
+	return epochClaims
 }
 
-func getFirst(finalizations []*data.Finalization) *data.Finalization {
+func firstSuccessful(finalizations []*data.Finalization) *data.Finalization {
 	successIndex := slices.IndexFunc(finalizations, func(f *data.Finalization) bool {
 		return f.Info.Reverted == false
 	})
@@ -153,287 +136,4 @@ func getFirst(finalizations []*data.Finalization) *data.Finalization {
 		return nil
 	}
 	return finalizations[successIndex]
-}
-
-func generateFdcSigningClaims(finalizations []*data.Finalization, round ty.RoundId, reward *big.Int, bitVotes map[ty.VoterSubmit]*big.Int, consensusBitVote *big.Int, consensusSigs map[ty.VoterSigning]data.SigInfo, re *data.RewardEpoch) []ty.RewardClaim {
-	var signingClaims []ty.RewardClaim
-
-	if consensusBitVote == nil || consensusBitVote.Cmp(big.NewInt(0)) == 0 {
-		logger.Warn("no consensus bitVote for round %d, burning rewards", round)
-		return []ty.RewardClaim{burnClaim(reward)}
-	}
-
-	successfulFinalization := getFirst(finalizations)
-
-	revealDeadline := params.Net.Epoch.RevealDeadlineSec(round + 1)
-	roundEnd := params.Net.Epoch.VotingRoundEndSec(
-		round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows),
-	)
-
-	deadline := min(
-		successfulFinalization.Info.TimestampSec,
-		roundEnd,
-	)
-	gracePeriod := revealDeadline + params.Net.Ftso.GracePeriodForSignaturesDurationSec
-
-	signersToReward := map[ty.VoterSigning]data.SigInfo{}
-	for voter, sig := range consensusSigs {
-		if sig.Timestamp <= deadline || sig.Timestamp < gracePeriod {
-			signersToReward[voter] = sig
-		}
-	}
-
-	undistributedWeight := big.NewInt(int64(re.Policy.Voters.TotalWeight))
-	undistributedAmount := big.NewInt(0).Set(reward)
-
-	for index, voter := range re.Policy.Voters.Voters {
-		signer := ty.VoterSigning(voter)
-		weight := int64(re.Policy.Voters.Weights[index])
-
-		if undistributedWeight.Cmp(big.NewInt(0)) == 0 {
-			logger.Warn("no weight for signer %s, index %d", signer, index)
-			panic("no weight")
-		}
-
-		voterAmount := big.NewInt(0).Div(
-			big.NewInt(0).Mul(undistributedAmount, big.NewInt(weight)),
-			undistributedWeight,
-		)
-
-		_, ok := signersToReward[signer]
-		if ok {
-			undistributedWeight.Sub(undistributedWeight, big.NewInt(weight))
-			undistributedAmount.Sub(undistributedAmount, voterAmount)
-
-			voterSubmit := re.VoterIndex.BySigning[signer].Submit
-			bitVote, _ := bitVotes[voterSubmit]
-
-			if !dominatesConsensusBitVote(bitVote, consensusBitVote) {
-				burnAmount := big.NewInt(0).Div(big.NewInt(0).Mul(voterAmount, big.NewInt(200000)),
-					bigTotalPPM)
-				if burnAmount.Cmp(bigZero) >= 0 {
-					signingClaims = append(signingClaims, burnClaim(burnAmount))
-					voterAmount.Sub(voterAmount, burnAmount)
-				}
-			}
-			signingClaims = append(signingClaims, SigningWeightClaimsForVoter(re.VoterIndex.BySigning[signer], voterAmount)...)
-		}
-	}
-
-	if undistributedAmount.Cmp(big.NewInt(0)) > 0 {
-		logger.Warn("undistributed amount %s for round %d", undistributedAmount, round)
-		signingClaims = append(signingClaims, burnClaim(undistributedAmount))
-	}
-
-	return signingClaims
-}
-
-func dominatesConsensusBitVote(bitVote *big.Int, consensusBitVote *big.Int) bool {
-	if consensusBitVote == nil || bitVote == nil {
-		return false
-	}
-	return bitVote.And(bitVote, consensusBitVote).Cmp(consensusBitVote) == 0
-}
-
-func calculateFdcRoundRewards(
-	re *data.RewardEpoch,
-	countByType map[string]int,
-	attestationRequestsByRound map[ty.RoundId][]data.AttestationRequest,
-	consensusBitVoteByRound map[ty.RoundId]*big.Int,
-) map[ty.RoundId]roundReward {
-	rewardPerRound := map[ty.RoundId]roundReward{}
-
-	totalBurnAmount := big.NewInt(0)
-	totalRewardAmount := big.NewInt(0)
-
-	if len(re.Offers.FdcInflation) == 0 {
-		logger.Warn("no inflation offer for reward epoch %d", re.Epoch)
-	} else {
-		totalWeight := big.NewInt(0)
-		burnWeight := big.NewInt(0)
-
-		inflationOffer := re.Offers.FdcInflation[0]
-		for _, conf := range inflationOffer.FdcConfigurations {
-			t := hex.EncodeToString(append(conf.AttestationType[:], conf.Source[:]...))
-			count := countByType[t]
-			totalWeight.Add(totalWeight, conf.InflationShare)
-			if count < int(conf.MinRequestsThreshold) {
-				burnWeight.Add(burnWeight, conf.InflationShare)
-			}
-		}
-
-		totalBurnAmount = big.NewInt(0).Div(
-			big.NewInt(0).Mul(burnWeight, inflationOffer.Amount),
-			totalWeight,
-		)
-		totalRewardAmount = big.NewInt(0).Sub(inflationOffer.Amount, totalBurnAmount)
-	}
-
-	logger.Info("Total reward amount %s, total burn amount %s", totalRewardAmount, totalBurnAmount)
-
-	perRound, rem := totalRewardAmount.DivMod(totalRewardAmount, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))
-	burnPerRound, remB := totalBurnAmount.DivMod(totalBurnAmount, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))
-
-	for round := re.StartRound; round <= re.EndRound; round++ {
-
-		amount := new(big.Int).Set(perRound)
-		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
-			amount.Add(amount, big.NewInt(1))
-		}
-
-		burnAmount := new(big.Int).Set(burnPerRound)
-		if big.NewInt(int64(round-re.StartRound)).Cmp(remB) < 0 {
-			burnAmount.Add(burnAmount, big.NewInt(1))
-		}
-
-		feeAmount := big.NewInt(0)
-		feeBurnAmount := big.NewInt(0)
-
-		for i, r := range attestationRequestsByRound[round] {
-			if isConfirmed(i, consensusBitVoteByRound[round]) {
-				feeAmount.Add(feeAmount, r.MergedFee)
-			} else {
-				feeBurnAmount.Add(feeBurnAmount, r.MergedFee)
-			}
-		}
-
-		rewardPerRound[round] = roundReward{
-			amount: amount.Add(amount, feeAmount),
-			burn:   burnAmount.Add(burnAmount, feeBurnAmount),
-		}
-	}
-
-	return rewardPerRound
-}
-
-func isConfirmed(attestationIndex int, consensusBitVote *big.Int) bool {
-	if consensusBitVote == nil {
-		return false
-	}
-	return consensusBitVote.Bit(attestationIndex) == 1
-}
-
-func getOffenders(
-	bitVotes map[ty.VoterSubmit]*big.Int,
-	consensusSigs map[ty.VoterSigning]data.SigInfo,
-	wrongSigs map[ty.VoterSigning]data.SigInfo,
-	voterIndex *data.VoterIndex,
-	consensusBitVote *big.Int,
-) map[ty.VoterSigning]bool {
-	offenders := map[ty.VoterSigning]bool{}
-
-	var revealOffenders []ty.VoterId
-	for voterSubmit := range bitVotes {
-		voter := voterIndex.BySubmit[voterSubmit]
-		_, ok := consensusSigs[voter.Signing]
-		if !ok {
-			revealOffenders = append(revealOffenders, voter.Identity)
-			offenders[voter.Signing] = true
-		}
-	}
-
-	var wrongSignatureOffenders []ty.VoterId
-	for voterSigning := range wrongSigs {
-		voter, ok := voterIndex.BySigning[voterSigning]
-		if !ok {
-			logger.Debug("voter not found for wrong signature %s", voterSigning)
-			continue
-		}
-		wrongSignatureOffenders = append(wrongSignatureOffenders, voter.Identity)
-		offenders[voter.Signing] = true
-	}
-
-	var bitVoteOffenders []ty.VoterId
-	for voterSigning, sig := range consensusSigs {
-		voter := voterIndex.BySigning[voterSigning]
-		offender := false
-
-		if len(sig.UnsignedMessage) < 3 {
-			offender = true
-		} else {
-			bitVote, _ := data.ParseBitVote(sig.UnsignedMessage)
-			if consensusBitVote.Cmp(bitVote) != 0 {
-				offender = true
-			}
-		}
-		if offender {
-			bitVoteOffenders = append(bitVoteOffenders, voter.Identity)
-			offenders[voter.Signing] = true
-		}
-	}
-
-	// TODO: log different types of offenders for debugging
-	logger.Warn("Offenders: reveal %d, wrong signature %d, bitVote %d", len(revealOffenders), len(wrongSignatureOffenders), len(bitVoteOffenders))
-
-	return offenders
-}
-
-// getConsensusBitVote returns the
-func getConsensusBitVote(sigs map[ty.VoterSigning]data.SigInfo, round ty.RoundId, voters *data.VoterIndex) *big.Int {
-	bitVoteWeight := map[string]uint64{}
-	for signer, sig := range sigs {
-		if len(sig.UnsignedMessage) < 3 { // first two bytes are length
-			logger.Warn("bitVote message too short for signer %s in round %d", signer, round)
-			continue
-		}
-		bitVote, err := data.ParseBitVote(sig.UnsignedMessage)
-		if err != nil {
-			logger.Warn("error parsing bitVote for signer %s in round %d: %s", signer, round, err)
-			continue
-		}
-		bitVoteWeight[bitVote.String()] += uint64(voters.BySigning[signer].SigningPolicyWeight)
-	}
-
-	var consensusBitVote *string
-	if len(bitVoteWeight) > 0 {
-		maxWeight := uint64(0)
-		for bitVote, weight := range bitVoteWeight {
-			if weight >= maxWeight {
-				if consensusBitVote == nil {
-					consensusBitVote = &bitVote
-				} else {
-					// if we have more than one candidate with max weight, choose the one with the smaller bitVote
-					minBitVote := utils.MinDec(bitVote, *consensusBitVote)
-					consensusBitVote = &minBitVote
-				}
-
-				maxWeight = weight
-			}
-		}
-	}
-
-	if consensusBitVote != nil {
-		bitVector, _ := new(big.Int).SetString(*consensusBitVote, 10)
-		return bitVector
-	} else {
-		return nil
-	}
-}
-
-func getFdcPenalties(reward *big.Int, penaltyFactor *big.Int, offenders map[ty.VoterSigning]bool, voters *data.VoterIndex) []ty.RewardClaim {
-	var penalties []ty.RewardClaim
-
-	// TODO: precompute?
-	totalSigningWeight := uint64(0)
-	for _, info := range voters.ById {
-		totalSigningWeight += uint64(info.SigningPolicyWeight)
-	}
-	bigTotalSigningWeight := big.NewInt(int64(totalSigningWeight))
-
-	for signing := range offenders {
-		offender := voters.BySigning[signing]
-		if offender.SigningPolicyWeight > 0 {
-			bigWeight := big.NewInt(int64(offender.SigningPolicyWeight))
-			amount := new(big.Int).Div(
-				bigTmp.Mul(bigWeight, bigTmp.Mul(reward, penaltyFactor)),
-				bigTotalSigningWeight,
-			)
-			claims := SigningWeightClaimsForVoter(offender, amount)
-			for i := range claims {
-				claims[i].Amount.Neg(claims[i].Amount)
-			}
-			penalties = append(penalties, claims...)
-		}
-	}
-	return penalties
 }

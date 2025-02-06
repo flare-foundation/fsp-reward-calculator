@@ -26,7 +26,12 @@ func getFinalizationClaims(
 	eligibleVoters []*data.VoterInfo,
 	eligibleFinalizers map[common.Address]bool,
 ) []ty.RewardClaim {
-	firstSuccessfulFinalization := getFirst(finalizations)
+	firstSuccessfulFinalization := firstSuccessful(finalizations)
+
+	if firstSuccessfulFinalization == nil {
+		return []ty.RewardClaim{burnClaim(reward)}
+	}
+
 	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(round+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec + 1
 
 	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {

@@ -72,9 +72,9 @@ func GetFdcSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]commo
 		for _, signatureSubmission := range signatures {
 
 			sender := ty.VoterSubmitSignatures(signatureSubmission.Info.From)
-			expectedSigner := re.VoterIndex.BySubmitSignatures[sender]
+			voter := re.VoterIndex.BySubmitSignatures[sender]
 
-			if expectedSigner == nil {
+			if voter == nil {
 				logger.Debug("sender %s not registered, skipping signature", sender)
 				continue
 			}
@@ -90,25 +90,23 @@ func GetFdcSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]commo
 				continue
 			}
 
-			signer := ty.VoterSigning(crypto.PubkeyToAddress(*signerKey))
-			if signer != expectedSigner.Signing {
+			recoveredSigner := ty.VoterSigning(crypto.PubkeyToAddress(*signerKey))
+			if recoveredSigner != voter.Signing {
 				signedHash = WrongSignatureIndicatorMessageHash
 			}
 
-			if _, ok := re.VoterIndex.BySigning[signer]; ok {
-				if _, ok := sigsByHash[signedHash]; !ok {
-					sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
-				}
-				if _, ok := sigsByHash[signedHash][signer]; ok {
-					logger.Debug("earlier signature from %s already added, skipping", signer)
-					continue
-				}
+			if _, ok := sigsByHash[signedHash]; !ok {
+				sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
+			}
+			if _, ok := sigsByHash[signedHash][voter.Signing]; ok {
+				logger.Debug("earlier signature from %s already added, skipping", voter.Signing)
+				continue
+			}
 
-				sigsByHash[signedHash][signer] = SigInfo{
-					Signer:          signer,
-					Timestamp:       signatureSubmission.Info.TimestampSec,
-					UnsignedMessage: signature.message,
-				}
+			sigsByHash[signedHash][voter.Signing] = SigInfo{
+				Signer:          voter.Signing,
+				Timestamp:       signatureSubmission.Info.TimestampSec,
+				UnsignedMessage: signature.message,
 			}
 		}
 

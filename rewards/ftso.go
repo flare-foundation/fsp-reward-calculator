@@ -7,18 +7,12 @@ import (
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
-	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
 )
 
-func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
-	submit1 []payload.Message,
-	submit2 []payload.Message,
-	submitSignatures []payload.Message,
-	finalizations []*data.Finalization,
-) ([]ty.RewardClaim, error) {
+func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId, submit1 []payload.Message, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) []ty.RewardClaim {
 	var (
 		revealsByRound       map[ty.RoundId]data.RoundReveals
 		signersByRound       data.SignerMap
@@ -42,7 +36,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 
 	results, err := data.CalculateResults(re.StartRound, re.EndRound, re, revealsByRound)
 	if err != nil {
-		return nil, errors.Wrap(err, "error calculating results")
+		logger.Fatal("error calculating results: %s", err)
 	}
 
 	feedSelectionRandoms := getFeedSelectionRandoms(epochs, windowEnd, revealsByRound, results)
@@ -115,7 +109,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		logger.Info("Calculating finalization claims for round %d", round)
 		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
 		if err != nil {
-			return nil, errors.Wrap(err, "error selecting finalizers")
+			return nil
 		}
 		finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
 
@@ -171,7 +165,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 
 		epochClaims = append(epochClaims, roundClaims...)
 	}
-	return epochClaims, nil
+	return epochClaims
 }
 
 func getFeedSelectionRandoms(
