@@ -35,11 +35,13 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 		id := FeedId(offer.FeedId)
 		if _, ok := feedById[id]; !ok {
 			feedById[offer.FeedId] = Feed{
-				Id:                        offer.FeedId,
-				Decimals:                  offer.Decimals,
-				MinRewardedTurnoutBIPS:    offer.MinRewardedTurnoutBIPS,
-				PrimaryBandRewardSharePPM: uint32(offer.PrimaryBandRewardSharePPM.Uint64()),
-				SecondaryBandWidthPPMs:    uint32(offer.SecondaryBandWidthPPM.Uint64()),
+				Id:       offer.FeedId,
+				Decimals: offer.Decimals,
+				// We can have multiple offers for the same feed with conflicting rewarding parameters,
+				// so we use default values instead:
+				MinRewardedTurnoutBIPS:    0,
+				PrimaryBandRewardSharePPM: uint32(1000000),
+				SecondaryBandWidthPPMs:    uint32(0),
 			}
 		} else {
 			logger.Info("More than one offer contains feed %s, only the first one will be used for configuration values", id.String())
