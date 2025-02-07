@@ -95,26 +95,48 @@ func DecodeReveal(bytes []byte, expectedFeeds int) (*Reveal, error) {
 	}, nil
 }
 
-func DecodeSignature(bytes []byte) (*Signature, error) {
+func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
 	if len(bytes) < 1+ProtocolMerkleRootBytes+SignatureBytes {
-		return nil, errors.Errorf("Signature message too short: %s", bytes)
+		return nil, errors.Errorf("Type 0 signature message too short: %s", bytes)
 	}
 
-	p := 1 // Type byte not used
+	if bytes[0] != 0 {
+		logger.Fatal("invalid signature type: %d, expected 0", bytes[0])
+	}
+	p := 1
 	encodedMerkleRoot := bytes[p : p+ProtocolMerkleRootBytes]
 	p += ProtocolMerkleRootBytes
 	signature := bytes[p : p+SignatureBytes]
 	p += SignatureBytes
-	_ = bytes[p:] // Unsigned message not used
 
 	merkleRoot, err := DecodeProtocolMerkleRoot(encodedMerkleRoot)
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding protocol merkle merkleRoot")
 	}
 
-	return &Signature{
+	return &SignatureType0{
 		bytes:      signature,
 		merkleRoot: merkleRoot,
+		message:    bytes[p:],
+	}, nil
+}
+
+func DecodeSignatureType1(bytes []byte) (*SignatureType1, error) {
+	if len(bytes) < 1+SignatureBytes {
+		return nil, errors.Errorf("Type 1 signature message too short: %s", bytes)
+	}
+
+	if bytes[0] != 1 {
+		return nil, errors.Errorf("invalid signature type: %d, expected 1", bytes[0])
+	}
+	p := 1
+	signature := bytes[p : p+SignatureBytes]
+	p += SignatureBytes
+	unsignedMessage := bytes[p:]
+
+	return &SignatureType1{
+		bytes:   signature,
+		message: unsignedMessage,
 	}, nil
 }
 

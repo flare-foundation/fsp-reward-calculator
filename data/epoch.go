@@ -2,13 +2,13 @@ package data
 
 import (
 	votersLib "fsp-rewards-calculator/lib"
-	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 	"math/big"
 	"slices"
+	"sort"
 	"time"
 )
 
@@ -72,18 +73,20 @@ type RewardOffers struct {
 	Inflation    []*offers.OffersInflationRewardsOffered
 	FastUpdates  []*fumanager.FUManagerInflationRewardsOffered
 	FastUpdatesI []*fumanager.FUManagerIncentiveOffered
+	FdcInflation []*fdchub.FdcHubInflationRewardsOffered
 }
 
 type VoterInfo struct {
-	Identity          ty.VoterId
-	Submit            ty.VoterSubmit
-	SubmitSignatures  ty.VoterSubmitSignatures
-	Signing           ty.VoterSigning
-	Delegation        ty.VoterDelegation
-	CappedWeight      *big.Int
-	DelegationFeeBips uint16
-	NodeIds           [][20]byte
-	NodeWeights       []*big.Int
+	Identity            ty.VoterId
+	Submit              ty.VoterSubmit
+	SubmitSignatures    ty.VoterSubmitSignatures
+	Signing             ty.VoterSigning
+	Delegation          ty.VoterDelegation
+	CappedWeight        *big.Int
+	DelegationFeeBips   uint16
+	NodeIds             [][20]byte
+	NodeWeights         []*big.Int
+	SigningPolicyWeight uint16
 }
 
 func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
@@ -97,7 +100,7 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	searchIntervalEndSec := min(expectedStartSec+(epochDuration*2), uint64(currentTimestamp))
 
 	relayInst, _ := relay.NewRelay(common.Address{}, nil)
-	parsePolicyInitialized := func(log types.Log) (*relay.RelaySigningPolicyInitialized, error) {
+	parsePolicyInitialized := func(log types.Log, _ uint64) (*relay.RelaySigningPolicyInitialized, error) {
 		return relayInst.RelayFilterer.ParseSigningPolicyInitialized(log)
 	}
 
@@ -141,14 +144,13 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	}
 
 	feeds := getOrderedFeeds(rewardOffers)
-	logger.Info("Feeds: %v", len(feeds))
-	for _, f := range feeds {
-		logger.Info("Feed: %s, Decimals: %d", f.String(), f.Decimals)
-	}
+	orderedVoters := getOrderedVoters(policyEvent)
+
+	policy := votersLib.NewSigningPolicy(policyEvent)
 
 	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
 
-	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec)
+	voters, err := getVoters(db, epoch, epochStartSec-signingPolicyWindow, epochStartSec, policy.Voters.VoterDataMap)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching voter info: %s", err)
 	}
@@ -157,10 +159,10 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		Epoch:         epoch,
 		StartRound:    startRound,
 		EndRound:      endRound,
-		Policy:        votersLib.NewSigningPolicy(policyEvent),
+		Policy:        policy,
 		Offers:        rewardOffers,
 		OrderedFeeds:  feeds,
-		OrderedVoters: getOrderedVoters(policyEvent),
+		OrderedVoters: orderedVoters,
 		VoterIndex:    voters,
 	}, nil
 }
@@ -194,6 +196,11 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
 	}
 
+	fdcInflation, err := GetFdcInflationRewardOfferEvents(db, previousStartSec, startSec)
+	if err != nil {
+		return RewardOffers{}, errors.Errorf("error fetching fdc inflation reward offer events: %s", err)
+	}
+
 	community = slices.DeleteFunc(community, func(offer *offers.OffersRewardsOffered) bool {
 		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
@@ -206,16 +213,20 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 	fastUpdatesI = slices.DeleteFunc(fastUpdatesI, func(offer *fumanager.FUManagerIncentiveOffered) bool {
 		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
+	fdcInflation = slices.DeleteFunc(fdcInflation, func(offer *fdchub.FdcHubInflationRewardsOffered) bool {
+		return offer.RewardEpochId.Uint64() != uint64(epoch)
+	})
 
 	return RewardOffers{
 		community,
 		inflation,
 		fastUpdates,
 		fastUpdatesI,
+		fdcInflation,
 	}, nil
 }
 
-func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64) (*VoterIndex, error) {
+func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policyVoters map[common.Address]votersLib.VoterData) (*VoterIndex, error) {
 	regs, err := GetVoterRegisteredEvents(db, fromSec, toSec)
 	if err != nil {
 		return nil, errors.Errorf("error fetching voter registered regs: %s", err)
@@ -244,29 +255,39 @@ func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64) (*VoterInde
 		info := infoByIdentity[reg.Voter]
 
 		voters = append(voters, &VoterInfo{
-			Identity:          ty.VoterId(reg.Voter),
-			Submit:            ty.VoterSubmit(reg.SubmitAddress),
-			SubmitSignatures:  ty.VoterSubmitSignatures(reg.SubmitSignaturesAddress),
-			Signing:           ty.VoterSigning(reg.SigningPolicyAddress),
-			Delegation:        ty.VoterDelegation(info.DelegationAddress),
-			CappedWeight:      info.WNatCappedWeight,
-			DelegationFeeBips: info.DelegationFeeBIPS,
-			NodeIds:           info.NodeIds,
-			NodeWeights:       info.NodeWeights,
+			Identity:            ty.VoterId(reg.Voter),
+			Submit:              ty.VoterSubmit(reg.SubmitAddress),
+			SubmitSignatures:    ty.VoterSubmitSignatures(reg.SubmitSignaturesAddress),
+			Signing:             ty.VoterSigning(reg.SigningPolicyAddress),
+			Delegation:          ty.VoterDelegation(info.DelegationAddress),
+			CappedWeight:        info.WNatCappedWeight,
+			DelegationFeeBips:   info.DelegationFeeBIPS,
+			NodeIds:             info.NodeIds,
+			NodeWeights:         info.NodeWeights,
+			SigningPolicyWeight: policyVoters[reg.SigningPolicyAddress].Weight,
 		})
-		logger.Info("Voter %s, submit %s, submit signatures %s, signing policy %s", reg.Voter.String(), reg.SubmitAddress.String(), reg.SubmitSignaturesAddress.String(), reg.SigningPolicyAddress.String())
+		//logger.Info("Voter %s, submit %s, submit signatures %s, signing policy %s", reg.Voter.String(), reg.SubmitAddress.String(), reg.SubmitSignaturesAddress.String(), reg.SigningPolicyAddress.String())
 	}
+
+	// sort according to signing policy order
+	sort.Slice(voters, func(i, j int) bool {
+		indexI := policyVoters[common.Address(voters[i].Signing)].Index
+		indexJ := policyVoters[common.Address(voters[j].Signing)].Index
+		return indexI < indexJ
+	})
 
 	return NewVoterIndex(voters), nil
 }
 
 type VoterIndex struct {
-	ById               map[ty.VoterId]*VoterInfo
-	BySubmit           map[ty.VoterSubmit]*VoterInfo
-	BySubmitSignatures map[ty.VoterSubmitSignatures]*VoterInfo
-	BySigning          map[ty.VoterSigning]*VoterInfo
-	ByDelegation       map[ty.VoterDelegation]*VoterInfo
-	TotalCappedWeight  *big.Int
+	PolicyOrder              []*VoterInfo
+	ById                     map[ty.VoterId]*VoterInfo
+	BySubmit                 map[ty.VoterSubmit]*VoterInfo
+	BySubmitSignatures       map[ty.VoterSubmitSignatures]*VoterInfo
+	BySigning                map[ty.VoterSigning]*VoterInfo
+	ByDelegation             map[ty.VoterDelegation]*VoterInfo
+	TotalCappedWeight        *big.Int
+	TotalSigningPolicyWeight uint16
 }
 
 func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
@@ -283,15 +304,19 @@ func NewVoterIndex(voters []*VoterInfo) *VoterIndex {
 		byDelegation[v.Delegation] = v
 	}
 	totalCappedWeight := big.NewInt(0)
+	totalSigningPolicyWeight := uint16(0)
 	for _, v := range voters {
 		totalCappedWeight.Add(totalCappedWeight, v.CappedWeight)
+		totalSigningPolicyWeight += v.SigningPolicyWeight
 	}
 	return &VoterIndex{
-		ById:               byId,
-		BySubmit:           bySubmit,
-		BySubmitSignatures: bySubmitSignatures,
-		BySigning:          bySigning,
-		ByDelegation:       byDelegation,
-		TotalCappedWeight:  totalCappedWeight,
+		PolicyOrder:              voters,
+		ById:                     byId,
+		BySubmit:                 bySubmit,
+		BySubmitSignatures:       bySubmitSignatures,
+		BySigning:                bySigning,
+		ByDelegation:             byDelegation,
+		TotalCappedWeight:        totalCappedWeight,
+		TotalSigningPolicyWeight: totalSigningPolicyWeight,
 	}
 }

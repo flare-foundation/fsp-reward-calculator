@@ -1,33 +1,29 @@
 package data
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"math/big"
 )
 
 type SignerMap map[ty.RoundId]map[common.Hash]map[ty.VoterSigning]SigInfo
 
 type SigInfo struct {
-	Signer    ty.VoterSigning
-	Timestamp uint64
+	Signer          ty.VoterSigning
+	Timestamp       uint64
+	UnsignedMessage []byte // TOOD: Only use by FDC
 }
 
 // GetSignersByRound fetches signatures for the specified round range, and for each round
 // computes the list of valid signatures by signed hash.
 // For each signer, only the last signature for a specific round and hash is retained.
-func GetSignersByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re *RewardEpoch) (SignerMap, error) {
-	logger.Info("Fetching signers for rounds %d-%d", from, to)
-	allSignatures, err := getSignatures(db, from, to)
+func GetSignersByRound(msgs []payload.Message, re *RewardEpoch) (SignerMap, error) {
+	allSignatures, err := extractSignatures(msgs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching signatures")
 	}
@@ -52,9 +48,11 @@ func GetSignersByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re *RewardEp
 				if _, ok := sigsByHash[signedHash]; !ok {
 					sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
 				}
-				sigsByHash[signedHash][signer] = SigInfo{
-					Signer:    signer,
-					Timestamp: signatureSubmission.Info.TimestampSec,
+				if _, ok := sigsByHash[signedHash][signer]; !ok {
+					sigsByHash[signedHash][signer] = SigInfo{
+						Signer:    signer,
+						Timestamp: signatureSubmission.Info.TimestampSec,
+					}
 				}
 			} else {
 				logger.Debug("signer %s not registered, skipping signature", signer)
@@ -66,41 +64,27 @@ func GetSignersByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re *RewardEp
 	return signers, nil
 }
 
-func GetFinalizationsByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId, re *RewardEpoch) (map[ty.RoundId][]*Finalization, error) {
-	logger.Info("Fetching finalizations for rounds %d-%d", from, to)
-	allFinalizationsByRound, err := getFinalizations(db, from, to)
-	if err != nil {
-		return nil, errors.Wrap(err, "error fetching finalizations")
-	}
-
-	logger.Info("Finalizations: %d", len(allFinalizationsByRound))
-
+func GetFinalizationsByRound(fnz []*Finalization) map[ty.RoundId][]*Finalization {
 	finalizationsByRound := make(map[ty.RoundId][]*Finalization)
 
-	for round, finalizations := range allFinalizationsByRound {
-		seenSender := map[common.Address]bool{}
-		for _, finalization := range finalizations {
-			if ty.EpochId(finalization.Policy.RewardEpochId) != re.Epoch {
-				logger.Info("Finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
-				continue
-			}
+loop:
+	for _, f := range fnz {
+		round := f.MerkleRoot.round
 
-			if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.RawBytes) {
-				logger.Info("Finalization signing policy does not match expected, skipping")
-				continue
+		if _, ok := finalizationsByRound[round]; !ok {
+			finalizationsByRound[round] = []*Finalization{}
+		} else {
+			for _, rf := range finalizationsByRound[round] {
+				if rf.Info.From == f.Info.From {
+					logger.Info("Finalization for round %d from %s already seen, skipping", round, f.Info.From)
+					continue loop
+				}
 			}
-
-			if _, ok := seenSender[finalization.Info.From]; ok {
-				logger.Info("Finalization from %s already seen, skipping", finalization.Info.From)
-				continue
-			} else {
-				seenSender[finalization.Info.From] = true
-			}
-
-			finalizationsByRound[round] = append(finalizationsByRound[round], finalization)
 		}
+		finalizationsByRound[round] = append(finalizationsByRound[round], f)
 	}
-	return finalizationsByRound, nil
+
+	return finalizationsByRound
 }
 
 type FUpdate struct {
@@ -139,113 +123,39 @@ type RoundReveals struct {
 	AllOffenders        []ty.VoterSubmit
 }
 
-type PrintReveals struct {
-	Submitted string
-	Random    string
-}
-
-type RoundPrintData struct {
-	Reveals      []PrintReveals
-	Offenders    []string
-	AllOffenders []string
-
-	Medians      []Result
-	Random       string
-	SecureRandom bool
-
-	NextRandom string
-
-	MedianFeed  string
-	FeedDecoded string
-}
-
-func PrintRoundData(results RoundResult, reveals RoundReveals, feed *Feed, selection *big.Int, epoch ty.EpochId, round ty.RoundId) {
-	var roundData RoundPrintData
-
-	for voter, reveal := range reveals.Reveals {
-		roundData.Reveals = append(roundData.Reveals, PrintReveals{
-			Submitted: common.Address(voter).String(),
-			Random:    reveal.Random.String(),
-		})
-	}
-
-	for _, offender := range reveals.RegisteredOffenders {
-		roundData.Offenders = append(roundData.Offenders, common.Address(offender).String())
-	}
-	for _, offender := range reveals.AllOffenders {
-		roundData.AllOffenders = append(roundData.AllOffenders, common.Address(offender).String())
-	}
-
-	roundData.Random = results.Random.Value.String()
-	roundData.SecureRandom = results.Random.IsSecure
-	roundData.NextRandom = selection.String()
-
-	if feed != nil {
-		roundData.MedianFeed = feed.Id.Hex()
-		roundData.FeedDecoded = feed.String()
-	}
-
-	for _, median := range results.Median {
-		medianCpy := *median
-		medianCpy.InputValues = nil
-		roundData.Medians = append(roundData.Medians, medianCpy)
-	}
-
-	jsonData, err := json.MarshalIndent(roundData, "", "    ")
-	if err != nil {
-		logger.Error("Error serializing to JSON:", err)
-		return
-	}
-	filePath := fmt.Sprintf("results/%s/%d/%d/data.json", params.Net.Name, epoch, round)
-	utils.WriteToFile(jsonData, filePath)
-}
-
-func GetRoundReveals(db *gorm.DB, from ty.RoundId, to ty.RoundId, epochs RewardEpochs) map[ty.RoundId]RoundReveals {
+func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message, epochs RewardEpochs) map[ty.RoundId]RoundReveals {
 	var (
-		allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
-		allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
+		commitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
+		revealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
 	)
 
-	logger.Info("Fetching commits for rounds %d-%d", from, to)
-	allCommitsByRound, err := GetCommits(db, from, to)
-	logger.Info("All commits fetched")
+	commitsByRound, err := extractCommits(commitsMsgs)
 	if err != nil {
-		logger.Fatal("error fetching commitsByRound: %s", err)
+		logger.Fatal("error extracting commitsByRound: %s", err)
 	}
 
-	logger.Info("Fetching reveals for rounds %d-%d", from, to)
-	allRevealsByRound, err = GetReveals(db, from, to, epochs)
-	logger.Info("All reveals fetched")
+	revealsByRound, err = extractReveals(revealMsgs, epochs)
 	if err != nil {
-		logger.Fatal("error fetching revealsByRound: %s", err)
+		logger.Fatal("error extracting revealsByRound: %s", err)
 	}
 
-	logger.Info("All commits and reveals fetched, processing.")
+	if len(commitsByRound) != len(revealsByRound) {
+		logger.Fatal("commitsByRound and revealsByRound have different lengths")
+	}
 
-	return getRoundReveals(from, to, epochs, allCommitsByRound, allRevealsByRound)
-}
-
-func getRoundReveals(
-	from ty.RoundId,
-	to ty.RoundId,
-	epochs RewardEpochs,
-	allCommitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit,
-	allRevealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal,
-) map[ty.RoundId]RoundReveals {
 	roundData := map[ty.RoundId]RoundReveals{}
-
-	for round := from; round < to; round++ {
+	for round := range commitsByRound {
 		voterIndex := epochs.EpochForRound(round).VoterIndex
 
 		validCommits := map[ty.VoterSubmit]*Commit{}
-		for voter, commit := range allCommitsByRound[round] {
+		for voter, commit := range commitsByRound[round] {
 			if voterIndex.BySubmit[voter] != nil {
 				validCommits[voter] = commit
 			}
 		}
 
 		validReveals := map[ty.VoterSubmit]*Reveal{}
-		for voter, reveal := range allRevealsByRound[round] {
+		for voter, reveal := range revealsByRound[round] {
 			if voterIndex.BySubmit[voter] != nil {
 				validReveals[voter] = reveal
 			} else {
@@ -254,7 +164,7 @@ func getRoundReveals(
 		}
 
 		registeredOffenders, matchingReveals := getRevealsAndOffenders(validCommits, validReveals, round)
-		allOffenders, _ := getRevealsAndOffenders(allCommitsByRound[round], allRevealsByRound[round], round)
+		allOffenders, _ := getRevealsAndOffenders(commitsByRound[round], revealsByRound[round], round)
 
 		roundData[round] = RoundReveals{
 			Reveals:             matchingReveals,

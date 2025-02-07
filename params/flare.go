@@ -18,6 +18,7 @@ var flare = Network{
 		VoterRegistry:              common.HexToAddress("0x2580101692366e2f331e891180d9ffdF861Fce83"),
 		FastUpdateIncentiveManager: common.HexToAddress("0xd648e8ACA486Ce876D641A0F53ED1F2E9eF4885D"),
 		FastUpdater:                common.HexToAddress("0xdBF71d7840934EB82FA10173103D4e9fd4054dd1"),
+		FdcHub:                     common.HexToAddress("0xc25c749DC27Efb1864Cb3DADa8845B7687eB2d44"),
 	},
 
 	InitialRewardEpochId: 183,
@@ -46,5 +47,10 @@ var flare = Network{
 		FinalizationVoterSelectionThresholdWeightBips:             500,
 		CappedStakingFeeBips:           2000,
 		NonBenchedRandomVotersMinCount: 2,
+	},
+
+	Fdc: Fdc{
+		FinalizationBips: big.NewInt(1000),
+		PenaltyFactor:    big.NewInt(30),
 	},
 }

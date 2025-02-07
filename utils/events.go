@@ -4,6 +4,7 @@ import (
 	"fsp-rewards-calculator/logger"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fupdater"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
@@ -14,10 +15,11 @@ import (
 )
 
 type EventIds struct {
-	RewardsOffered            string
-	InflationRewardsOffered   string
-	FUInflationRewardsOffered string
-	FUIncentiveRewardOffered  string
+	RewardsOffered             string
+	InflationRewardsOffered    string
+	FUInflationRewardsOffered  string
+	FUIncentiveRewardOffered   string
+	FdcInflationRewardsOffered string
 
 	FastUpdateFeeds          string
 	FastUpdateFeedsSubmitted string
@@ -29,6 +31,8 @@ type EventIds struct {
 	SigningPolicyInitialized string
 	VoterRegistered          string
 	VoterRegistrationInfo    string
+
+	FdcAttestationRequest string
 }
 
 type FunctionSigs struct {
@@ -39,10 +43,11 @@ type FunctionSigs struct {
 }
 
 var EventTopic0 = EventIds{
-	RewardsOffered:            eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
-	InflationRewardsOffered:   eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
-	FUInflationRewardsOffered: eventIDFromMetadata(fumanager.FUManagerMetaData, "InflationRewardsOffered"),
-	FUIncentiveRewardOffered:  eventIDFromMetadata(fumanager.FUManagerMetaData, "IncentiveOffered"),
+	RewardsOffered:             eventIDFromMetadata(offers.OffersMetaData, "RewardsOffered"),
+	InflationRewardsOffered:    eventIDFromMetadata(offers.OffersMetaData, "InflationRewardsOffered"),
+	FUInflationRewardsOffered:  eventIDFromMetadata(fumanager.FUManagerMetaData, "InflationRewardsOffered"),
+	FUIncentiveRewardOffered:   eventIDFromMetadata(fumanager.FUManagerMetaData, "IncentiveOffered"),
+	FdcInflationRewardsOffered: eventIDFromMetadata(fdchub.FdcHubMetaData, "InflationRewardsOffered"),
 
 	RewardEpochStarted:       eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RewardEpochStarted"),
 	RandomAcquisitionStarted: eventIDFromMetadata(system.FlareSystemsManagerMetaData, "RandomAcquisitionStarted"),
@@ -54,6 +59,8 @@ var EventTopic0 = EventIds{
 
 	FastUpdateFeeds:          eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeeds"),
 	FastUpdateFeedsSubmitted: eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeedsSubmitted"),
+
+	FdcAttestationRequest: eventIDFromMetadata(fdchub.FdcHubMetaData, "AttestationRequest"),
 }
 
 var FunctionSignatures = FunctionSigs{
