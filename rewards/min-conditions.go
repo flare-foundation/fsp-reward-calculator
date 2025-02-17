@@ -1,10 +1,17 @@
 package rewards
 
 import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
+	"github.com/btcsuite/btcutil/base58"
+	"github.com/pkg/errors"
+	"io"
 	"math/big"
+	"net/http"
 )
 
 var FtsoScalingClosenessThresholdPpm = big.NewInt(5000)      // 0.5%
@@ -103,4 +110,136 @@ func metFUCondition(index *data.VoterIndex, updates map[ty.RoundId]*data.FUpdate
 
 	logger.Info("Total submitters: %d", totalUpdates)
 	return metCondition
+}
+
+var StakingUptimeThresholdPpm = big.NewInt(800000)               // 80%
+var StakingMinSelfBondGwei = big.NewInt(1000000000000000)        // 1M FLR
+var StakingMinDesiredSelfBondGwei = big.NewInt(3000000000000000) // 3M FLR
+var StakingMinDesiredStakeGwei = big.NewInt(15000000000000000)   // 15M FLR
+
+type StakingCondition uint8
+
+const (
+	NotMet StakingCondition = iota
+	Met
+	MetNoPass
+)
+
+func MetStakingContiion(epoch ty.EpochId, voters *data.VoterIndex) map[ty.VoterId]StakingCondition {
+	metCondition := map[ty.VoterId]StakingCondition{}
+
+	validatorInfoByNode, err := FetchValidatorInfo(epoch)
+	if err != nil {
+		logger.Fatal("Failed to fetch validator info: %s", err)
+	}
+
+	for _, voter := range voters.PolicyOrder {
+		stakeWithUptime := big.NewInt(0)
+		totalSelfBond := big.NewInt(0)
+		stake := big.NewInt(0)
+
+		for _, node := range voter.NodeIds {
+			validatorInfo, ok := validatorInfoByNode[hex.EncodeToString(node[:])]
+			if !ok {
+				logger.Fatal("Validator info not found for node %s", node)
+			}
+
+			if validatorInfo.UptimeEligible {
+				stakeWithUptime.Add(stakeWithUptime, validatorInfo.TotalStakeAmount)
+			}
+
+			totalSelfBond.Add(totalSelfBond, validatorInfo.SelfBond)
+			stake.Add(stake, validatorInfo.TotalStakeAmount)
+		}
+
+		threshold := new(big.Int).Div(
+			new(big.Int).Mul(stake, StakingUptimeThresholdPpm),
+			bigTotalPPM,
+		)
+
+		if stakeWithUptime.Cmp(threshold) >= 0 && totalSelfBond.Cmp(StakingMinSelfBondGwei) >= 0 {
+			if totalSelfBond.Cmp(StakingMinDesiredSelfBondGwei) < 0 || stake.Cmp(StakingMinDesiredStakeGwei) < 0 {
+				metCondition[voter.Identity] = MetNoPass
+			} else {
+				metCondition[voter.Identity] = Met
+			}
+		}
+	}
+
+	return metCondition
+}
+
+type ValidatorInfo struct {
+	NodeId           string
+	SelfBond         *big.Int
+	TotalStakeAmount *big.Int
+	UptimeEligible   bool
+}
+
+func FetchValidatorInfo(epoch ty.EpochId) (map[string]ValidatorInfo, error) {
+	url := fmt.Sprintf("https://raw.githubusercontent.com/flare-foundation/reward-scripts/refs/heads/main/generated-files/reward-epoch-%d/initial-nodes-data.json", epoch)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch raw: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	type jsonData struct {
+		NodeId           string `json:"nodeId"`
+		SelfBond         string `json:"selfBond"`
+		TotalStakeAmount string `json:"totalStakeAmount"`
+		UptimeEligible   bool   `json:"uptimeEligible"`
+	}
+
+	var raw []jsonData
+	err = json.Unmarshal(body, &raw)
+	if err != nil {
+		return nil, err
+	}
+
+	var res map[string]ValidatorInfo
+	for _, d := range raw {
+		selfBond, ok := new(big.Int).SetString(d.SelfBond[:len(d.SelfBond)-1], 10)
+		if !ok {
+			return nil, errors.Errorf("failed to parse selfBond: %s", d.SelfBond)
+		}
+
+		totalStakeAmount, ok := new(big.Int).SetString(d.TotalStakeAmount[:len(d.TotalStakeAmount)-1], 10)
+		if !ok {
+			return nil, errors.Errorf("failed to parse totalStakeAmount: %s", d.TotalStakeAmount)
+		}
+
+		nodeIdHex, err := parseNodeIdHex(d.NodeId)
+		if err != nil {
+			return nil, err
+		}
+
+		res[nodeIdHex] = ValidatorInfo{
+			NodeId:           nodeIdHex,
+			SelfBond:         selfBond,
+			TotalStakeAmount: totalStakeAmount,
+			UptimeEligible:   d.UptimeEligible,
+		}
+	}
+
+	return res, nil
+}
+
+func parseNodeIdHex(node string) (string, error) {
+	// Strip prefix and decode
+	decoded := base58.Decode(node[7:])
+	if len(decoded) < 4 {
+		return "", errors.Errorf("Decoded length is less than 4")
+	}
+	return hex.EncodeToString(decoded[:len(decoded)-4]), nil
 }

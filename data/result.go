@@ -28,6 +28,8 @@ func CalculateResults(
 		for voter, reveal := range validReveals {
 			if _, ok := re.VoterIndex.BySubmit[voter]; ok {
 				eligibleReveals[voter] = reveal
+			} else {
+				logger.Fatal("Voter %s not found in voterIndex, skipping reveal - should have been prefiletered before", voter)
 			}
 		}
 

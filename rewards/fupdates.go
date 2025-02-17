@@ -55,7 +55,7 @@ func gatFUpdateClaims(re *data.RewardEpoch, roundUpdates *data.FUpdate, rewardOf
 func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *data.FUpdate, medianResult *data.Result, medianDecimals int) *ty.RewardClaim {
 	if rewardOffer.ShouldBurn {
 		return &ty.RewardClaim{
-			Beneficiary: burnAddress,
+			Beneficiary: BurnAddress,
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
 			Type:        ty.Direct,
 		}
@@ -63,7 +63,7 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *data.FUpdate, media
 	}
 	if len(roundUpdates.Submitters) == 0 || medianResult == nil {
 		return &ty.RewardClaim{
-			Beneficiary: burnAddress,
+			Beneficiary: BurnAddress,
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
 			Type:        ty.Direct,
 		}
@@ -89,7 +89,7 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *data.FUpdate, media
 
 	if value.Cmp(low) < 0 || value.Cmp(high) > 0 {
 		return &ty.RewardClaim{
-			Beneficiary: burnAddress,
+			Beneficiary: BurnAddress,
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
 			Type:        ty.Direct,
 		}

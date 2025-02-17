@@ -12,7 +12,12 @@ import (
 	"slices"
 )
 
-func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId, submit1 []payload.Message, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) []ty.RewardClaim {
+type FtsoMinConditions struct {
+	Scaling     map[ty.VoterId]bool
+	FastUpdates map[ty.VoterId]bool
+}
+
+func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId, submit1 []payload.Message, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, FtsoMinConditions) {
 	var (
 		revealsByRound       map[ty.RoundId]data.RoundReveals
 		signersByRound       data.SignerMap
@@ -63,7 +68,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 
 		if totalRoundReward.ShouldBurn {
 			epochClaims = append(epochClaims, ty.RewardClaim{
-				Beneficiary: burnAddress,
+				Beneficiary: BurnAddress,
 				Amount:      new(big.Int).Set(totalRoundReward.Amount),
 				Type:        ty.Direct,
 			})
@@ -109,7 +114,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		logger.Info("Calculating finalization claims for round %d", round)
 		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
 		if err != nil {
-			return nil
+			logger.Fatal("error selecting finalizers: %s", err)
 		}
 		finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
 
@@ -170,7 +175,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 	var fuCond = metFUCondition(re.VoterIndex, fUpdatesByRound)
 	logger.Info("FTSO condition met: %v", cond, fuCond)
 
-	return epochClaims
+	return epochClaims, FtsoMinConditions{cond, fuCond}
 }
 
 func getFeedSelectionRandoms(

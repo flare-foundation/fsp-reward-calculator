@@ -52,7 +52,7 @@ func ApplyPenalties(claims []ty.RewardClaim) []ty.RewardClaim {
 	burnAmount := big.NewInt(0)
 
 	for i, claim := range claims {
-		if claim.Beneficiary == burnAddress {
+		if claim.Beneficiary == BurnAddress {
 			burnAmount.Add(burnAmount, claim.Amount)
 			continue
 		}

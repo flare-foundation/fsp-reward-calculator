@@ -13,7 +13,7 @@ import (
 
 func burnClaim(amount *big.Int) ty.RewardClaim {
 	return ty.RewardClaim{
-		Beneficiary: burnAddress,
+		Beneficiary: BurnAddress,
 		Amount:      amount,
 		Type:        ty.Direct,
 	}

@@ -24,7 +24,7 @@ func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.In
 	// Burn rewardOffer if turnout condition not reached
 	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.VoterIndex.TotalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
 		epochClaims = append(epochClaims, ty.RewardClaim{
-			Beneficiary: burnAddress,
+			Beneficiary: BurnAddress,
 			Amount:      new(big.Int).Set(rewardShare),
 			Type:        ty.Direct,
 		})
@@ -70,7 +70,7 @@ func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.In
 	if totalNormWeight.Cmp(bigZero) == 0 {
 		// Burn rewardOffer if no eligible submissions
 		epochClaims = append(epochClaims, ty.RewardClaim{
-			Beneficiary: burnAddress,
+			Beneficiary: BurnAddress,
 			Amount:      new(big.Int).Set(rewardShare),
 			Type:        ty.Direct,
 		})

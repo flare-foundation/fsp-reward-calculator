@@ -9,7 +9,7 @@ const totalBips = 10000
 const totalPpm = 1000000
 
 var (
-	burnAddress  = common.HexToAddress("0x000000000000000000000000000000000000dEaD")
+	BurnAddress  = common.HexToAddress("0x000000000000000000000000000000000000dEaD")
 	bigTotalBips = big.NewInt(int64(totalBips))
 	bigTotalPPM  = big.NewInt(int64(totalPpm))
 	bigZero      = big.NewInt(0)
