@@ -165,6 +165,11 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 
 		epochClaims = append(epochClaims, roundClaims...)
 	}
+
+	var cond = metFtsoCondition(re.VoterIndex, len(re.OrderedFeeds), results)
+	var fuCond = metFUCondition(re.VoterIndex, fUpdatesByRound)
+	logger.Info("FTSO condition met: %v", cond, fuCond)
+
 	return epochClaims
 }
 
