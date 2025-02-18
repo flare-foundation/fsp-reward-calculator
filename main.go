@@ -4,14 +4,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/rewards"
 	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"gorm.io/gorm"
 	"io"
+	"math/big"
 	"net/http"
 	"time"
 )
@@ -66,7 +69,7 @@ func main() {
 
 	start := time.Now()
 	res := calculateResults(db, epoch)
-	printResults(res)
+	printResults(res, "")
 
 	elapsed := time.Since(start)
 	logger.Info("Merkle root for epoch %d: %s, no weight based %d, duration: %s", epoch, res.MerkleRoot, res.NoOfWeightBasedClaims, elapsed)
@@ -97,50 +100,82 @@ func calculateResults(db *gorm.DB, epoch ty.EpochId) epochResult {
 	merged := rewards.MergeClaims(allClaims)
 	logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
 
-	resultClaims := applyMinConditions(epoch, merged, minCond)
+	utils.PrintEpochClaims(merged, epoch, "all")
+	finalClaims := rewards.ApplyPenalties(merged)
+	utils.PrintEpochClaims(finalClaims, epoch, "merged")
+
+	nonConditions := buildResults(epoch, finalClaims)
+	printResults(nonConditions, "-raw")
+
+	resultClaims := applyMinConditions(epoch, finalClaims, minCond)
 
 	return buildResults(epoch, resultClaims)
 }
 
-func applyMinConditions(epoch ty.EpochId, merged []ty.RewardClaim, cond map[ty.VoterId]rewards.MinConditions) []ty.RewardClaim {
-	currentPasses, err := fetCurrentPasses(epoch)
+func applyMinConditions(epoch ty.EpochId, merged []ty.RewardClaim, cond map[*data.VoterInfo]rewards.MinConditions) []ty.RewardClaim {
+	currentPasses, err := fetCurrentPasses(epoch - 1)
 	if err != nil {
 		logger.Error("Error fetching current passes: %s, defaulting to 0 for all providers", err)
 	}
 
-	claimByVoter := map[common.Address]*ty.RewardClaim{}
-	for _, c := range merged {
-		claimByVoter[c.Beneficiary] = &c
-	}
+	futurePasses, _ := fetCurrentPasses(epoch)
 
-	for voterId, c := range cond {
-		passes := currentPasses[voterId] + c.PassDelta
+	burnClaims := map[common.Address]bool{}
+	burnClaims[rewards.BurnAddress] = true
+
+	for voter, c := range cond {
+		passes := currentPasses[voter.Identity] + c.PassDelta
 
 		if passes < 0 {
-			// burn claims for voter
-			burnClaim := claimByVoter[rewards.BurnAddress]
-			voterClaim := claimByVoter[common.Address(voterId)]
+			logger.Warn("Voter id %s del %s has negative passes: %d, burning claims", voter.Identity.String(), voter.Delegation.String(), passes)
 
-			if voterClaim != nil {
-				burnClaim.Amount.Add(burnClaim.Amount, voterClaim.Amount)
-				claimByVoter[common.Address(voterId)] = nil
+			burnClaims[common.Address(voter.Identity)] = true
+			burnClaims[common.Address(voter.Delegation)] = true
+			for _, node := range voter.NodeIds {
+				burnClaims[node] = true
 			}
+		}
+
+		if passes < 0 {
+			passes = 0
+		}
+		if passes > 3 {
+			passes = 3
+		}
+
+		if futurePasses[voter.Identity] != passes {
+			logger.Warn("Voter %s has different passes for future epoch: %d != %d", voter.Identity.String(), futurePasses[voter.Identity], passes)
 		}
 	}
 
 	var resRewards []ty.RewardClaim
-	for _, c := range claimByVoter {
-		if c != nil {
-			resRewards = append(resRewards, *c)
+	finalBurnClaim := ty.RewardClaim{
+		Beneficiary: rewards.BurnAddress,
+		Amount:      big.NewInt(0),
+		Type:        ty.Direct,
+	}
+
+	for _, claim := range merged {
+		if burnClaims[claim.Beneficiary] {
+			finalBurnClaim.Amount.Add(finalBurnClaim.Amount, claim.Amount)
+			logger.Info("Burn claim: %s %d %d", claim.Beneficiary.String(), claim.Amount, claim.Type)
+		} else {
+			resRewards = append(resRewards, claim)
 		}
 	}
+
+	if finalBurnClaim.Amount.Cmp(rewards.BigZero) > 0 {
+		resRewards = append([]ty.RewardClaim{finalBurnClaim}, resRewards...)
+	}
+
+	logger.Info("Original claims: %d, final claims: %d", len(merged), len(resRewards))
 
 	// TODO: Print out current passes locally and support reading from file?
 	return resRewards
 }
 
 func fetCurrentPasses(epoch ty.EpochId) (map[ty.VoterId]int, error) {
-	url := fmt.Sprintf("https://raw.githubusercontent.com/flare-foundation/fsp-rewards/refs/heads/main/flare/%d/passes.json", epoch)
+	url := fmt.Sprintf("https://raw.githubusercontent.com/flare-foundation/fsp-rewards/refs/heads/main/%s/%d/passes.json", params.Net.Name, epoch)
 
 	resp, err := http.Get(url)
 	if err != nil {

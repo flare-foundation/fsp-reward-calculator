@@ -9,7 +9,7 @@ import (
 )
 
 // GetEpochClaims calculates the reward claims for a reward epoch
-func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[ty.VoterId]MinConditions) {
+func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[*data.VoterInfo]MinConditions) {
 	epochs, err := data.LoadRewardEpochs(epoch, db)
 	if err != nil {
 		logger.Fatal("error fetching reward epochs", err)
@@ -52,13 +52,20 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[ty.Vot
 	return epochClaims, cond
 }
 
-func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMinConditions) map[ty.VoterId]MinConditions {
-	stakingCond := MetStakingCondition(epoch, voters)
+func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMinConditions) map[*data.VoterInfo]MinConditions {
+	stakingCond := map[ty.VoterId]StakingCondition{}
+	if params.Net.Name == "flare" {
+		stakingCond = MetStakingCondition(epoch, voters)
+	}
 
-	cond := map[ty.VoterId]MinConditions{}
+	cond := map[*data.VoterInfo]MinConditions{}
 
 	for _, voter := range voters.PolicyOrder {
 		c := MinConditions{}
+
+		if params.Net.Name != "flare" {
+			stakingCond[voter.Identity] = Met
+		}
 
 		if !conditions.FastUpdates[voter.Identity] {
 			c.PassDelta--
@@ -82,7 +89,7 @@ func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMi
 			}
 		}
 
-		cond[voter.Identity] = c
+		cond[voter] = c
 	}
 
 	return cond

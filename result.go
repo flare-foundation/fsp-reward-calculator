@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
-	"fsp-rewards-calculator/rewards"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,11 +31,7 @@ type outputClaim struct {
 	Epoch       ty.EpochId     `json:"rewardEpochId"`
 }
 
-func buildResults(epoch ty.EpochId, claims []ty.RewardClaim) epochResult {
-	utils.PrintEpochClaims(claims, epoch, "all")
-	finalClaims := rewards.ApplyPenalties(claims)
-	utils.PrintEpochClaims(finalClaims, epoch, "merged")
-
+func buildResults(epoch ty.EpochId, finalClaims []ty.RewardClaim) epochResult {
 	var hashes []common.Hash
 	var weightBasedClaims = 0
 	for _, claim := range finalClaims {
@@ -88,8 +83,8 @@ func buildResults(epoch ty.EpochId, claims []ty.RewardClaim) epochResult {
 	return res
 }
 
-func printResults(result epochResult) {
-	filePath := fmt.Sprintf("results/%s/%d/result.json", params.Net.Name, result.RewardEpochId)
+func printResults(result epochResult, suffix string) {
+	filePath := fmt.Sprintf("results/%s/%d/result%s.json", params.Net.Name, result.RewardEpochId, suffix)
 
 	jsonData, err := json.MarshalIndent(result, "", "    ")
 	if err != nil {

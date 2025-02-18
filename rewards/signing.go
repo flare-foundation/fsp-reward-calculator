@@ -134,7 +134,7 @@ func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.Re
 	}
 
 	totalWeight := new(big.Int).Add(voter.CappedWeight, stakedWeight)
-	if totalWeight.Cmp(bigZero) == 0 {
+	if totalWeight.Cmp(BigZero) == 0 {
 		logger.Fatal("voter totalWeight is zero, this should never happen")
 	}
 
@@ -156,7 +156,7 @@ func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.Re
 	delegationBeneficiary := common.Address(voter.Delegation)
 
 	fee := new(big.Int).Add(delegationFee, stakingFee)
-	if fee.Cmp(bigZero) != 0 {
+	if fee.Cmp(BigZero) != 0 {
 		claims = append(claims, ty.RewardClaim{
 			Beneficiary: feeBeneficiary,
 			Amount:      fee,
@@ -180,7 +180,7 @@ func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.Re
 
 		nodeAmount := big.NewInt(0)
 
-		if nodeWeight.Cmp(bigZero) > 0 {
+		if nodeWeight.Cmp(BigZero) > 0 {
 			nodeAmount = new(big.Int).Div(
 				bigTmp.Mul(remainingStakeAmount, nodeWeight),
 				remainingStakeWeight,
@@ -197,7 +197,7 @@ func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.Re
 		})
 	}
 
-	if remainingStakeAmount.Cmp(bigZero) != 0 {
+	if remainingStakeAmount.Cmp(BigZero) != 0 {
 		logger.Fatal("remainingStakeAmount is not zero, this should never happen")
 	}
 

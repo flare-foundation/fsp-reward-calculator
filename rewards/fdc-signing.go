@@ -63,7 +63,7 @@ func generateFdcSigningClaims(finalizations []*data.Finalization, round ty.Round
 			if !dominatesConsensusBitVote(bitVote, consensusBitVote) {
 				burnAmount := big.NewInt(0).Div(big.NewInt(0).Mul(voterAmount, big.NewInt(200000)),
 					bigTotalPPM)
-				if burnAmount.Cmp(bigZero) >= 0 {
+				if burnAmount.Cmp(BigZero) >= 0 {
 					signingClaims = append(signingClaims, burnClaim(burnAmount))
 					voterAmount.Sub(voterAmount, burnAmount)
 				}

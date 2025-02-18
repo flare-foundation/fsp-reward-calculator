@@ -43,11 +43,12 @@ func (v *VoterId) String() string {
 	return common.Address(*v).String()
 }
 func (v *VoterSubmit) String() string { return common.Address(*v).String() }
-
 func (v *VoterSubmitSignatures) String() string {
 	return common.Address(*v).String()
 }
-
 func (v *VoterSigning) String() string {
+	return common.Address(*v).String()
+}
+func (v *VoterDelegation) String() string {
 	return common.Address(*v).String()
 }

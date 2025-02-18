@@ -83,7 +83,7 @@ func getFinalizationClaims(
 		claims = append(claims, SigningWeightClaimsForVoter(voter, claimAmount)...)
 	}
 
-	if undistributedAmount.Cmp(bigZero) != 0 {
+	if undistributedAmount.Cmp(BigZero) != 0 {
 		logger.Info("Burning undistributed finalization reward amount: %s", undistributedAmount.String())
 		claims = append(claims, burnClaim(undistributedAmount))
 	}

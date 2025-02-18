@@ -36,7 +36,7 @@ func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.In
 	totalNormWeight := big.NewInt(0)
 	for i, record := range sortedRecords {
 		newWeight := big.NewInt(0)
-		if pctSum.Cmp(bigZero) == 0 {
+		if pctSum.Cmp(BigZero) == 0 {
 			if record.isIqr {
 				newWeight.Set(record.weight)
 			}
@@ -67,7 +67,7 @@ func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.In
 		totalNormWeight.Add(totalNormWeight, newWeight)
 	}
 
-	if totalNormWeight.Cmp(bigZero) == 0 {
+	if totalNormWeight.Cmp(BigZero) == 0 {
 		// Burn rewardOffer if no eligible submissions
 		epochClaims = append(epochClaims, ty.RewardClaim{
 			Beneficiary: BurnAddress,
@@ -87,12 +87,12 @@ func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.In
 
 	var claims []ty.RewardClaim
 	for _, record := range sortedRecords {
-		if record.weight.Cmp(bigZero) == 0 {
+		if record.weight.Cmp(BigZero) == 0 {
 			continue
 		}
 		reward := big.NewInt(0)
-		if record.weight.Cmp(bigZero) > 0 {
-			if availableWeight.Cmp(bigZero) == 0 {
+		if record.weight.Cmp(BigZero) > 0 {
+			if availableWeight.Cmp(BigZero) == 0 {
 				logger.Fatal("availableWeight is zero, this should never happen")
 			}
 
@@ -204,7 +204,7 @@ func generateClaimsForVoter(voter *data.VoterInfo, reward *big.Int) []ty.RewardC
 		bigTotalBips,
 	)
 
-	if fee.Cmp(bigZero) > 0 {
+	if fee.Cmp(BigZero) > 0 {
 		claims = append(claims, ty.RewardClaim{
 			Beneficiary: common.Address(voter.Identity),
 			Amount:      fee,
@@ -213,7 +213,7 @@ func generateClaimsForVoter(voter *data.VoterInfo, reward *big.Int) []ty.RewardC
 	}
 
 	participationReward := new(big.Int).Sub(reward, fee)
-	if participationReward.Cmp(bigZero) > 0 {
+	if participationReward.Cmp(BigZero) > 0 {
 		claims = append(claims, ty.RewardClaim{
 			Beneficiary: common.Address(voter.Delegation),
 			Amount:      participationReward,

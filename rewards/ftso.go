@@ -98,7 +98,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		// Only voters receiving median rewards are eligible for signing and finalization rewards
 		var eligibleVoters []*data.VoterInfo
 		for _, claim := range medianClaims {
-			if claim.Type != ty.WNat || claim.Amount.Cmp(bigZero) <= 0 {
+			if claim.Type != ty.WNat || claim.Amount.Cmp(BigZero) <= 0 {
 				continue
 			}
 			voter, ok := re.VoterIndex.ByDelegation[ty.VoterDelegation(claim.Beneficiary)]
