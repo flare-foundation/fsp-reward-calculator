@@ -53,7 +53,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[ty.Vot
 }
 
 func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMinConditions) map[ty.VoterId]MinConditions {
-	stakingCond := MetStakingContiion(epoch, voters)
+	stakingCond := MetStakingCondition(epoch, voters)
 
 	cond := map[ty.VoterId]MinConditions{}
 

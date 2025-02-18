@@ -125,7 +125,7 @@ const (
 	MetNoPass
 )
 
-func MetStakingContiion(epoch ty.EpochId, voters *data.VoterIndex) map[ty.VoterId]StakingCondition {
+func MetStakingCondition(epoch ty.EpochId, voters *data.VoterIndex) map[ty.VoterId]StakingCondition {
 	metCondition := map[ty.VoterId]StakingCondition{}
 
 	validatorInfoByNode, err := FetchValidatorInfo(epoch)
@@ -139,9 +139,11 @@ func MetStakingContiion(epoch ty.EpochId, voters *data.VoterIndex) map[ty.VoterI
 		stake := big.NewInt(0)
 
 		for _, node := range voter.NodeIds {
-			validatorInfo, ok := validatorInfoByNode[hex.EncodeToString(node[:])]
+			nodeHex := hex.EncodeToString(node[:])
+			validatorInfo, ok := validatorInfoByNode[nodeHex]
 			if !ok {
-				logger.Fatal("Validator info not found for node %s", node)
+				logger.Warn("Validator info not found for voter %s node %s", voter.Identity.String(), nodeHex)
+				continue
 			}
 
 			if validatorInfo.UptimeEligible {
@@ -207,7 +209,7 @@ func FetchValidatorInfo(epoch ty.EpochId) (map[string]ValidatorInfo, error) {
 		return nil, err
 	}
 
-	var res map[string]ValidatorInfo
+	res := map[string]ValidatorInfo{}
 	for _, d := range raw {
 		selfBond, ok := new(big.Int).SetString(d.SelfBond[:len(d.SelfBond)-1], 10)
 		if !ok {
