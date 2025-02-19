@@ -104,10 +104,15 @@ func calculateResults(db *gorm.DB, epoch ty.EpochId) epochResult {
 	finalClaims := rewards.ApplyPenalties(merged)
 	utils.PrintEpochClaims(finalClaims, epoch, "merged")
 
-	nonConditions := buildResults(epoch, finalClaims)
-	printResults(nonConditions, "-raw")
+	var resultClaims []ty.RewardClaim
+	if params.Net.Name == "flare" || params.Net.Name == "songbird" {
+		nonConditions := buildResults(epoch, finalClaims)
+		printResults(nonConditions, "-raw")
 
-	resultClaims := applyMinConditions(epoch, finalClaims, minCond)
+		resultClaims = applyMinConditions(epoch, finalClaims, minCond)
+	} else {
+		resultClaims = finalClaims
+	}
 
 	return buildResults(epoch, resultClaims)
 }
