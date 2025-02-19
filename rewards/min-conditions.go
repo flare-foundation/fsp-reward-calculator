@@ -43,17 +43,12 @@ func metFtsoCondition(voterIndex *data.VoterIndex, totalFeeds int, results map[t
 	rounds := len(results)
 	availableHits := rounds * totalFeeds
 
-	threshold := new(big.Int).Div(
-		new(big.Int).Mul(
-			FtsoScalingAvailabilityThresholdPpm,
-			big.NewInt(int64(availableHits))),
-		bigTotalPPM,
-	)
-
 	metCondition := map[ty.VoterId]bool{}
 	for voter, hits := range voterHits {
 		bigHits := big.NewInt(int64(hits))
-		if bigHits.Cmp(threshold) >= 0 {
+
+		// hits >= availableHits * FtsoScalingAvailabilityThresholdPpm/TotalPPM
+		if new(big.Int).Mul(bigTotalPPM, bigHits).Cmp(new(big.Int).Mul(FtsoScalingAvailabilityThresholdPpm, big.NewInt(int64(availableHits)))) >= 0 {
 			metCondition[voter] = true
 		}
 		logger.Info("Voter %s hits: %d, met condition: %b", voter.String(), hits, metCondition[voter])
@@ -101,7 +96,10 @@ func metFUCondition(index *data.VoterIndex, updates map[ty.RoundId]*data.FUpdate
 			continue
 		}
 
-		if big.NewInt(int64(voterUpdates[voter.Signing])).Cmp(expectedUpdates) >= 0 {
+		bigUpdates := big.NewInt(int64(voterUpdates[voter.Signing]))
+		bigTotalUpdates := big.NewInt(int64(totalUpdates))
+		// updates >= totalUpdates * expectedUpdatesPpm/TotalPPM
+		if new(big.Int).Mul(bigUpdates, bigTotalPPM).Cmp(new(big.Int).Mul(expectedUpdatesPpm, bigTotalUpdates)) >= 0 {
 			metCondition[voter.Identity] = true
 		}
 
@@ -136,7 +134,7 @@ func MetStakingCondition(epoch ty.EpochId, voters *data.VoterIndex) map[ty.Voter
 	for _, voter := range voters.PolicyOrder {
 		stakeWithUptime := big.NewInt(0)
 		totalSelfBond := big.NewInt(0)
-		stake := big.NewInt(0)
+		totalStake := big.NewInt(0)
 
 		for _, node := range voter.NodeIds {
 			nodeHex := hex.EncodeToString(node[:])
@@ -151,16 +149,14 @@ func MetStakingCondition(epoch ty.EpochId, voters *data.VoterIndex) map[ty.Voter
 			}
 
 			totalSelfBond.Add(totalSelfBond, validatorInfo.SelfBond)
-			stake.Add(stake, validatorInfo.TotalStakeAmount)
+			totalStake.Add(totalStake, validatorInfo.TotalStakeAmount)
 		}
 
-		threshold := new(big.Int).Div(
-			new(big.Int).Mul(stake, StakingUptimeThresholdPpm),
-			bigTotalPPM,
-		)
+		// stakeWithUptime >= totalStake * StakingUptimeThresholdPpm/TotalPPM
+		uptimeOk := new(big.Int).Mul(bigTotalPPM, stakeWithUptime).Cmp(new(big.Int).Mul(StakingUptimeThresholdPpm, totalStake)) >= 0
 
-		if stakeWithUptime.Cmp(threshold) >= 0 && totalSelfBond.Cmp(StakingMinSelfBondGwei) >= 0 {
-			if totalSelfBond.Cmp(StakingMinDesiredSelfBondGwei) < 0 || stake.Cmp(StakingMinDesiredStakeGwei) < 0 {
+		if uptimeOk && totalSelfBond.Cmp(StakingMinSelfBondGwei) >= 0 {
+			if totalSelfBond.Cmp(StakingMinDesiredSelfBondGwei) < 0 || totalStake.Cmp(StakingMinDesiredStakeGwei) < 0 {
 				metCondition[voter.Identity] = MetNoPass
 			} else {
 				metCondition[voter.Identity] = Met
