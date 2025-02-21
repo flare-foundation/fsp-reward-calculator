@@ -123,8 +123,6 @@ func applyMinConditions(epoch ty.EpochId, merged []ty.RewardClaim, cond map[*dat
 		logger.Error("Error fetching current passes: %s, defaulting to 0 for all providers", err)
 	}
 
-	futurePasses, _ := fetCurrentPasses(epoch)
-
 	burnClaims := map[common.Address]bool{}
 	burnClaims[rewards.BurnAddress] = true
 
@@ -146,10 +144,6 @@ func applyMinConditions(epoch ty.EpochId, merged []ty.RewardClaim, cond map[*dat
 		}
 		if passes > 3 {
 			passes = 3
-		}
-
-		if futurePasses[voter.Identity] != passes {
-			logger.Warn("Voter %s has different passes for future epoch: %d != %d", voter.Identity.String(), futurePasses[voter.Identity], passes)
 		}
 	}
 
