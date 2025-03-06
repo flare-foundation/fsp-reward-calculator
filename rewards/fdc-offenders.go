@@ -17,13 +17,20 @@ func getOffenders(
 	offenders := map[ty.VoterSigning]bool{}
 
 	var revealOffenders []ty.VoterId
-	for voterSubmit := range bitVotes {
-		voter := voterIndex.BySubmit[voterSubmit]
-		_, ok := consensusSigs[voter.Signing]
-		if !ok {
-			revealOffenders = append(revealOffenders, voter.Identity)
-			offenders[voter.Signing] = true
+	if consensusBitVote != nil {
+		for voterSubmit, bitVote := range bitVotes {
+			voter := voterIndex.BySubmit[voterSubmit]
+			if !dominatesConsensusBitVote(bitVote, consensusBitVote) {
+				continue
+			}
+			_, ok := consensusSigs[voter.Signing]
+			if !ok {
+				revealOffenders = append(revealOffenders, voter.Identity)
+				offenders[voter.Signing] = true
+			}
 		}
+	} else {
+		logger.Debug("consensusBitVote is nil, skipping reveal offenders check")
 	}
 
 	var wrongSignatureOffenders []ty.VoterId
