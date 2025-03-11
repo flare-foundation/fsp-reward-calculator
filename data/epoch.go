@@ -26,7 +26,7 @@ type RewardEpoch struct {
 	EndRound      ty.RoundId
 	Policy        *votersLib.SigningPolicy
 	Offers        RewardOffers
-	OrderedFeeds  []Feed
+	OrderedFeeds  []ty.Feed
 	OrderedVoters []ty.VoterSigning
 	VoterIndex    *VoterIndex
 }

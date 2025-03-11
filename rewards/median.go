@@ -169,7 +169,7 @@ func getRecords(round ty.RoundId, re *data.RewardEpoch, medianResult *data.Resul
 
 var randomArgs = abi.Arguments{{Type: utils.BytesType}, {Type: utils.Uint256Type}, {Type: utils.AddressType}}
 
-func randomSelect(feedId data.FeedId, round ty.RoundId, voter ty.VoterSubmit) bool {
+func randomSelect(feedId ty.FeedId, round ty.RoundId, voter ty.VoterSubmit) bool {
 	pack, err := randomArgs.Pack(feedId[:], big.NewInt(int64(round)), common.Address(voter))
 	if err != nil {
 		logger.Fatal("error packing arguments, this should never happen: %s", err)

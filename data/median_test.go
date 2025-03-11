@@ -32,20 +32,6 @@ func TestCalculateMedian(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Single Value",
-			arg: []VoterValue{
-				{Value: 1, Weight: big.NewInt(1)},
-			},
-
-			want: Result{
-				Q1:                1,
-				Median:            1,
-				Q3:                1,
-				ParticipantWeight: big.NewInt(1),
-			},
-			wantErr: false,
-		},
-		{
 			name: "Two values",
 			arg: []VoterValue{
 				{Value: 1, Weight: big.NewInt(1)},

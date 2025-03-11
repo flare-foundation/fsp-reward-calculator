@@ -7,7 +7,7 @@ import (
 
 type RoundResult struct {
 	Round  ty.RoundId
-	Median map[FeedId]*Result
+	Median map[ty.FeedId]*Result
 	Random RandomResult
 }
 

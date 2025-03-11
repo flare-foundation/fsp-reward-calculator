@@ -31,7 +31,7 @@ type RoundPrintData struct {
 	FeedDecoded string
 }
 
-func PrintRoundData(results RoundResult, reveals RoundReveals, feed *Feed, selection *big.Int, epoch ty.EpochId, round ty.RoundId) {
+func PrintRoundData(results RoundResult, reveals RoundReveals, feed *ty.Feed, selection *big.Int, epoch ty.EpochId, round ty.RoundId) {
 	var roundData RoundPrintData
 
 	for voter, reveal := range reveals.Reveals {

@@ -9,7 +9,7 @@ import (
 )
 
 type FeedReward struct {
-	Feed       *data.Feed
+	Feed       *ty.Feed
 	Amount     *big.Int
 	ShouldBurn bool
 }

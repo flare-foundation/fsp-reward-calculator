@@ -15,38 +15,16 @@ import (
 )
 
 const (
-	FeedValueBytes          = 4
-	FeedIdBytes             = 21
-	NoValue                 = 0
-	ProtocolMerkleRootBytes = 38
-	SignatureBytes          = 65
+	feedValueBytes = 4
+
+	noValue                 = 0
+	protocolMerkleRootBytes = 38
+	signatureBytes          = 65
 )
 
 var EmptyFeedValue = FeedValue{
 	IsEmpty: true,
-	Value:   NoValue,
-}
-
-type FeedId [FeedIdBytes]byte
-
-type Feed struct {
-	Id                        FeedId
-	Decimals                  int8
-	MinRewardedTurnoutBIPS    uint16
-	PrimaryBandRewardSharePPM uint32 // uint24 actual
-	SecondaryBandWidthPPMs    uint32 // uint24 actual
-}
-
-func (f *Feed) String() string {
-	return f.Id.String()
-}
-
-func (f *FeedId) String() string {
-	return string(f[1:])
-}
-
-func (f *FeedId) Hex() string {
-	return hex.EncodeToString(f[1:])
+	Value:   noValue,
 }
 
 type ProtocolMerkleRoot struct {
@@ -54,7 +32,7 @@ type ProtocolMerkleRoot struct {
 	round          ty.RoundId
 	isSecureRandom bool
 	hash           common.Hash
-	rawEncoded     [ProtocolMerkleRootBytes]byte
+	rawEncoded     [protocolMerkleRootBytes]byte
 }
 
 type FeedValue struct {
@@ -75,18 +53,18 @@ func DecodeCommit(bytes []byte) (*Commit, error) {
 
 func DecodeReveal(bytes []byte, expectedFeeds int) (*Reveal, error) {
 	// The message should be long enough to contain the random and at least one feed value
-	if len(bytes) < (common.HashLength + FeedValueBytes) {
+	if len(bytes) < (common.HashLength + feedValueBytes) {
 		return nil, errors.New("message too short")
 	}
 
 	random := common.BytesToHash(bytes[:common.HashLength])
 	encodedFeeds := bytes[common.HashLength:]
 
-	if (len(encodedFeeds) % FeedValueBytes) != 0 {
+	if (len(encodedFeeds) % feedValueBytes) != 0 {
 		return nil, errors.Errorf("invalid message length %d for feed values", len(encodedFeeds))
 	}
-	if (len(encodedFeeds) / FeedValueBytes) > expectedFeeds {
-		return nil, errors.Errorf("encoded feed values paylaod %d exceeds expected number of feeds %d", len(encodedFeeds)/FeedValueBytes, expectedFeeds)
+	if (len(encodedFeeds) / feedValueBytes) > expectedFeeds {
+		return nil, errors.Errorf("encoded feed values paylaod %d exceeds expected number of feeds %d", len(encodedFeeds)/feedValueBytes, expectedFeeds)
 	}
 
 	return &Reveal{
@@ -96,7 +74,7 @@ func DecodeReveal(bytes []byte, expectedFeeds int) (*Reveal, error) {
 }
 
 func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
-	if len(bytes) < 1+ProtocolMerkleRootBytes+SignatureBytes {
+	if len(bytes) < 1+protocolMerkleRootBytes+signatureBytes {
 		return nil, errors.Errorf("Type 0 signature message too short: %s", bytes)
 	}
 
@@ -104,10 +82,10 @@ func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
 		logger.Fatal("invalid signature type: %d, expected 0", bytes[0])
 	}
 	p := 1
-	encodedMerkleRoot := bytes[p : p+ProtocolMerkleRootBytes]
-	p += ProtocolMerkleRootBytes
-	signature := bytes[p : p+SignatureBytes]
-	p += SignatureBytes
+	encodedMerkleRoot := bytes[p : p+protocolMerkleRootBytes]
+	p += protocolMerkleRootBytes
+	signature := bytes[p : p+signatureBytes]
+	p += signatureBytes
 
 	merkleRoot, err := DecodeProtocolMerkleRoot(encodedMerkleRoot)
 	if err != nil {
@@ -122,7 +100,7 @@ func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
 }
 
 func DecodeSignatureType1(bytes []byte) (*SignatureType1, error) {
-	if len(bytes) < 1+SignatureBytes {
+	if len(bytes) < 1+signatureBytes {
 		return nil, errors.Errorf("Type 1 signature message too short: %s", bytes)
 	}
 
@@ -130,8 +108,8 @@ func DecodeSignatureType1(bytes []byte) (*SignatureType1, error) {
 		return nil, errors.Errorf("invalid signature type: %d, expected 1", bytes[0])
 	}
 	p := 1
-	signature := bytes[p : p+SignatureBytes]
-	p += SignatureBytes
+	signature := bytes[p : p+signatureBytes]
+	p += signatureBytes
 	unsignedMessage := bytes[p:]
 
 	return &SignatureType1{
@@ -162,13 +140,13 @@ func DecodeFinalization(message string) (*Finalization, error) {
 		return nil, nil
 	}
 
-	merkleRootBytes := bytes[p : p+ProtocolMerkleRootBytes]
+	merkleRootBytes := bytes[p : p+protocolMerkleRootBytes]
 	merkleRootHash := accounts.TextHash(crypto.Keccak256(merkleRootBytes))
 	merkleRoot, err := DecodeProtocolMerkleRoot(merkleRootBytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding protocol merkle merkleRoot")
 	}
-	p += ProtocolMerkleRootBytes
+	p += protocolMerkleRootBytes
 
 	signatureCount := int(binary.BigEndian.Uint16(bytes[p : p+2]))
 	p += 2
@@ -270,7 +248,7 @@ func DecodeSigningPolicy(bytes []byte) (*voters.SigningPolicy, int, error) {
 }
 
 func DecodeProtocolMerkleRoot(bytes []byte) (ProtocolMerkleRoot, error) {
-	if len(bytes) != ProtocolMerkleRootBytes {
+	if len(bytes) != protocolMerkleRootBytes {
 		return ProtocolMerkleRoot{}, errors.New("invalid message length for protocol merkle merkleRoot")
 	}
 	p := 0
@@ -282,7 +260,7 @@ func DecodeProtocolMerkleRoot(bytes []byte) (ProtocolMerkleRoot, error) {
 	p++
 	merkleRoot := common.BytesToHash(bytes[p : p+common.HashLength])
 
-	encoded := [ProtocolMerkleRootBytes]byte{}
+	encoded := [protocolMerkleRootBytes]byte{}
 	copy(encoded[:], bytes)
 
 	return ProtocolMerkleRoot{
@@ -294,17 +272,17 @@ func DecodeProtocolMerkleRoot(bytes []byte) (ProtocolMerkleRoot, error) {
 	}, nil
 }
 
-func DecodeFeedValues(bytes []byte, feeds []Feed) ([]FeedValue, error) {
-	if (len(bytes) % FeedValueBytes) != 0 {
+func DecodeFeedValues(bytes []byte, feeds []ty.Feed) ([]FeedValue, error) {
+	if (len(bytes) % feedValueBytes) != 0 {
 		return nil, errors.New("invalid message length for feed values")
 	}
 
 	var feedValues []FeedValue
-	for i := 0; i < len(bytes); i += FeedValueBytes {
-		rawValue := DecodeUint32(bytes[i : i+FeedValueBytes])
+	for i := 0; i < len(bytes); i += feedValueBytes {
+		rawValue := DecodeUint32(bytes[i : i+feedValueBytes])
 
 		var feedValue FeedValue
-		if rawValue == NoValue {
+		if rawValue == noValue {
 			feedValue = EmptyFeedValue
 		} else {
 			feedValue = FeedValue{

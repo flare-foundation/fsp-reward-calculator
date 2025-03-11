@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/ty"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 	"golang.org/x/exp/maps"
 	"math/big"
@@ -11,12 +12,12 @@ import (
 	"sort"
 )
 
-func getOrderedFeeds(of RewardOffers) []Feed {
+func getOrderedFeeds(of RewardOffers) []ty.Feed {
 	feeds := getInflationFeeds(of.Inflation)
 
 	communityFeeds := getCommunityFeeds(of.Community)
 	for i := range communityFeeds {
-		found := slices.IndexFunc(feeds, func(j Feed) bool {
+		found := slices.IndexFunc(feeds, func(j ty.Feed) bool {
 			return communityFeeds[i].Id == j.Id
 		})
 		if found < 0 {
@@ -27,14 +28,14 @@ func getOrderedFeeds(of RewardOffers) []Feed {
 }
 
 // getCommunityFeeds returns a list of feeds first ordered by total amount of rewards offered, then feed id.
-func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
-	feedById := map[FeedId]Feed{}
-	amountPerFeed := map[FeedId]*big.Int{}
+func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []ty.Feed {
+	feedById := map[ty.FeedId]ty.Feed{}
+	amountPerFeed := map[ty.FeedId]*big.Int{}
 
 	for _, offer := range offers {
-		id := FeedId(offer.FeedId)
+		id := ty.FeedId(offer.FeedId)
 		if _, ok := feedById[id]; !ok {
-			feedById[offer.FeedId] = Feed{
+			feedById[offer.FeedId] = ty.Feed{
 				Id:       offer.FeedId,
 				Decimals: offer.Decimals,
 				// We can have multiple offers for the same feed with conflicting rewarding parameters,
@@ -69,18 +70,18 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 	return feeds
 }
 
-func getInflationFeeds(offers []*offers.OffersInflationRewardsOffered) []Feed {
-	feedById := map[FeedId]Feed{}
+func getInflationFeeds(offers []*offers.OffersInflationRewardsOffered) []ty.Feed {
+	feedById := map[ty.FeedId]ty.Feed{}
 
 	for _, offer := range offers {
-		feedCount := len(offer.FeedIds) / FeedIdBytes
+		feedCount := len(offer.FeedIds) / ty.FeedIdBytes
 		for j := 0; j < feedCount; j++ {
-			id := FeedId(offer.FeedIds[j*FeedIdBytes : (j+1)*FeedIdBytes])
+			id := ty.FeedId(offer.FeedIds[j*ty.FeedIdBytes : (j+1)*ty.FeedIdBytes])
 			if _, ok := feedById[id]; ok {
 				logger.Info("More than one inflation offer contains feed %s, only the last one will be used for configuration values", id.String())
 			}
 
-			feedById[id] = Feed{
+			feedById[id] = ty.Feed{
 				Id:                        id,
 				Decimals:                  int8(offer.Decimals[j]),
 				MinRewardedTurnoutBIPS:    offer.MinRewardedTurnoutBIPS,

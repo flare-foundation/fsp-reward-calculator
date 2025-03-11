@@ -152,8 +152,8 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 
 		// Fast updates
 		reward := fuRoundRewards[round]
-		feedId := data.FeedId(reward.FeedConfig.FeedId)
-		feedIndex := slices.IndexFunc(re.OrderedFeeds, func(f data.Feed) bool {
+		feedId := ty.FeedId(reward.FeedConfig.FeedId)
+		feedIndex := slices.IndexFunc(re.OrderedFeeds, func(f ty.Feed) bool {
 			return f.Id == feedId
 		})
 		if feedIndex == -1 {
@@ -161,6 +161,17 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		}
 		medianDecimals := int(re.OrderedFeeds[feedIndex].Decimals)
 		logger.Info("Calculating FastUpdate claims for round %d, feed %s", round, feedId.Hex())
+
+		median := results[round].Median[feedId]
+		if median == nil { // Check if feed was renamed
+			newFeedId := params.OldToNewFeed[feedId]
+			median = results[round].Median[newFeedId]
+			if median == nil {
+				logger.Fatal("Median not found for round %d, fast updates feed %s", round, feedId.Hex())
+			}
+			logger.Warn("Using median for new feed %s -> %s", feedId.Hex(), newFeedId.Hex())
+		}
+
 		fuClaims := gatFUpdateClaims(re, fUpdatesByRound[round], fuRoundRewards[round], results[round].Median[feedId], medianDecimals)
 		roundClaims = append(roundClaims, fuClaims...)
 		utils.PrintRoundResults(fuClaims, re.Epoch, round, "fu-claims")

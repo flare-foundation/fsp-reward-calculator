@@ -1,6 +1,7 @@
 package ty
 
 import (
+	"encoding/hex"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 )
@@ -51,4 +52,28 @@ func (v *VoterSigning) String() string {
 }
 func (v *VoterDelegation) String() string {
 	return common.Address(*v).String()
+}
+
+const FeedIdBytes = 21
+
+type FeedId [FeedIdBytes]byte
+
+type Feed struct {
+	Id                        FeedId
+	Decimals                  int8
+	MinRewardedTurnoutBIPS    uint16
+	PrimaryBandRewardSharePPM uint32 // uint24 actual
+	SecondaryBandWidthPPMs    uint32 // uint24 actual
+}
+
+func (f *Feed) String() string {
+	return f.Id.String()
+}
+
+func (f *FeedId) String() string {
+	return string(f[1:])
+}
+
+func (f *FeedId) Hex() string {
+	return hex.EncodeToString(f[1:])
 }

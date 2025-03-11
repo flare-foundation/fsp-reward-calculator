@@ -32,8 +32,8 @@ type nullInt32 struct {
 	value int32
 }
 
-func calculateMedians(re *RewardEpoch, validReveals map[ty.VoterSubmit][]FeedValue) (map[FeedId]*Result, error) {
-	medianResults := map[FeedId]*Result{}
+func calculateMedians(re *RewardEpoch, validReveals map[ty.VoterSubmit][]FeedValue) (map[ty.FeedId]*Result, error) {
+	medianResults := map[ty.FeedId]*Result{}
 	for feedIndex, feed := range re.OrderedFeeds {
 		var weightedValues []VoterValue
 
