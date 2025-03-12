@@ -96,6 +96,7 @@ func calculateResults(db *gorm.DB, epoch ty.EpochId) epochResult {
 	logger.Info("Calculating reward claims for epoch %d", epoch)
 
 	allClaims, minCond := rewards.GetEpochClaims(db, epoch)
+	PrintConditions(minCond, epoch)
 
 	merged := rewards.MergeClaims(allClaims)
 	logger.Info("Merged claims: %d, all claims %d", len(merged), len(allClaims))
@@ -213,4 +214,18 @@ func fetCurrentPasses(epoch ty.EpochId) (map[ty.VoterId]int, error) {
 		passes[voter] = d.Passes
 	}
 	return passes, nil
+}
+
+func PrintConditions(conditions map[*data.VoterInfo]rewards.MinConditions, epoch ty.EpochId) {
+	byIdAddress := make(map[string]rewards.MinConditions)
+	for voterInfo, condition := range conditions {
+		byIdAddress[voterInfo.Identity.String()] = condition
+	}
+	jsonData, err := json.MarshalIndent(byIdAddress, "", "    ")
+	if err != nil {
+		logger.Error("Error serializing to JSON:", err)
+		return
+	}
+	filePath := fmt.Sprintf("results/%s/%d/min-conditions.json", params.Net.Name, epoch)
+	utils.WriteToFile(jsonData, filePath)
 }

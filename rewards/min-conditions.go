@@ -113,6 +113,24 @@ func metFUCondition(index *data.VoterIndex, updates map[ty.RoundId]*data.FUpdate
 	return metCondition
 }
 
+var FDCThresholdPpm = big.NewInt(600000) // 60%
+
+func metFDCCondition(totalRewardedRounds int, rewardedRounds map[ty.VoterId]int) map[ty.VoterId]bool {
+	metCondition := map[ty.VoterId]bool{}
+
+	bigTotalRounds := big.NewInt(int64(totalRewardedRounds))
+	for voter, rewardedCount := range rewardedRounds {
+		bigRewardedCount := big.NewInt(int64(rewardedCount))
+		logger.Info("Voter %s rewarded count: %d", voter.String(), rewardedCount)
+		// rewardedCount >= totalRewardedRounds * FDCThresholdPpm/TotalPPM
+		if new(big.Int).Mul(bigRewardedCount, bigTotalPPM).Cmp(new(big.Int).Mul(FDCThresholdPpm, bigTotalRounds)) >= 0 {
+			metCondition[voter] = true
+		}
+	}
+
+	return metCondition
+}
+
 var StakingUptimeThresholdPpm = big.NewInt(800000)               // 80%
 var StakingMinSelfBondGwei = big.NewInt(1000000000000000)        // 1M FLR
 var StakingMinDesiredSelfBondGwei = big.NewInt(3000000000000000) // 3M FLR

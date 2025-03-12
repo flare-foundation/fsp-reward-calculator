@@ -42,17 +42,17 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[*data.
 	epochClaims := make([]ty.RewardClaim, 0)
 
 	ftsoClaims, ftsoCond := getFtsoRewards(db, epochs, windowEnd, submit1[data.FtsoProtocolId], submit2[data.FtsoProtocolId], submitSignatures[data.FtsoProtocolId], finalizations[data.FtsoProtocolId])
-	fdcClaims := getFdcRewards(db, epochs, submit2[data.FdcProtocolId], submitSignatures[data.FdcProtocolId], finalizations[data.FdcProtocolId])
+	fdcClaims, fdcCond := getFdcRewards(db, epochs, submit2[data.FdcProtocolId], submitSignatures[data.FdcProtocolId], finalizations[data.FdcProtocolId])
 
 	epochClaims = append(epochClaims, ftsoClaims...)
 	epochClaims = append(epochClaims, fdcClaims...)
 
-	cond := calcConditions(epoch, re.VoterIndex, ftsoCond)
+	cond := calcConditions(epoch, re.VoterIndex, ftsoCond, fdcCond)
 
 	return epochClaims, cond
 }
 
-func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMinConditions) map[*data.VoterInfo]MinConditions {
+func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMinConditions, fdcCond map[ty.VoterId]bool) map[*data.VoterInfo]MinConditions {
 	stakingCond := map[ty.VoterId]StakingCondition{}
 	if params.Net.Name == "flare" {
 		stakingCond = MetStakingCondition(epoch, voters)
@@ -77,6 +77,11 @@ func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMi
 		} else {
 			c.MetFtso = true
 		}
+		if !fdcCond[voter.Identity] {
+			c.PassDelta--
+		} else {
+			c.MetFdc = true
+		}
 		if stakingCond[voter.Identity] == NotMet {
 			c.PassDelta--
 		} else {
@@ -98,6 +103,7 @@ func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMi
 type MinConditions struct {
 	MetFtso    bool
 	MetFU      bool
+	MetFdc     bool
 	MetStaking bool
 	PassDelta  int
 }
