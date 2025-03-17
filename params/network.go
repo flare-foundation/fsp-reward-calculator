@@ -50,6 +50,7 @@ type Ftso struct {
 }
 
 type Fdc struct {
+	ProtocolId       byte
 	FinalizationBips *big.Int
 	PenaltyFactor    *big.Int
 }

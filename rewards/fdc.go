@@ -94,7 +94,7 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 			finalizationReward := big.NewInt(0).Div(big.NewInt(0).Mul(reward, params.Net.Fdc.FinalizationBips), bigTotalBips)
 			signingReward := big.NewInt(0).Sub(reward, finalizationReward)
 
-			finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+			finalizers, err := selectFinalizers(round, re.Policy, params.Net.Fdc.ProtocolId, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
 			if err != nil {
 				logger.Fatal("error selecting finalizers for round %d: %s", round, err)
 			}

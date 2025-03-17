@@ -112,7 +112,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		utils.PrintRoundResults(signingClaims, re.Epoch, round, "signing-claims")
 
 		logger.Info("Calculating finalization claims for round %d", round)
-		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.ProtocolId, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
 		if err != nil {
 			logger.Fatal("error selecting finalizers: %s", err)
 		}

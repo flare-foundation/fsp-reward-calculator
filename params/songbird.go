@@ -50,6 +50,7 @@ var songbird = Network{
 	},
 
 	Fdc: Fdc{
+		ProtocolId:       200,
 		FinalizationBips: big.NewInt(1000),
 		PenaltyFactor:    big.NewInt(30),
 	},

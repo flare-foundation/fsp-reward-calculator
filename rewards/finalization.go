@@ -94,10 +94,11 @@ func getFinalizationClaims(
 func selectFinalizers(
 	round ty.RoundId,
 	policy *voters.SigningPolicy,
+	protocol byte,
 	threshold uint16,
 ) (map[common.Address]bool, error) {
 	// TODO: We have duplicate VoterSet definitions
-	seed := voters.InitialHashSeed(policy.Seed, params.Net.Ftso.ProtocolId, uint32(round))
+	seed := voters.InitialHashSeed(policy.Seed, protocol, uint32(round))
 	vs := voters.NewVoterSet(policy.Voters.Voters, policy.Voters.Weights)
 	res, err := vs.RandomSelectThresholdWeightVoters(seed, threshold)
 	if err != nil {
