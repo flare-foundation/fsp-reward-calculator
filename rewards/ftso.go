@@ -156,20 +156,25 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		feedIndex := slices.IndexFunc(re.OrderedFeeds, func(f ty.Feed) bool {
 			return f.Id == feedId
 		})
-		if feedIndex == -1 {
-			logger.Fatal("FastUpdate feed not found for round %d, feedId %s", round, feedId)
+		if feedIndex == -1 { // Check if feed was renamed
+			logger.Warn("FastUpdate feed not found for round %d, feedId %s, checking if renamed", round, feedId)
+
+			feedId = params.OldToNewFeed[feedId]
+			feedIndex = slices.IndexFunc(re.OrderedFeeds, func(f ty.Feed) bool {
+				return f.Id == feedId
+			})
+			if feedIndex == -1 {
+				logger.Fatal("FastUpdate feed not found for round %d, feedId %s", round, feedId)
+			} else {
+				logger.Warn("Using renamed feed %s", feedId)
+			}
 		}
 		medianDecimals := int(re.OrderedFeeds[feedIndex].Decimals)
 		logger.Info("Calculating FastUpdate claims for round %d, feed %s", round, feedId.Hex())
 
 		median := results[round].Median[feedId]
-		if median == nil { // Check if feed was renamed
-			newFeedId := params.OldToNewFeed[feedId]
-			median = results[round].Median[newFeedId]
-			if median == nil {
-				logger.Fatal("Median not found for round %d, fast updates feed %s", round, feedId.Hex())
-			}
-			logger.Warn("Using median for new feed %s -> %s", feedId.Hex(), newFeedId.Hex())
+		if median == nil {
+			logger.Fatal("Median not found for round %d, fast updates feed %s", round, feedId.Hex())
 		}
 
 		fuClaims := gatFUpdateClaims(re, fUpdatesByRound[round], fuRoundRewards[round], results[round].Median[feedId], medianDecimals)
