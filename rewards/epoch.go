@@ -77,11 +77,11 @@ func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMi
 		} else {
 			c.MetFtso = true
 		}
-		if !fdcCond[voter.Identity] {
-			c.PassDelta--
-		} else {
-			c.MetFdc = true
-		}
+		//if !fdcCond[voter.Identity] {  // TODO: Enable FDC check April 3 onwards
+		//	c.PassDelta--
+		//} else {
+		c.MetFdc = true
+		//}
 		if stakingCond[voter.Identity] == NotMet {
 			c.PassDelta--
 		} else {
