@@ -34,7 +34,7 @@ func generateFdcSigningClaims(finalizations []*data.Finalization, round ty.Round
 		if sig.Timestamp <= gracePeriod || sig.Timestamp <= deadline {
 			signersToReward[voter] = sig
 		} else {
-			logger.Warn("signer %s is late for round %d", voter, round)
+			logger.Warn("signer %s is late for round %d", voter.String(), round)
 		}
 	}
 

@@ -17,10 +17,20 @@ func getOffenders(
 	offenders := map[ty.VoterSigning]bool{}
 
 	var revealOffenders []ty.VoterId
+	var bitVoteOffenders []ty.VoterId
+
 	if consensusBitVote != nil {
 		for voterSubmit, bitVote := range bitVotes {
 			voter := voterIndex.BySubmit[voterSubmit]
+			if voter == nil {
+				logger.Info("voter not found for bitVote submit address %s", voterSubmit.String())
+				continue
+			}
 			if !dominatesConsensusBitVote(bitVote, consensusBitVote) {
+				continue
+			}
+			if consensusSigs == nil {
+				logger.Warn("consensusSigs is nil, skipping reveal offenders check")
 				continue
 			}
 			_, ok := consensusSigs[voter.Signing]
@@ -29,38 +39,37 @@ func getOffenders(
 				offenders[voter.Signing] = true
 			}
 		}
+
+		for voterSigning, sig := range consensusSigs {
+			voter := voterIndex.BySigning[voterSigning]
+			offender := false
+
+			if len(sig.UnsignedMessage) < 3 {
+				offender = true
+			} else {
+				bitVote, _ := data.ParseBitVote(sig.UnsignedMessage)
+				if consensusBitVote.Cmp(bitVote) != 0 {
+					offender = true
+				}
+			}
+			if offender {
+				bitVoteOffenders = append(bitVoteOffenders, voter.Identity)
+				offenders[voter.Signing] = true
+			}
+		}
 	} else {
-		logger.Debug("consensusBitVote is nil, skipping reveal offenders check")
+		logger.Debug("consensusBitVote is nil, skipping reveal & bitVote offenders checks")
 	}
 
 	var wrongSignatureOffenders []ty.VoterId
 	for voterSigning := range wrongSigs {
 		voter, ok := voterIndex.BySigning[voterSigning]
 		if !ok {
-			logger.Debug("voter not found for wrong signature %s", voterSigning)
+			logger.Info("voter not found for wrong signature %s", voterSigning.String())
 			continue
 		}
 		wrongSignatureOffenders = append(wrongSignatureOffenders, voter.Identity)
 		offenders[voter.Signing] = true
-	}
-
-	var bitVoteOffenders []ty.VoterId
-	for voterSigning, sig := range consensusSigs {
-		voter := voterIndex.BySigning[voterSigning]
-		offender := false
-
-		if len(sig.UnsignedMessage) < 3 {
-			offender = true
-		} else {
-			bitVote, _ := data.ParseBitVote(sig.UnsignedMessage)
-			if consensusBitVote.Cmp(bitVote) != 0 {
-				offender = true
-			}
-		}
-		if offender {
-			bitVoteOffenders = append(bitVoteOffenders, voter.Identity)
-			offenders[voter.Signing] = true
-		}
 	}
 
 	// TODO: log different types of offenders for debugging
