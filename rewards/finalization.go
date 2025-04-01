@@ -45,8 +45,6 @@ func getFinalizationClaims(
 		}
 	}
 
-	// TODO: Handle case when finalization is late and sent in the following round
-
 	var graceFinalizations []*data.Finalization
 	for _, finalization := range finalizations {
 		if eligibleFinalizers[finalization.Info.From] && finalization.Info.TimestampSec <= gracePeriodDeadline {

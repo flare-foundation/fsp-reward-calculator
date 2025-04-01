@@ -1,10 +1,12 @@
 package rewards
 
 import (
+	"context"
 	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
+	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"gorm.io/gorm"
 )
 
@@ -12,12 +14,14 @@ import (
 func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[*data.VoterInfo]MinConditions) {
 	epochs, err := data.LoadRewardEpochs(epoch, db)
 	if err != nil {
-		logger.Fatal("error fetching reward epochs", err)
+		logger.Fatal("Error fetching reward epochs, required data may not be indexed: %s", err)
 	}
 
 	re := epochs.Current
 	windowStart := ty.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
 	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
+
+	ensureDataRange(db, windowStart, windowEnd)
 
 	submit1, err := data.GetSubmit1(db, windowStart, windowEnd)
 	if err != nil {
@@ -52,6 +56,27 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[*data.
 	return epochClaims, cond
 }
 
+func ensureDataRange(db *gorm.DB, start, end ty.RoundId) {
+	startSec := params.Net.Epoch.VotingRoundStartSec(start)
+	endSec := params.Net.Epoch.VotingRoundEndSec(end)
+
+	firstSec, err := database.FetchFirstDBBlockTs(context.Background(), db)
+	if err != nil {
+		logger.Fatal("Error fetching first block timestamp: %s", err)
+	}
+	if firstSec > startSec {
+		logger.Fatal("First block timestamp %d is greater than required start %d", firstSec, startSec)
+	}
+
+	lastSec, err := database.FetchLastDBBlockTs(context.Background(), db)
+	if err != nil {
+		logger.Fatal("Error fetching last block timestamp: %s", err)
+	}
+	if lastSec < endSec {
+		logger.Fatal("Last required round %d not indexed in DB. Last block timestamp from DB: %d, required at least %d.", end, lastSec, endSec)
+	}
+}
+
 func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMinConditions, fdcCond map[ty.VoterId]bool) map[*data.VoterInfo]MinConditions {
 	stakingCond := map[ty.VoterId]StakingCondition{}
 	if params.Net.Name == "flare" {
@@ -77,7 +102,7 @@ func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMi
 		} else {
 			c.MetFtso = true
 		}
-		//if !fdcCond[voter.Identity] {  // TODO: Enable FDC check April 3 onwards
+		//if !fdcCond[voter.Identity] { // TODO: Enable FDC check April 3 onwards
 		//	c.PassDelta--
 		//} else {
 		c.MetFdc = true
