@@ -104,20 +104,16 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 		return relayInst.RelayFilterer.ParseSigningPolicyInitialized(log)
 	}
 
-	policies, _ := queryEvents(db, searchIntervalStartSec, searchIntervalEndSec, common.HexToAddress("0xea077600E3065F4FAd7161a6D0977741f2618eec"), utils.EventTopic0.SigningPolicyInitialized, parsePolicyInitialized)
-
-	allPolicies, err := queryEvents(db, searchIntervalStartSec, searchIntervalEndSec, params.Net.Contracts.Relay, utils.EventTopic0.SigningPolicyInitialized, parsePolicyInitialized)
+	policies, err := queryEvents(db, searchIntervalStartSec, searchIntervalEndSec, params.Net.Contracts.Relay, utils.EventTopic0.SigningPolicyInitialized, parsePolicyInitialized)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching signing policy events: %s", err)
 	}
-
-	allPolicies = append(policies, allPolicies...)
 
 	var policyEvent *relay.RelaySigningPolicyInitialized
 	var startRound ty.RoundId
 	var endRound ty.RoundId
 
-	for _, event := range allPolicies {
+	for _, event := range policies {
 		if event.RewardEpochId.Uint64() == uint64(epoch) {
 			policyEvent = event
 			startRound = ty.RoundId(event.StartVotingRoundId)
