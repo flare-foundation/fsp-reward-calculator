@@ -26,7 +26,7 @@ func PrintRoundResults(records []ty.RewardClaim, epoch ty.EpochId, round ty.Roun
 		logger.Error("Error serializing to JSON:", err)
 		return
 	}
-	filePath := fmt.Sprintf("results/%s/%d/%d/claims-%s.json", params.Net.Name, epoch, round, suffix)
+	filePath := fmt.Sprintf("results/%s/%d/rounds/%d/claims-%s.json", params.Net.Name, epoch, round, suffix)
 	WriteToFile(jsonData, filePath)
 }
 

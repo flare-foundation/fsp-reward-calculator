@@ -71,6 +71,6 @@ func PrintRoundData(results RoundResult, reveals RoundReveals, feed *ty.Feed, se
 		logger.Error("Error serializing to JSON:", err)
 		return
 	}
-	filePath := fmt.Sprintf("results/%s/%d/%d/data.json", params.Net.Name, epoch, round)
+	filePath := fmt.Sprintf("results/%s/%d/rounds/%d/data.json", params.Net.Name, epoch, round)
 	utils.WriteToFile(jsonData, filePath)
 }
