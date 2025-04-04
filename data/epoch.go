@@ -92,7 +92,6 @@ type VoterInfo struct {
 func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	currentTimestamp := time.Now().Unix()
 
-	// TODO: Use lowest index in indexer db as start
 	expectedStartSec := params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch)
 	epochDuration := params.Net.Epoch.RewardEpochDurationInVotingEpochs * params.Net.Epoch.VotingRoundDurationSeconds
 

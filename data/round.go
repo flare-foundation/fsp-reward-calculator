@@ -159,7 +159,7 @@ func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message
 			if voterIndex.BySubmit[voter] != nil {
 				validReveals[voter] = reveal
 			} else {
-				logger.Info("Voter %s not found in voterIndex, skipping reveal", common.Address(voter))
+				logger.Debug("Voter %s not found in voterIndex, skipping reveal", common.Address(voter))
 			}
 		}
 

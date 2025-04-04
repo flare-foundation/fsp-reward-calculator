@@ -7,8 +7,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TODO: This was auto-converted from TS, needs reviewing
-
 type Epoch struct {
 	FirstVotingRoundStartTs                    uint64
 	VotingRoundDurationSeconds                 uint64
