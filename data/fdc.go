@@ -1,7 +1,6 @@
 package data
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
@@ -219,7 +218,6 @@ func GetAttestationRequestsByRound(db *gorm.DB, fromRound ty.RoundId, toRound ty
 	return mergeDuplicates(fromRound, toRound, eventsByRound)
 }
 
-// TODO: This deduplication logic is simple to read but n^2, optimise when we have more requests
 func mergeDuplicates(fromRound ty.RoundId, toRound ty.RoundId, eventsByRound map[ty.RoundId][]*fdchub.FdcHubAttestationRequest) map[ty.RoundId][]AttestationRequest {
 	var requestsByRound = map[ty.RoundId][]AttestationRequest{}
 	for round := fromRound; round <= toRound; round++ {
@@ -228,21 +226,25 @@ func mergeDuplicates(fromRound ty.RoundId, toRound ty.RoundId, eventsByRound map
 			continue
 		}
 
-		var uniqueRequests []AttestationRequest
-		for i := range events {
-			merged := false
-			for j := range uniqueRequests {
-				if bytes.Equal(uniqueRequests[j].Data, events[i].Data) {
-					uniqueRequests[j].MergedFee.Add(uniqueRequests[j].MergedFee, events[i].Fee)
-					merged = true
-					break
+		var requestsByData = map[string]*AttestationRequest{}
+		for _, event := range events {
+			dataKey := string(event.Data)
+			if req, exists := requestsByData[dataKey]; exists {
+				req.MergedFee.Add(req.MergedFee, event.Fee)
+			} else {
+				requestsByData[dataKey] = &AttestationRequest{
+					Data:      event.Data,
+					MergedFee: new(big.Int).Set(event.Fee),
 				}
 			}
-			if !merged {
-				uniqueRequests = append(uniqueRequests, AttestationRequest{
-					Data:      events[i].Data,
-					MergedFee: new(big.Int).Set(events[i].Fee),
-				})
+		}
+		var uniqueRequests []AttestationRequest
+		// Need to maintain original order
+		for _, event := range events {
+			dataKey := string(event.Data)
+			if req, exists := requestsByData[dataKey]; exists {
+				uniqueRequests = append(uniqueRequests, *req)
+				delete(requestsByData, dataKey)
 			}
 		}
 
