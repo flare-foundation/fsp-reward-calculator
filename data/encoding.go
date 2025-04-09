@@ -150,7 +150,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 	p += 2
 
 	if signatureCount > len(signingPolicy.Voters.VoterDataMap) {
-		return nil, errors.Errorf("signature count %d exceeds number of signing policy voters %d", signatureCount, len(policy.Voters.VoterDataMap))
+		return nil, errors.Errorf("signature count %d exceeds number of signing policy voters %d", signatureCount, len(signingPolicy.Voters.VoterDataMap))
 	}
 
 	signatures := make([]ECDSASignature, signatureCount)
