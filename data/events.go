@@ -36,6 +36,7 @@ func queryEvents[T interface{}](
 		searchIntervalStartSec, searchIntervalEndSec,
 	).
 		Order("timestamp").
+		Order("block_number").
 		Order("log_index").
 		Find(&logs).Error
 	if err != nil {
