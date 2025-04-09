@@ -3,15 +3,13 @@ package data
 import (
 	"encoding/binary"
 	"encoding/hex"
-	voters "fsp-rewards-calculator/lib"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/pkg/errors"
-	"math"
-	"math/big"
 )
 
 const (
@@ -130,7 +128,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "message is not a valid hex string: %s", message)
 	}
-	policy, p, err := DecodeSigningPolicy(bytes[:])
+	signingPolicy, p, err := policy.FromRawBytes(bytes)
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding signing policy")
 	}
@@ -151,7 +149,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 	signatureCount := int(binary.BigEndian.Uint16(bytes[p : p+2]))
 	p += 2
 
-	if signatureCount > len(policy.Voters.VoterDataMap) {
+	if signatureCount > len(signingPolicy.Voters.VoterDataMap) {
 		return nil, errors.Errorf("signature count %d exceeds number of signing policy voters %d", signatureCount, len(policy.Voters.VoterDataMap))
 	}
 
@@ -179,72 +177,25 @@ func DecodeFinalization(message string) (*Finalization, error) {
 			logger.Info("error recovering signer from signature: ", err)
 			continue
 		}
-		expectedSigner := policy.Voters.Voters[index]
+		expectedSigner := signingPolicy.Voters.VoterAddress(int(index))
 
 		if expectedSigner != crypto.PubkeyToAddress(*actualSigner) {
 			logger.Info("signature at index %d does not match expected signer: %s", index, expectedSigner)
 			continue
 		}
 
-		signatureWeight += policy.Voters.Weights[index]
+		signatureWeight += signingPolicy.Voters.VoterWeight(int(index))
 	}
 
-	if signatureWeight <= policy.Threshold {
-		return nil, errors.Errorf("total signature weight %d is less than threshold %d", signatureWeight, policy.Threshold)
+	if signatureWeight <= signingPolicy.Threshold {
+		return nil, errors.Errorf("total signature weight %d is less than threshold %d", signatureWeight, signingPolicy.Threshold)
 	}
 
 	return &Finalization{
-		Policy:     *policy,
+		Policy:     *signingPolicy,
 		MerkleRoot: merkleRoot,
 		Signatures: signatures,
 	}, nil
-}
-
-func DecodeSigningPolicy(bytes []byte) (*voters.SigningPolicy, int, error) {
-	p := 0
-	size := int(DecodeUint32(bytes[p : p+2]))
-	p += 2
-	expectedLength := 43 + size*(common.AddressLength+2)
-	if len(bytes) < expectedLength {
-		return nil, p, errors.Errorf("message to short for decoding signing policy: expected >=%d, got %d", expectedLength, len(bytes))
-	}
-
-	epoch := DecodeUint32(bytes[p : p+3])
-	p += 3
-	startingRound := DecodeUint32(bytes[p : p+4])
-	p += 4
-	threshold := binary.BigEndian.Uint16(bytes[p : p+2])
-	p += 2
-	seed := common.BytesToHash(bytes[p : p+common.HashLength])
-	p += common.HashLength
-
-	signers := make([]common.Address, size)
-	weights := make([]uint16, size)
-	totalWeight := 0
-	for i := 0; i < size; i++ {
-		address := common.BytesToAddress(bytes[p : p+common.AddressLength])
-		p += common.AddressLength
-		weight := binary.BigEndian.Uint16(bytes[p : p+2])
-		p += 2
-
-		signers[i] = address
-		weights[i] = weight
-		totalWeight += int(weight)
-	}
-
-	if totalWeight > math.MaxUint16 {
-		return nil, p, errors.New("total weight exceeds maximum uint16 value")
-	}
-
-	return &voters.SigningPolicy{
-		RewardEpochId:      int64(epoch),
-		StartVotingRoundId: startingRound,
-		Threshold:          threshold,
-		Seed:               new(big.Int).SetBytes(seed[:]),
-		RawBytes:           bytes[:p],
-		BlockTimestamp:     0,
-		Voters:             voters.NewVoterSet(signers, weights),
-	}, p, nil
 }
 
 func DecodeProtocolMerkleRoot(bytes []byte) (ProtocolMerkleRoot, error) {

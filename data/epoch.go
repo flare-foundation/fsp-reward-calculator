@@ -1,7 +1,6 @@
 package data
 
 import (
-	votersLib "fsp-rewards-calculator/lib"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
@@ -12,6 +11,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
+	"github.com/flare-foundation/go-flare-common/pkg/policy"
+	"github.com/flare-foundation/go-flare-common/pkg/voters"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"math/big"
@@ -24,7 +25,7 @@ type RewardEpoch struct {
 	Epoch         ty.EpochId
 	StartRound    ty.RoundId
 	EndRound      ty.RoundId
-	Policy        *votersLib.SigningPolicy
+	Policy        *policy.SigningPolicy
 	Offers        RewardOffers
 	OrderedFeeds  []ty.Feed
 	OrderedVoters []ty.VoterSigning
@@ -141,7 +142,7 @@ func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
 	feeds := getOrderedFeeds(rewardOffers)
 	orderedVoters := getOrderedVoters(policyEvent)
 
-	policy := votersLib.NewSigningPolicy(policyEvent)
+	policy := policy.NewSigningPolicy(policyEvent, nil)
 
 	signingPolicyWindow := params.Net.Epoch.NewSigningPolicyInitializationStartSeconds
 
@@ -221,7 +222,7 @@ func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (Re
 	}, nil
 }
 
-func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policyVoters map[common.Address]votersLib.VoterData) (*VoterIndex, error) {
+func getVoters(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policyVoters map[common.Address]voters.VoterData) (*VoterIndex, error) {
 	regs, err := GetVoterRegisteredEvents(db, fromSec, toSec)
 	if err != nil {
 		return nil, errors.Errorf("error fetching voter registered regs: %s", err)

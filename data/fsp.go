@@ -1,9 +1,7 @@
 package data
 
 import (
-	"bytes"
 	"encoding/hex"
-	voters "fsp-rewards-calculator/lib"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
@@ -11,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
+	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
@@ -33,7 +32,7 @@ type SignatureType1 struct {
 }
 
 type Finalization struct {
-	Policy     voters.SigningPolicy
+	Policy     policy.SigningPolicy
 	MerkleRoot ProtocolMerkleRoot
 	Signatures []ECDSASignature
 	Info       TxInfo
@@ -103,12 +102,12 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 			continue
 		}
 
-		if ty.EpochId(finalization.Policy.RewardEpochId) != re.Epoch {
-			logger.Debug("Finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochId, re.Epoch)
+		if ty.EpochId(finalization.Policy.RewardEpochID) != re.Epoch {
+			logger.Debug("Finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochID, re.Epoch)
 			continue
 		}
 
-		if !bytes.Equal(finalization.Policy.RawBytes, re.Policy.RawBytes) {
+		if !finalization.Policy.Equals(re.Policy) {
 			logger.Debug("Finalization signing policy does not match expected, skipping")
 			continue
 		}

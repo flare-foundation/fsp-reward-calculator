@@ -6,9 +6,8 @@ toolchain go1.23.1
 
 require (
 	github.com/btcsuite/btcutil v1.0.2
-	github.com/deckarep/golang-set/v2 v2.7.0
 	github.com/ethereum/go-ethereum v1.14.12
-	github.com/flare-foundation/go-flare-common v1.2.1-0.20250331152933-80cb99121467
+	github.com/flare-foundation/go-flare-common v1.2.1-0.20250407134150-c6ff5274bd89
 	github.com/pkg/errors v0.9.1
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
@@ -24,6 +23,7 @@ require (
 	github.com/consensys/gnark-crypto v0.15.0 // indirect
 	github.com/crate-crypto/go-ipa v0.0.0-20240724233137-53bbb0ceb27a // indirect
 	github.com/crate-crypto/go-kzg-4844 v1.1.0 // indirect
+	github.com/deckarep/golang-set/v2 v2.7.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/ethereum/c-kzg-4844 v1.0.3 // indirect
 	github.com/ethereum/go-verkle v0.2.2 // indirect

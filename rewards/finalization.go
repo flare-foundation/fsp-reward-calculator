@@ -2,11 +2,11 @@ package rewards
 
 import (
 	"fsp-rewards-calculator/data"
-	voters "fsp-rewards-calculator/lib"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/pkg/errors"
 	"math/big"
 )
@@ -91,22 +91,13 @@ func getFinalizationClaims(
 
 func selectFinalizers(
 	round ty.RoundId,
-	policy *voters.SigningPolicy,
+	policy *policy.SigningPolicy,
 	protocol byte,
 	threshold uint16,
 ) (map[common.Address]bool, error) {
-	// TODO: We have duplicate VoterSet definitions
-	seed := voters.InitialHashSeed(policy.Seed, protocol, uint32(round))
-	vs := voters.NewVoterSet(policy.Voters.Voters, policy.Voters.Weights)
-	res, err := vs.RandomSelectThresholdWeightVoters(seed, threshold)
+	res, err := policy.Voters.SelectVoters(policy.Seed, protocol, uint32(round), threshold)
 	if err != nil {
 		return nil, errors.Wrap(err, "error selecting finalizers")
 	}
-
-	selected := map[common.Address]bool{}
-	for voter := range res.Iter() {
-		selected[voter] = true
-	}
-
-	return selected, nil
+	return res, nil
 }
