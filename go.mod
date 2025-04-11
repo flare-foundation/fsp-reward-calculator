@@ -7,7 +7,7 @@ toolchain go1.23.1
 require (
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/ethereum/go-ethereum v1.14.12
-	github.com/flare-foundation/go-flare-common v1.2.1-0.20250407134150-c6ff5274bd89
+	github.com/flare-foundation/go-flare-common v1.2.1-0.20250411125137-d2c796c43d34
 	github.com/pkg/errors v0.9.1
 	go.uber.org/zap v1.27.0
 	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8

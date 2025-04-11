@@ -51,7 +51,7 @@ func ExtractBitVotes(messages []payload.Message) map[ty.RoundId]map[ty.VoterSubm
 		from := ty.VoterSubmit(msg.From)
 		bitVote, err := ParseBitVote(msg.Payload)
 		if err != nil {
-			logger.Debug("error parsing bitVote from %s, skipping: %s", msg.From, err)
+			logger.Debug("error parsing bitVote from %s, skipping: %s", msg.From.String(), err)
 			continue
 		}
 		bitVotesByRound[round][from] = bitVote

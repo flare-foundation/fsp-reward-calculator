@@ -32,7 +32,7 @@ func getConsensusBitVote(sigs map[ty.VoterSigning]data.SigInfo, round ty.RoundId
 		}
 		bitVote, err := data.ParseBitVote(sig.UnsignedMessage)
 		if err != nil {
-			logger.Warn("error parsing bitVote for signer %s in round %d: %s", signer, round, err)
+			logger.Warn("error parsing bitVote for signer %s in round %d: %s", signer.String(), round, err)
 			continue
 		}
 		bitVoteWeight[bitVote.String()] += uint64(voters.BySigning[signer].SigningPolicyWeight)

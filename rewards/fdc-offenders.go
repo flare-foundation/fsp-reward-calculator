@@ -1,6 +1,7 @@
 package rewards
 
 import (
+	"encoding/hex"
 	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
@@ -47,8 +48,12 @@ func getOffenders(
 			if len(sig.UnsignedMessage) < 3 {
 				offender = true
 			} else {
-				bitVote, _ := data.ParseBitVote(sig.UnsignedMessage)
-				if consensusBitVote.Cmp(bitVote) != 0 {
+				bitVote, err := data.ParseBitVote(sig.UnsignedMessage)
+				if err != nil {
+					logger.Warn("error parsing bitVote for signer %s: %s", voterSigning.String(), hex.EncodeToString(sig.UnsignedMessage), err)
+					// TODO: should this be counted as an offence?
+					//offender = true
+				} else if consensusBitVote.Cmp(bitVote) != 0 {
 					offender = true
 				}
 			}
