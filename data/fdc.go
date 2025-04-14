@@ -1,7 +1,6 @@
 package data
 
 import (
-	"encoding/binary"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
@@ -258,12 +257,13 @@ func ParseBitVote(bytes []byte) (*big.Int, error) {
 		return nil, errors.New("bitVote too short")
 	}
 
-	lengthBytes := bytes[0:2]
-	length := binary.BigEndian.Uint16(lengthBytes)
 	bitVector := new(big.Int).SetBytes(bytes[2:])
 
-	if bitVector.BitLen() > int(length) {
-		return nil, errors.New("bitvote length does not match bitvector")
-	}
+	// TODO: should we check the length of the bitVector? TS impl doesn't
+	//lengthBytes := bytes[0:2]
+	//length := binary.BigEndian.Uint16(lengthBytes)
+	//if bitVector.BitLen() > int(length) {
+	//	return nil, errors.New("bitvote length does not match bitvector")
+	//}
 	return bitVector, nil
 }
