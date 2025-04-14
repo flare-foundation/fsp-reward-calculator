@@ -20,20 +20,29 @@ type SigInfo struct {
 }
 
 // GetSignersByRound fetches signatures for the specified round range, and for each round
-// computes the list of valid signatures by signed hash.
+// computes the list of valid signatures by signed hash. TODO: update doc
 // For each signer, only the last signature for a specific round and hash is retained.
-func GetSignersByRound(msgs []payload.Message, re *RewardEpoch) (SignerMap, error) {
+func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.Hash, re *RewardEpoch) SignerMap {
 	allSignatures, err := extractSignatures(msgs)
 	if err != nil {
-		return nil, errors.Wrap(err, "error fetching signatures")
+		logger.Fatal("error extracting signatures: %s", err)
 	}
 
 	signers := SignerMap{}
 	for round, signatures := range allSignatures {
 		sigsByHash := map[common.Hash]map[ty.VoterSigning]SigInfo{}
 		for _, signatureSubmission := range signatures {
+
+			sender := ty.VoterSubmitSignatures(signatureSubmission.Info.From)
+			voter := re.VoterIndex.BySubmitSignatures[sender]
+
+			if voter == nil {
+				logger.Debug("sender %s not registered, skipping signature", sender)
+				continue
+			}
+
 			signature := signatureSubmission.Signature
-			signedHash := signature.merkleRoot.EncodedHash()
+			signedHash := roundHash[round]
 			signerKey, err := crypto.SigToPub(
 				signedHash.Bytes(),
 				append(signature.bytes[1:65], signature.bytes[0]-27),
@@ -43,25 +52,29 @@ func GetSignersByRound(msgs []payload.Message, re *RewardEpoch) (SignerMap, erro
 				continue
 			}
 
-			signer := ty.VoterSigning(crypto.PubkeyToAddress(*signerKey))
-			if _, ok := re.VoterIndex.BySigning[signer]; ok {
-				if _, ok := sigsByHash[signedHash]; !ok {
-					sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
-				}
-				if _, ok := sigsByHash[signedHash][signer]; !ok {
-					sigsByHash[signedHash][signer] = SigInfo{
-						Signer:    signer,
-						Timestamp: signatureSubmission.Info.TimestampSec,
-					}
-				}
-			} else {
-				logger.Debug("signer %s not registered, skipping signature", signer)
+			recoveredSigner := ty.VoterSigning(crypto.PubkeyToAddress(*signerKey))
+			if recoveredSigner != voter.Signing {
+				signedHash = WrongSignatureIndicatorMessageHash
+			}
+
+			if _, ok := sigsByHash[signedHash]; !ok {
+				sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
+			}
+			if _, ok := sigsByHash[signedHash][voter.Signing]; ok {
+				logger.Debug("earlier signature from %s already added, skipping", voter.Signing)
+				continue
+			}
+
+			sigsByHash[signedHash][voter.Signing] = SigInfo{
+				Signer:          voter.Signing,
+				Timestamp:       signatureSubmission.Info.TimestampSec,
+				UnsignedMessage: signature.message,
 			}
 		}
 
 		signers[round] = sigsByHash
 	}
-	return signers, nil
+	return signers
 }
 
 func GetFinalizationsByRound(fnz []*Finalization) map[ty.RoundId][]*Finalization {

@@ -44,16 +44,7 @@ func getSigningClaims(
 	})
 
 	if successIndex < 0 {
-		signatures := acceptedHashSignatures(re, acceptedSigs)
-		if signatures == nil {
-			return []ty.RewardClaim{burnClaim(reward)}
-		} else {
-			for _, s := range signatures {
-				if _, ok := doubleSigners[s.Signer]; !ok {
-					rewardEligibleSigs = append(rewardEligibleSigs, s)
-				}
-			}
-		}
+		return []ty.RewardClaim{burnClaim(reward)}
 	} else {
 		successfulFinalization := finalizations[successIndex]
 

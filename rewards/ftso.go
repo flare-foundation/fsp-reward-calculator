@@ -6,6 +6,7 @@ import (
 	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
 	"math/big"
@@ -28,15 +29,20 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 	re := epochs.Current
 	revealsByRound = data.GetRoundReveals(submit1, submit2, epochs)
 
-	signersByRound, err := data.GetSignersByRound(submitSignatures, re)
-	logger.Info("Signers fetched")
-	if err != nil {
-		logger.Fatal("error calculating signers: %s", err)
+	finalizationsByRound = data.GetFinalizationsByRound(finalizations)
+	consensusHashByRound := map[ty.RoundId]common.Hash{}
+	for round, fs := range finalizationsByRound {
+		first := firstSuccessful(fs)
+		if first == nil {
+			continue
+		}
+		consensusHashByRound[round] = first.MerkleRoot.EncodedHash()
 	}
 
-	finalizationsByRound = data.GetFinalizationsByRound(finalizations)
+	signersByRound = data.GetSignersByRound(submitSignatures, consensusHashByRound, re)
+	logger.Info("Signers fetched")
 
-	fUpdatesByRound, err = data.GetFUpdatesByRound(db, re.StartRound, re.EndRound)
+	fUpdatesByRound, err := data.GetFUpdatesByRound(db, re.StartRound, re.EndRound)
 	logger.Info("Fast update data fetched")
 
 	results, err := data.CalculateResults(re.StartRound, re.EndRound, re, revealsByRound)
