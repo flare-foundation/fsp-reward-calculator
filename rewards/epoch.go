@@ -46,7 +46,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty.EpochId) ([]ty.RewardClaim, map[*data.
 	epochClaims := make([]ty.RewardClaim, 0)
 
 	ftsoClaims, ftsoCond := getFtsoRewards(db, epochs, windowEnd, submit1[data.FtsoProtocolId], submit2[data.FtsoProtocolId], submitSignatures[data.FtsoProtocolId], finalizations[data.FtsoProtocolId])
-	fdcClaims, fdcCond := getFdcRewards(db, epochs, submit2[data.FdcProtocolId], submitSignatures[data.FdcProtocolId], finalizations[data.FdcProtocolId])
+	fdcClaims, fdcCond := GetFdcRewards(db, epochs.Current, submit2[data.FdcProtocolId], submitSignatures[data.FdcProtocolId], finalizations[data.FdcProtocolId])
 
 	epochClaims = append(epochClaims, ftsoClaims...)
 	epochClaims = append(epochClaims, fdcClaims...)
@@ -102,11 +102,11 @@ func calcConditions(epoch ty.EpochId, voters *data.VoterIndex, conditions FtsoMi
 		} else {
 			c.MetFtso = true
 		}
-		//if !fdcCond[voter.Identity] { // TODO: Enable FDC check April 3 onwards
-		//	c.PassDelta--
-		//} else {
-		c.MetFdc = true
-		//}
+		if !fdcCond[voter.Identity] {
+			c.PassDelta--
+		} else {
+			c.MetFdc = true
+		}
 		if stakingCond[voter.Identity] == NotMet {
 			c.PassDelta--
 		} else {

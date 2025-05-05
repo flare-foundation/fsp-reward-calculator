@@ -20,7 +20,7 @@ const (
 )
 
 type FdcSignatureSubmission struct {
-	Signature *SignatureType1
+	Signature *RawSignature
 	Info      TxInfo
 }
 
@@ -127,7 +127,7 @@ func extractFdcSignatures(messages []payload.Message) map[ty.RoundId][]*FdcSigna
 			continue
 		}
 
-		var signature *SignatureType1
+		var signature *RawSignature
 		var err error
 
 		sigType := msg.Payload[0]
@@ -138,16 +138,10 @@ func extractFdcSignatures(messages []payload.Message) map[ty.RoundId][]*FdcSigna
 				continue
 			}
 		} else {
-			// FDC should not be using type 0 signatures, we should punish the submitter in the future
-			// but for now we allow it so adding a temporary workaround
-			signature0, err := DecodeSignatureType0(msg.Payload)
+			signature, err = DecodeSignatureType0(msg.Payload)
 			if err != nil {
 				logger.Debug("error parsing Signature, skipping: %s", err)
 				continue
-			}
-			signature = &SignatureType1{
-				bytes:   signature0.bytes,
-				message: signature0.message,
 			}
 		}
 

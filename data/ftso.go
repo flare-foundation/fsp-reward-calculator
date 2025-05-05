@@ -28,7 +28,7 @@ type Reveal struct {
 }
 
 type SignatureSubmission struct {
-	Signature *SignatureType0
+	Signature *RawSignature
 	Info      TxInfo
 }
 
@@ -114,10 +114,21 @@ func extractSignatures(messages []payload.Message) (map[ty.RoundId][]*SignatureS
 			continue
 		}
 
-		signature, err := DecodeSignatureType0(msg.Payload)
-		if err != nil {
-			logger.Debug("error parsing Signature, skipping: %s", err)
-			continue
+		var signature *RawSignature
+		var err error
+
+		if msg.Payload[0] == 1 {
+			signature, err = DecodeSignatureType1(msg.Payload)
+			if err != nil {
+				logger.Debug("error parsing Signature, skipping: %signature", err)
+				continue
+			}
+		} else {
+			signature, err = DecodeSignatureType0(msg.Payload)
+			if err != nil {
+				logger.Debug("error parsing Signature, skipping: %signature", err)
+				continue
+			}
 		}
 
 		if _, ok := signaturesByRound[round]; !ok {

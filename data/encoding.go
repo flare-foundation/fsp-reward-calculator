@@ -71,7 +71,9 @@ func DecodeReveal(bytes []byte, expectedFeeds int) (*Reveal, error) {
 	}, nil
 }
 
-func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
+// DecodeSignatureType0 decodes a type 0 signature message. Type 0 signatures are deprecated, so we decode but
+// skip the additional Merkle root payload.
+func DecodeSignatureType0(bytes []byte) (*RawSignature, error) {
 	if len(bytes) < 1+protocolMerkleRootBytes+signatureBytes {
 		return nil, errors.Errorf("Type 0 signature message too short: %s", bytes)
 	}
@@ -85,19 +87,18 @@ func DecodeSignatureType0(bytes []byte) (*SignatureType0, error) {
 	signature := bytes[p : p+signatureBytes]
 	p += signatureBytes
 
-	merkleRoot, err := DecodeProtocolMerkleRoot(encodedMerkleRoot)
+	_, err := DecodeProtocolMerkleRoot(encodedMerkleRoot)
 	if err != nil {
 		return nil, errors.Wrap(err, "error decoding protocol merkle merkleRoot")
 	}
 
-	return &SignatureType0{
-		bytes:      signature,
-		merkleRoot: merkleRoot,
-		message:    bytes[p:],
+	return &RawSignature{
+		bytes:   signature,
+		message: bytes[p:],
 	}, nil
 }
 
-func DecodeSignatureType1(bytes []byte) (*SignatureType1, error) {
+func DecodeSignatureType1(bytes []byte) (*RawSignature, error) {
 	if len(bytes) < 1+signatureBytes {
 		return nil, errors.Errorf("Type 1 signature message too short: %s", bytes)
 	}
@@ -110,17 +111,26 @@ func DecodeSignatureType1(bytes []byte) (*SignatureType1, error) {
 	p += signatureBytes
 	unsignedMessage := bytes[p:]
 
-	return &SignatureType1{
+	return &RawSignature{
 		bytes:   signature,
 		message: unsignedMessage,
 	}, nil
 }
 
-type ECDSASignature struct {
+type ECDSASignatureWithIndex struct {
 	V           byte
 	R           [32]byte
 	S           [32]byte
 	signerIndex uint16
+}
+
+// Bytes returns the byte representation of the signature (R + S + V), without the signer index
+func (s *ECDSASignatureWithIndex) Bytes() []byte {
+	bytes := make([]byte, 65)
+	copy(bytes[0:32], s.R[:])
+	copy(bytes[32:64], s.S[:])
+	bytes[65] = s.V
+	return bytes
 }
 
 func DecodeFinalization(message string) (*Finalization, error) {
@@ -153,17 +163,25 @@ func DecodeFinalization(message string) (*Finalization, error) {
 		return nil, errors.Errorf("signature count %d exceeds number of signing policy voters %d", signatureCount, len(signingPolicy.Voters.VoterDataMap))
 	}
 
-	signatures := make([]ECDSASignature, signatureCount)
+	var signatures []ECDSASignatureWithIndex
 	signatureWeight := uint16(0)
 
-	rawSig := make([]byte, 65)
 	for i := 0; i < signatureCount; i++ {
-		rawSig[64] = bytes[p] - 27
+		v := bytes[p] - 27
 		p++
-		copy(rawSig, bytes[p:p+64])
-		p += 64
+		r := bytes[p : p+32]
+		p += 32
+		s := bytes[p : p+32]
+		p += 32
 		index := binary.BigEndian.Uint16(bytes[p : p+2])
 		p += 2
+
+		signature := ECDSASignatureWithIndex{
+			V:           v,
+			R:           [32]byte(r),
+			S:           [32]byte(s),
+			signerIndex: index,
+		}
 
 		if i > 0 && index <= signatures[i-1].signerIndex {
 			return nil, errors.Errorf("signature index %d is not greater than previous index %d", signatures[i].signerIndex, signatures[i-1].signerIndex)
@@ -171,7 +189,7 @@ func DecodeFinalization(message string) (*Finalization, error) {
 
 		actualSigner, err := crypto.SigToPub(
 			merkleRootHash,
-			rawSig,
+			signature.Bytes(),
 		)
 		if err != nil {
 			logger.Info("error recovering signer from signature: ", err)
@@ -185,6 +203,8 @@ func DecodeFinalization(message string) (*Finalization, error) {
 		}
 
 		signatureWeight += signingPolicy.Voters.VoterWeight(int(index))
+
+		signatures = append(signatures, signature)
 	}
 
 	if signatureWeight <= signingPolicy.Threshold {
@@ -252,22 +272,16 @@ func DecodeFeedValues(bytes []byte, feeds []ty.Feed) ([]FeedValue, error) {
 	return feedValues, nil
 }
 
-// Re-usable buffer for decoding to avoid allocations
-var tmpUint32 = make([]byte, 4)
-
 // DecodeUint32 decodes a big-endian uint32 from a variable length byte slice of up to 4 bytes.
 func DecodeUint32(bytes []byte) uint32 {
 	if len(bytes) > 4 {
 		logger.Fatal("invalid length for decode int: %d", len(bytes))
 	}
 
-	pad := 4 - len(bytes)
-	for i := 0; i < pad; i++ {
-		tmpUint32[i] = 0
-	}
-	copy(tmpUint32[pad:], bytes)
-
-	return binary.BigEndian.Uint32(tmpUint32[:])
+	start := 4 - len(bytes)
+	var tmp = make([]byte, 4)
+	copy(tmp[start:], bytes)
+	return binary.BigEndian.Uint32(tmp[:])
 }
 
 func (p *ProtocolMerkleRoot) EncodedHash() common.Hash {

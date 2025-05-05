@@ -23,7 +23,7 @@ type TxInfo struct {
 type SignatureType0 struct {
 	bytes      []byte
 	merkleRoot ProtocolMerkleRoot
-	message    []byte // TODO: remove once we stop accepting signature type 0 for FDC submissions
+	message    []byte
 }
 
 type SignatureType1 struct {
@@ -31,10 +31,15 @@ type SignatureType1 struct {
 	message []byte
 }
 
+type RawSignature struct {
+	bytes   []byte
+	message []byte
+}
+
 type Finalization struct {
 	Policy     policy.SigningPolicy
 	MerkleRoot ProtocolMerkleRoot
-	Signatures []ECDSASignature
+	Signatures []ECDSASignatureWithIndex
 	Info       TxInfo
 }
 
@@ -123,7 +128,6 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 			continue
 		}
 
-		// TODO: Clean up filling in tx info: should be done on creation
 		finalization.Info = TxInfo{
 			From:         common.HexToAddress(txn.FromAddress),
 			TimestampSec: txn.Timestamp,

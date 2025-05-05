@@ -24,8 +24,7 @@ type roundReward struct {
 	burn   *big.Int
 }
 
-func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, map[ty.VoterId]bool) {
-	re := epochs.Current
+func GetFdcRewards(db *gorm.DB, re *data.RewardEpoch, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, map[ty.VoterId]bool) {
 	bitVotesByRound := data.ExtractBitVotes(submit2)
 	finalizationsByRound := data.GetFinalizationsByRound(finalizations)
 
@@ -57,7 +56,7 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 			continue
 		}
 
-		consensusBitVote := getConsensusBitVote(consensusSigs, round, epochs.Current.VoterIndex)
+		consensusBitVote := getConsensusBitVote(consensusSigs, round, re.VoterIndex)
 		logger.Info("Consensus bitVote for round %d: %d", round, consensusBitVote)
 		consensusBitVoteByRound[round] = consensusBitVote
 
@@ -121,14 +120,14 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 			roundClaims = append(roundClaims, signingClaims...)
 			utils.PrintRoundResults(signingClaims, re.Epoch, round, "fdc-signing-claims")
 
-			offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[data.WrongSignatureIndicatorMessageHash], epochs.Current.VoterIndex, consensusBitVoteByRound[round])
+			offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[data.WrongSignatureIndicatorMessageHash], re.VoterIndex, consensusBitVoteByRound[round])
 
-			penalties := getFdcPenalties(reward, params.Net.Fdc.PenaltyFactor, offenders, epochs.Current.VoterIndex)
+			penalties := getFdcPenalties(reward, params.Net.Fdc.PenaltyFactor, offenders, re.VoterIndex)
 			utils.PrintRoundResults(penalties, re.Epoch, round, "fdc-penalties")
 
 			roundClaims = append(roundClaims, penalties...)
 
-			if updateCond(rewardedRounds, epochs.Current.VoterIndex, signingClaims, finalizationClaims, penalties) {
+			if updateCond(rewardedRounds, re.VoterIndex, signingClaims, finalizationClaims, penalties) {
 				totalRewardedRounds++
 			}
 		}
@@ -137,7 +136,7 @@ func getFdcRewards(db *gorm.DB, epochs data.RewardEpochs, submit2 []payload.Mess
 		epochClaims = append(epochClaims, roundClaims...)
 	}
 
-	logger.Info("FDC rewards calculated for epoch %d: %d", re.Epoch, len(epochClaims))
+	logger.Info("FDC rewards calculated for re %d: %d", re.Epoch, len(epochClaims))
 	return epochClaims, metFDCCondition(totalRewardedRounds, rewardedRounds)
 }
 
