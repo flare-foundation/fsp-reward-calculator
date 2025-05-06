@@ -50,7 +50,7 @@ func getOffenders(
 			if len(sig.UnsignedMessage) < 3 {
 				offender = true
 			} else {
-				bitVote, err := fdc.ParseBitVote(sig.UnsignedMessage)
+				bitVote, err := fdc.DecodeBitVote(sig.UnsignedMessage)
 				if err != nil {
 					logger.Warn("error parsing bitVote for signer %s: %s", voterSigning.String(), hex.EncodeToString(sig.UnsignedMessage), err)
 					// TODO: should this be counted as an offence?

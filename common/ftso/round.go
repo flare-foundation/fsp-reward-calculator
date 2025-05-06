@@ -1,11 +1,11 @@
 package ftso
 
 import (
+	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/fdc"
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
@@ -161,7 +161,7 @@ func getRevealsAndOffenders(commits map[ty.VoterSubmit]*Commit, reveals map[ty.V
 			continue
 		}
 
-		expected := utils.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
+		expected := common2.CommitHash(common.Address(voter), uint32(round), reveal.Random, reveal.EncodedValues)
 
 		if expected.Cmp(commit.Hash) != 0 {
 			logger.Debug("voter %s reveal hash did not match commit: %s != %s", common.Address(voter), expected.String(), commit.Hash.String())

@@ -5,7 +5,6 @@ import (
 	"fsp-rewards-calculator/common/ftso"
 	params2 "fsp-rewards-calculator/common/params"
 	ty2 "fsp-rewards-calculator/common/ty"
-	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
@@ -58,7 +57,7 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 	fuRoundRewards := calculateFURoundRewards(re, feedSelectionRandoms)
 
 	for round := re.StartRound; round <= re.EndRound; round++ {
-		data.PrintRoundData(results[round], revealsByRound[round], roundRewards[round].Feed, feedSelectionRandoms[round-re.StartRound], re.Epoch, round)
+		PrintRoundData(results[round], revealsByRound[round], roundRewards[round].Feed, feedSelectionRandoms[round-re.StartRound], re.Epoch, round)
 	}
 
 	logger.Info("All data fetched, calculating rewards.")

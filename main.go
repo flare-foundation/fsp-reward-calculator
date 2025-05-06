@@ -46,6 +46,19 @@ func parseFlags() *ClientFlags {
 }
 
 func main() {
+	// Start CPU profiling
+	//f, err := os.Create("cpu.prof")
+	//if err != nil {
+	//	logger.Fatal("could not create CPU profile: %s", err)
+	//}
+	//defer f.Close()
+	//if err := pprof.StartCPUProfile(f); err != nil {
+	//	logger.Fatal("could not start CPU profile: %s", err)
+	//}
+	//defer pprof.StopCPUProfile()
+
+	//analytics.RunAnalytics()
+
 	flags := parseFlags()
 
 	if *flags.Network == "" {

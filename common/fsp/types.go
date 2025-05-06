@@ -26,7 +26,7 @@ func (s *ECDSASignatureWithIndex) Bytes() []byte {
 	bytes := make([]byte, 65)
 	copy(bytes[0:32], s.R[:])
 	copy(bytes[32:64], s.S[:])
-	bytes[65] = s.V
+	bytes[64] = s.V
 	return bytes
 }
 

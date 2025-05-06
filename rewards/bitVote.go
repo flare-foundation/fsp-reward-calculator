@@ -31,7 +31,7 @@ func getConsensusBitVote(sigs map[ty.VoterSigning]fsp.SigInfo, round ty.RoundId,
 			logger.Warn("bitVote message too short for signer %s in round %d", signer, round)
 			continue
 		}
-		bitVote, err := fdc.ParseBitVote(sig.UnsignedMessage)
+		bitVote, err := fdc.DecodeBitVote(sig.UnsignedMessage)
 		if err != nil {
 			logger.Warn("error parsing bitVote for signer %s in round %d: %s", signer.String(), round, err)
 			continue

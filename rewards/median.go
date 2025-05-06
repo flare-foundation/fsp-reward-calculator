@@ -2,12 +2,12 @@ package rewards
 
 import (
 	"encoding/hex"
+	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ftso"
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
-	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -169,7 +169,7 @@ func getRecords(round ty2.RoundId, re *fsp.RewardEpoch, medianResult *ftso.Resul
 	return sortedRecords, pctSum, iqrSum
 }
 
-var randomArgs = abi.Arguments{{Type: utils.BytesType}, {Type: utils.Uint256Type}, {Type: utils.AddressType}}
+var randomArgs = abi.Arguments{{Type: common2.BytesType}, {Type: common2.Uint256Type}, {Type: common2.AddressType}}
 
 func randomSelect(feedId fsp.FeedId, round ty2.RoundId, voter ty2.VoterSubmit) bool {
 	pack, err := randomArgs.Pack(feedId[:], big.NewInt(int64(round)), common.Address(voter))

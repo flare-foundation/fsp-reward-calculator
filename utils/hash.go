@@ -1,6 +1,7 @@
 package utils
 
 import (
+	common2 "fsp-rewards-calculator/common"
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
@@ -10,44 +11,12 @@ import (
 	"math/big"
 )
 
-var (
-	AddressType, _ = abi.NewType("address", "", nil)
-	Uint8Type, _   = abi.NewType("uint8", "", nil)
-	Uint32Type, _  = abi.NewType("uint32", "", nil)
-	Uint64Type, _  = abi.NewType("uint64", "", nil)
-	Uint256Type, _ = abi.NewType("uint256", "", nil)
-	BytesType, _   = abi.NewType("bytes", "", nil)
-)
-
-var commitArgs = abi.Arguments{
-	{
-		Type: AddressType,
-	},
-	{
-		Type: Uint32Type,
-	},
-	{
-		Type: Uint256Type,
-	},
-	{
-		Type: BytesType,
-	},
-}
-
-func CommitHash(voter common.Address, round uint32, random common.Hash, feedValues []byte) common.Hash {
-	encoded, err := commitArgs.Pack(voter, round, random.Big(), feedValues)
-	if err != nil {
-		logger.Fatal("error packing arguments: %s", err)
-	}
-	return crypto.Keccak256Hash(encoded)
-}
-
 var rndArgs = abi.Arguments{
 	{
-		Type: Uint256Type,
+		Type: common2.Uint256Type,
 	},
 	{
-		Type: Uint256Type,
+		Type: common2.Uint256Type,
 	},
 }
 
@@ -61,9 +30,9 @@ func FeedSelectionRandom(random *big.Int, round ty2.RoundId) *big.Int {
 }
 
 var finalizerArgs = abi.Arguments{
-	{Type: Uint256Type},
-	{Type: Uint8Type},
-	{Type: Uint64Type},
+	{Type: common2.Uint256Type},
+	{Type: common2.Uint8Type},
+	{Type: common2.Uint64Type},
 }
 
 func FinalizerSelectionSeed(seed *big.Int, protocolId byte, round ty2.RoundId) common.Hash {
@@ -78,10 +47,10 @@ var (
 	bytes20Type, _  = abi.NewType("bytes20", "", nil)
 	uint120Type, _  = abi.NewType("uint120", "", nil)
 	rewardClaimArgs = abi.Arguments{
-		{Type: Uint64Type},
+		{Type: common2.Uint64Type},
 		{Type: bytes20Type},
 		{Type: uint120Type},
-		{Type: Uint8Type},
+		{Type: common2.Uint8Type},
 	}
 )
 
