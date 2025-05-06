@@ -1,7 +1,7 @@
-package params
+package utils
 
 import (
-	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/common/fsp"
 )
 
 var renames = map[string]string{
@@ -9,13 +9,13 @@ var renames = map[string]string{
 	"FTM/USD": "S/USD",
 }
 
-func toFeedIds() map[ty.FeedId]ty.FeedId {
-	oldToNew := make(map[ty.FeedId]ty.FeedId)
+func toFeedIds() map[fsp.FeedId]fsp.FeedId {
+	oldToNew := make(map[fsp.FeedId]fsp.FeedId)
 
 	for oldName, newName := range renames {
-		oldFeedId := ty.FeedId{1}
+		oldFeedId := fsp.FeedId{1}
 		copy(oldFeedId[1:], oldName)
-		newFeedId := ty.FeedId{1}
+		newFeedId := fsp.FeedId{1}
 		copy(newFeedId[1:], newName)
 		oldToNew[oldFeedId] = newFeedId
 	}

@@ -1,9 +1,10 @@
 package rewards
 
 import (
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
@@ -20,10 +21,10 @@ func burnClaim(amount *big.Int) ty.RewardClaim {
 }
 
 func getFinalizationClaims(
-	round ty.RoundId,
+	round ty2.RoundId,
 	reward *big.Int,
-	finalizations []*data.Finalization,
-	eligibleVoters []*data.VoterInfo,
+	finalizations []*fsp.Finalization,
+	eligibleVoters []*fsp.VoterInfo,
 	eligibleFinalizers map[common.Address]bool,
 ) []ty.RewardClaim {
 	firstSuccessfulFinalization := firstSuccessful(finalizations)
@@ -45,7 +46,7 @@ func getFinalizationClaims(
 		}
 	}
 
-	var graceFinalizations []*data.Finalization
+	var graceFinalizations []*fsp.Finalization
 	for _, finalization := range finalizations {
 		if eligibleFinalizers[finalization.Info.From] && finalization.Info.TimestampSec <= gracePeriodDeadline {
 			graceFinalizations = append(graceFinalizations, finalization)
@@ -64,12 +65,12 @@ func getFinalizationClaims(
 	undistributedAmount := new(big.Int).Set(reward)
 	undistributedWeight := big.NewInt(int64(len(eligibleFinalizers)))
 
-	eligibleVoterBySigning := map[ty.VoterSigning]*data.VoterInfo{}
+	eligibleVoterBySigning := map[ty2.VoterSigning]*fsp.VoterInfo{}
 	for _, voter := range eligibleVoters {
 		eligibleVoterBySigning[voter.Signing] = voter
 	}
 	for _, finalization := range graceFinalizations {
-		voter := eligibleVoterBySigning[ty.VoterSigning(finalization.Info.From)]
+		voter := eligibleVoterBySigning[ty2.VoterSigning(finalization.Info.From)]
 		if voter == nil {
 			continue
 		}
@@ -90,7 +91,7 @@ func getFinalizationClaims(
 }
 
 func selectFinalizers(
-	round ty.RoundId,
+	round ty2.RoundId,
 	policy *policy.SigningPolicy,
 	protocol byte,
 	threshold uint16,

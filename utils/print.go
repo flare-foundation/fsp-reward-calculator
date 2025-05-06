@@ -3,14 +3,15 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"os"
 	"path/filepath"
 )
 
-func PrintEpochClaims(records []ty.RewardClaim, epoch ty.EpochId, suffix string) {
+func PrintEpochClaims(records []ty.RewardClaim, epoch ty2.EpochId, suffix string) {
 	jsonData, err := json.MarshalIndent(records, "", "    ")
 	if err != nil {
 		logger.Error("Error serializing to JSON:", err)
@@ -20,7 +21,7 @@ func PrintEpochClaims(records []ty.RewardClaim, epoch ty.EpochId, suffix string)
 	WriteToFile(jsonData, filePath)
 }
 
-func PrintRoundResults(records []ty.RewardClaim, epoch ty.EpochId, round ty.RoundId, suffix string) {
+func PrintRoundResults(records []ty.RewardClaim, epoch ty2.EpochId, round ty2.RoundId, suffix string) {
 	jsonData, err := json.MarshalIndent(records, "", "    ")
 	if err != nil {
 		logger.Error("Error serializing to JSON:", err)

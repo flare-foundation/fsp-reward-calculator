@@ -2,16 +2,17 @@ package rewards
 
 import (
 	"encoding/hex"
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fdc"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/ty"
 	"math/big"
 )
 
 func calculateFdcRoundRewards(
-	re *data.RewardEpoch,
+	re *fsp.RewardEpoch,
 	countByType map[string]int,
-	attestationRequestsByRound map[ty.RoundId][]data.AttestationRequest,
+	attestationRequestsByRound map[ty.RoundId][]fdc.AttestationRequest,
 	consensusBitVoteByRound map[ty.RoundId]*big.Int,
 ) map[ty.RoundId]roundReward {
 	rewardPerRound := map[ty.RoundId]roundReward{}

@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/rewards"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
@@ -53,16 +54,16 @@ func main() {
 	}
 	params.InitNetwork(*flags.Network)
 
-	var epoch ty.EpochId
+	var epoch ty2.EpochId
 	if *flags.Epoch == 0 {
 		logger.Warn("Epoch number not provided, defaulting to last epoch")
 		current, err := params.Net.Epoch.RewardEpochForTimeSec(uint64(time.Now().UnixMilli() / 1000))
 		if err != nil {
 			logger.Fatal("Error calculating epoch: %s", err)
 		}
-		epoch = ty.EpochId(current - 1)
+		epoch = ty2.EpochId(current - 1)
 	} else {
-		epoch = ty.EpochId(*flags.Epoch)
+		epoch = ty2.EpochId(*flags.Epoch)
 	}
 
 	db := getDb(flags)
@@ -92,7 +93,7 @@ func getDb(flags *ClientFlags) *gorm.DB {
 	return db
 }
 
-func calculateResults(db *gorm.DB, epoch ty.EpochId) epochResult {
+func calculateResults(db *gorm.DB, epoch ty2.EpochId) epochResult {
 	logger.Info("Calculating reward claims for epoch %d", epoch)
 
 	allClaims, minCond := rewards.GetEpochClaims(db, epoch)
@@ -118,7 +119,7 @@ func calculateResults(db *gorm.DB, epoch ty.EpochId) epochResult {
 	return buildResults(epoch, resultClaims)
 }
 
-func applyMinConditions(epoch ty.EpochId, merged []ty.RewardClaim, cond map[*data.VoterInfo]rewards.MinConditions) []ty.RewardClaim {
+func applyMinConditions(epoch ty2.EpochId, merged []ty.RewardClaim, cond map[*fsp.VoterInfo]rewards.MinConditions) []ty.RewardClaim {
 	currentPasses, err := fetCurrentPasses(epoch - 1)
 	if err != nil {
 		logger.Error("Error fetching current passes: %s, defaulting to 0 for all providers", err)
@@ -174,7 +175,7 @@ func applyMinConditions(epoch ty.EpochId, merged []ty.RewardClaim, cond map[*dat
 	return resRewards
 }
 
-func fetCurrentPasses(epoch ty.EpochId) (map[ty.VoterId]int, error) {
+func fetCurrentPasses(epoch ty2.EpochId) (map[ty2.VoterId]int, error) {
 	url := fmt.Sprintf("https://raw.githubusercontent.com/flare-foundation/fsp-rewards/refs/heads/main/%s/%d/passes.json", params.Net.Name, epoch)
 
 	resp, err := http.Get(url)
@@ -204,19 +205,19 @@ func fetCurrentPasses(epoch ty.EpochId) (map[ty.VoterId]int, error) {
 		return nil, err
 	}
 
-	passes := map[ty.VoterId]int{}
+	passes := map[ty2.VoterId]int{}
 	for _, d := range raw {
-		parsedEpoch := ty.EpochId(d.RewardEpochId)
+		parsedEpoch := ty2.EpochId(d.RewardEpochId)
 		if parsedEpoch != epoch {
 			return nil, fmt.Errorf("epoch mismatch: %d != %d", parsedEpoch, epoch)
 		}
-		voter := ty.VoterId(common.HexToAddress(d.VoterAddress))
+		voter := ty2.VoterId(common.HexToAddress(d.VoterAddress))
 		passes[voter] = d.Passes
 	}
 	return passes, nil
 }
 
-func PrintConditions(conditions map[*data.VoterInfo]rewards.MinConditions, epoch ty.EpochId) {
+func PrintConditions(conditions map[*fsp.VoterInfo]rewards.MinConditions, epoch ty2.EpochId) {
 	byIdAddress := make(map[string]rewards.MinConditions)
 	for voterInfo, condition := range conditions {
 		byIdAddress[voterInfo.Identity.String()] = condition

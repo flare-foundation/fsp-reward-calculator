@@ -1,9 +1,12 @@
 package rewards
 
 import (
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ftso"
+	params2 "fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/data"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -14,23 +17,23 @@ import (
 )
 
 type FtsoMinConditions struct {
-	Scaling     map[ty.VoterId]bool
-	FastUpdates map[ty.VoterId]bool
+	Scaling     map[ty2.VoterId]bool
+	FastUpdates map[ty2.VoterId]bool
 }
 
-func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId, submit1 []payload.Message, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, FtsoMinConditions) {
+func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, submit1 []payload.Message, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*fsp.Finalization) ([]ty.RewardClaim, FtsoMinConditions) {
 	var (
-		revealsByRound       map[ty.RoundId]data.RoundReveals
-		signersByRound       data.SignerMap
-		finalizationsByRound map[ty.RoundId][]*data.Finalization
-		fUpdatesByRound      map[ty.RoundId]*data.FUpdate
+		revealsByRound       map[ty2.RoundId]ftso.RoundReveals
+		signersByRound       fsp.SignerMap
+		finalizationsByRound map[ty2.RoundId][]*fsp.Finalization
+		fUpdatesByRound      map[ty2.RoundId]*ftso.FUpdate
 	)
 
 	re := epochs.Current
-	revealsByRound = data.GetRoundReveals(submit1, submit2, epochs)
+	revealsByRound = ftso.GetRoundReveals(submit1, submit2, epochs)
 
-	finalizationsByRound = data.GetFinalizationsByRound(finalizations)
-	consensusHashByRound := map[ty.RoundId]common.Hash{}
+	finalizationsByRound = fsp.GetFinalizationsByRound(finalizations)
+	consensusHashByRound := map[ty2.RoundId]common.Hash{}
 	for round, fs := range finalizationsByRound {
 		first := firstSuccessful(fs)
 		if first == nil {
@@ -39,13 +42,13 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		consensusHashByRound[round] = first.MerkleRoot.EncodedHash()
 	}
 
-	signersByRound = data.GetSignersByRound(submitSignatures, consensusHashByRound, re)
+	signersByRound = ftso.GetSignersByRound(submitSignatures, consensusHashByRound, re)
 	logger.Info("Signers fetched")
 
-	fUpdatesByRound, err := data.GetFUpdatesByRound(db, re.StartRound, re.EndRound)
+	fUpdatesByRound, err := ftso.GetFUpdatesByRound(db, re.StartRound, re.EndRound)
 	logger.Info("Fast update data fetched")
 
-	results, err := data.CalculateResults(re.StartRound, re.EndRound, re, revealsByRound)
+	results, err := ftso.CalculateResults(re.StartRound, re.EndRound, re.OrderedFeeds, re.VoterIndex, revealsByRound)
 	if err != nil {
 		logger.Fatal("error calculating results: %s", err)
 	}
@@ -82,11 +85,11 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		}
 
 		signingReward := new(big.Int).Div(
-			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.SigningBips),
+			bigTmp.Mul(totalRoundReward.Amount, params2.Net.Ftso.SigningBips),
 			bigTotalBips,
 		)
 		finalizationReward := new(big.Int).Div(
-			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.FinalizationBips),
+			bigTmp.Mul(totalRoundReward.Amount, params2.Net.Ftso.FinalizationBips),
 			bigTotalBips,
 		)
 		medianReward := new(big.Int).Sub(
@@ -102,12 +105,12 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		utils.PrintRoundResults(medianClaims, re.Epoch, round, "median-claims")
 
 		// Only voters receiving median rewards are eligible for signing and finalization rewards
-		var eligibleVoters []*data.VoterInfo
+		var eligibleVoters []*fsp.VoterInfo
 		for _, claim := range medianClaims {
 			if claim.Type != ty.WNat || claim.Amount.Cmp(BigZero) <= 0 {
 				continue
 			}
-			voter, ok := re.VoterIndex.ByDelegation[ty.VoterDelegation(claim.Beneficiary)]
+			voter, ok := re.VoterIndex.ByDelegation[ty2.VoterDelegation(claim.Beneficiary)]
 			if ok {
 				eligibleVoters = append(eligibleVoters, voter)
 			}
@@ -118,7 +121,7 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		utils.PrintRoundResults(signingClaims, re.Epoch, round, "signing-claims")
 
 		logger.Info("Calculating finalization claims for round %d", round)
-		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.ProtocolId, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+		finalizers, err := selectFinalizers(round, re.Policy, params2.Net.Ftso.ProtocolId, params2.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
 		if err != nil {
 			logger.Fatal("error selecting finalizers: %s", err)
 		}
@@ -127,21 +130,21 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 		utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "finalz-claims")
 
 		dSigners := getDoubleSigners(signersByRound[round])
-		var dSignerInfos []*data.VoterInfo
+		var dSignerInfos []*fsp.VoterInfo
 		for dSigner := range dSigners {
 			dSignerInfos = append(dSignerInfos, re.VoterIndex.BySigning[dSigner])
 		}
 
-		doubleSigningPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
+		doubleSigningPenalties := getPenalties(totalRoundReward.Amount, params2.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
 
-		var offenderInfos []*data.VoterInfo
+		var offenderInfos []*fsp.VoterInfo
 		for _, offender := range revealsByRound[round].RegisteredOffenders {
 			info := re.VoterIndex.BySubmit[offender]
 			if info != nil {
 				offenderInfos = append(offenderInfos, re.VoterIndex.BySubmit[offender])
 			}
 		}
-		revealPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
+		revealPenalties := getPenalties(totalRoundReward.Amount, params2.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
 
 		logger.Info("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
 
@@ -158,15 +161,15 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 
 		// Fast updates
 		reward := fuRoundRewards[round]
-		feedId := ty.FeedId(reward.FeedConfig.FeedId)
-		feedIndex := slices.IndexFunc(re.OrderedFeeds, func(f ty.Feed) bool {
+		feedId := fsp.FeedId(reward.FeedConfig.FeedId)
+		feedIndex := slices.IndexFunc(re.OrderedFeeds, func(f fsp.Feed) bool {
 			return f.Id == feedId
 		})
 		if feedIndex == -1 { // Check if feed was renamed
 			logger.Warn("FastUpdate feed not found for round %d, feedId %s, checking if renamed", round, feedId)
 
-			feedId = params.OldToNewFeed[feedId]
-			feedIndex = slices.IndexFunc(re.OrderedFeeds, func(f ty.Feed) bool {
+			feedId = utils.OldToNewFeed[feedId]
+			feedIndex = slices.IndexFunc(re.OrderedFeeds, func(f fsp.Feed) bool {
 				return f.Id == feedId
 			})
 			if feedIndex == -1 {
@@ -200,10 +203,10 @@ func getFtsoRewards(db *gorm.DB, epochs data.RewardEpochs, windowEnd ty.RoundId,
 }
 
 func getFeedSelectionRandoms(
-	epochs data.RewardEpochs,
-	windowEnd ty.RoundId,
-	reveals map[ty.RoundId]data.RoundReveals,
-	results map[ty.RoundId]data.RoundResult,
+	epochs RewardEpochs,
+	windowEnd ty2.RoundId,
+	reveals map[ty2.RoundId]ftso.RoundReveals,
+	results map[ty2.RoundId]ftso.RoundResult,
 ) []*big.Int {
 	re := epochs.Current
 	totalRounds := int64(re.EndRound - re.StartRound + 1)
@@ -219,20 +222,20 @@ func getFeedSelectionRandoms(
 		}
 	}
 
-	var lastRandom *data.RandomResult
-	var lastRandomRound ty.RoundId
+	var lastRandom *ftso.RandomResult
+	var lastRandomRound ty2.RoundId
 
 	for round := re.EndRound + 1; round < windowEnd; round++ {
 		validReveals := reveals[round].Reveals
 
-		eligibleReveals := map[ty.VoterSubmit]*data.Reveal{}
+		eligibleReveals := map[ty2.VoterSubmit]*ftso.Reveal{}
 		voterIndex := epochs.EpochForRound(round).VoterIndex
 		for voter, reveal := range validReveals {
 			if _, ok := voterIndex.BySubmit[voter]; ok {
 				eligibleReveals[voter] = reveal
 			}
 		}
-		random := data.CalculateRandom(round, reveals, eligibleReveals)
+		random := ftso.CalculateRandom(round, reveals, eligibleReveals)
 		if random.IsSecure {
 			lastRandom = &random
 			lastRandomRound = round
@@ -258,8 +261,8 @@ func getFeedSelectionRandoms(
 func getPenalties(
 	reward *big.Int,
 	penaltyFactor *big.Int,
-	offenders []*data.VoterInfo,
-	voters *data.VoterIndex,
+	offenders []*fsp.VoterInfo,
+	voters *fsp.VoterIndex,
 ) []ty.RewardClaim {
 	var penalties []ty.RewardClaim
 	for _, offender := range offenders {

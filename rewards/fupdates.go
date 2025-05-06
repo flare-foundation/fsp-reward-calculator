@@ -1,14 +1,15 @@
 package rewards
 
 import (
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ftso"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 )
 
-func gatFUpdateClaims(re *data.RewardEpoch, roundUpdates *data.FUpdate, rewardOffer FUFeedReward, medianResult *data.Result, medianDecimals int) []ty.RewardClaim {
+func gatFUpdateClaims(re *fsp.RewardEpoch, roundUpdates *ftso.FUpdate, rewardOffer FUFeedReward, medianResult *ftso.Result, medianDecimals int) []ty.RewardClaim {
 	var claims []ty.RewardClaim
 
 	burnClaim := checkBurnReward(rewardOffer, roundUpdates, medianResult, medianDecimals)
@@ -52,7 +53,7 @@ func gatFUpdateClaims(re *data.RewardEpoch, roundUpdates *data.FUpdate, rewardOf
 	return claims
 }
 
-func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *data.FUpdate, medianResult *data.Result, medianDecimals int) *ty.RewardClaim {
+func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, medianResult *ftso.Result, medianDecimals int) *ty.RewardClaim {
 	if rewardOffer.ShouldBurn {
 		return &ty.RewardClaim{
 			Beneficiary: BurnAddress,

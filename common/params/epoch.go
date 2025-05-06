@@ -1,7 +1,7 @@
 package params
 
 import (
-	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/common/ty"
 	"math"
 
 	"github.com/pkg/errors"

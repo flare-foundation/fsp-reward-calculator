@@ -1,6 +1,7 @@
 package utils
 
 import (
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
@@ -11,7 +12,7 @@ func TestFinalizerSelectionSeed(t *testing.T) {
 	t.Run("encoding matches reference Typescript implementation", func(t *testing.T) {
 		seed := common.HexToHash("0x561c1876599d7b1583693711da55508f038908e7b91b6dc893b099a2eeb024bd").Big()
 		expected := "0x9a22e13bd742533ab33080e2b3f96d1571bec59267ef1b721cb23561263eecae"
-		res := FinalizerSelectionSeed(seed, 1, ty.RoundId(2))
+		res := FinalizerSelectionSeed(seed, 1, ty2.RoundId(2))
 		if res.Hex() != expected {
 			t.Errorf("expected %s, got %s", expected, res.Hex())
 		}

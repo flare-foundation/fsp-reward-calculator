@@ -1,10 +1,11 @@
-package data
+package ftso
 
 import (
 	"encoding/hex"
 	"fmt"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/ty"
 	"github.com/pkg/errors"
 	"math/big"
 	"sort"
@@ -32,14 +33,14 @@ type nullInt32 struct {
 	value int32
 }
 
-func calculateMedians(re *RewardEpoch, validReveals map[ty.VoterSubmit][]FeedValue) (map[ty.FeedId]*Result, error) {
-	medianResults := map[ty.FeedId]*Result{}
-	for feedIndex, feed := range re.OrderedFeeds {
+func calculateMedians(feeds []fsp.Feed, voterIndex *fsp.VoterIndex, validReveals map[ty.VoterSubmit][]FeedValue) (map[fsp.FeedId]*Result, error) {
+	medianResults := map[fsp.FeedId]*Result{}
+	for feedIndex, feed := range feeds {
 		var weightedValues []VoterValue
 
 		for voterSubmit, values := range validReveals {
 			feedValue := values[feedIndex]
-			weight := re.VoterIndex.BySubmit[voterSubmit].CappedWeight
+			weight := voterIndex.BySubmit[voterSubmit].CappedWeight
 			if feedValue.IsEmpty || weight == nil {
 				continue
 			}

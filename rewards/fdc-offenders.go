@@ -2,23 +2,24 @@ package rewards
 
 import (
 	"encoding/hex"
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"math/big"
 )
 
 func getOffenders(
-	bitVotes map[ty.VoterSubmit]*big.Int,
-	consensusSigs map[ty.VoterSigning]data.SigInfo,
-	wrongSigs map[ty.VoterSigning]data.SigInfo,
-	voterIndex *data.VoterIndex,
+	bitVotes map[ty2.VoterSubmit]*big.Int,
+	consensusSigs map[ty2.VoterSigning]fsp.SigInfo,
+	wrongSigs map[ty2.VoterSigning]fsp.SigInfo,
+	voterIndex *fsp.VoterIndex,
 	consensusBitVote *big.Int,
-) map[ty.VoterSigning]bool {
-	offenders := map[ty.VoterSigning]bool{}
+) map[ty2.VoterSigning]bool {
+	offenders := map[ty2.VoterSigning]bool{}
 
-	var revealOffenders []ty.VoterId
-	var bitVoteOffenders []ty.VoterId
+	var revealOffenders []ty2.VoterId
+	var bitVoteOffenders []ty2.VoterId
 
 	if consensusBitVote != nil {
 		for voterSubmit, bitVote := range bitVotes {
@@ -48,7 +49,7 @@ func getOffenders(
 			if len(sig.UnsignedMessage) < 3 {
 				offender = true
 			} else {
-				bitVote, err := data.ParseBitVote(sig.UnsignedMessage)
+				bitVote, err := fdc.ParseBitVote(sig.UnsignedMessage)
 				if err != nil {
 					logger.Warn("error parsing bitVote for signer %s: %s", voterSigning.String(), hex.EncodeToString(sig.UnsignedMessage), err)
 					// TODO: should this be counted as an offence?
@@ -66,7 +67,7 @@ func getOffenders(
 		logger.Debug("consensusBitVote is nil, skipping reveal & bitVote offenders checks")
 	}
 
-	var wrongSignatureOffenders []ty.VoterId
+	var wrongSignatureOffenders []ty2.VoterId
 	for voterSigning := range wrongSigs {
 		voter, ok := voterIndex.BySigning[voterSigning]
 		if !ok {
@@ -82,7 +83,7 @@ func getOffenders(
 	return offenders
 }
 
-func getFdcPenalties(reward *big.Int, penaltyFactor *big.Int, offenders map[ty.VoterSigning]bool, voters *data.VoterIndex) []ty.RewardClaim {
+func getFdcPenalties(reward *big.Int, penaltyFactor *big.Int, offenders map[ty2.VoterSigning]bool, voters *fsp.VoterIndex) []ty.RewardClaim {
 	var penalties []ty.RewardClaim
 
 	bigTotalSigningWeight := big.NewInt(int64(voters.TotalSigningPolicyWeight))

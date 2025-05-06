@@ -1,8 +1,8 @@
-package data
+package ftso
 
 import (
-	"fsp-rewards-calculator/params"
-	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/common/params"
+	"fsp-rewards-calculator/common/ty"
 	"math/big"
 )
 

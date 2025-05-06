@@ -4,9 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ftso"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/ty"
 	"github.com/btcsuite/btcutil/base58"
 	"github.com/pkg/errors"
 	"io"
@@ -17,7 +18,7 @@ import (
 var FtsoScalingClosenessThresholdPpm = big.NewInt(5000)      // 0.5%
 var FtsoScalingAvailabilityThresholdPpm = big.NewInt(800000) // 80%
 
-func metFtsoCondition(voterIndex *data.VoterIndex, totalFeeds int, results map[ty.RoundId]data.RoundResult) map[ty.VoterId]bool {
+func metFtsoCondition(voterIndex *fsp.VoterIndex, totalFeeds int, results map[ty.RoundId]ftso.RoundResult) map[ty.VoterId]bool {
 	voterHits := map[ty.VoterId]int{}
 
 	for _, result := range results {
@@ -63,7 +64,7 @@ func metFtsoCondition(voterIndex *data.VoterIndex, totalFeeds int, results map[t
 var FuThresholdPpm = big.NewInt(800000)            // 80%
 var FuConsiderationThresholdPpm = big.NewInt(2000) // 0.2%
 
-func metFUCondition(index *data.VoterIndex, updates map[ty.RoundId]*data.FUpdate) map[ty.VoterId]bool {
+func metFUCondition(index *fsp.VoterIndex, updates map[ty.RoundId]*ftso.FUpdate) map[ty.VoterId]bool {
 	voterUpdates := map[ty.VoterSigning]int{}
 	totalUpdates := 0
 	for _, update := range updates {
@@ -144,7 +145,7 @@ const (
 	MetNoPass
 )
 
-func MetStakingCondition(epoch ty.EpochId, voters *data.VoterIndex) map[ty.VoterId]StakingCondition {
+func MetStakingCondition(epoch ty.EpochId, voters *fsp.VoterIndex) map[ty.VoterId]StakingCondition {
 	metCondition := map[ty.VoterId]StakingCondition{}
 
 	validatorInfoByNode, err := FetchValidatorInfo(epoch)

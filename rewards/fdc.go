@@ -2,9 +2,11 @@ package rewards
 
 import (
 	"encoding/hex"
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fdc"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,7 +17,7 @@ import (
 )
 
 type FdcMinConditions struct {
-	rewardedRounds      map[ty.VoterId]int
+	rewardedRounds      map[ty2.VoterId]int
 	totalRewardedRounds int
 }
 
@@ -24,11 +26,11 @@ type roundReward struct {
 	burn   *big.Int
 }
 
-func GetFdcRewards(db *gorm.DB, re *data.RewardEpoch, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*data.Finalization) ([]ty.RewardClaim, map[ty.VoterId]bool) {
-	bitVotesByRound := data.ExtractBitVotes(submit2)
-	finalizationsByRound := data.GetFinalizationsByRound(finalizations)
+func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*fsp.Finalization) ([]ty.RewardClaim, map[ty2.VoterId]bool) {
+	bitVotesByRound := fdc.ExtractBitVotes(submit2)
+	finalizationsByRound := fsp.GetFinalizationsByRound(finalizations)
 
-	consensusHashByRound := map[ty.RoundId]common.Hash{}
+	consensusHashByRound := map[ty2.RoundId]common.Hash{}
 	for round, fs := range finalizationsByRound {
 		first := firstSuccessful(fs)
 		if first == nil {
@@ -37,10 +39,10 @@ func GetFdcRewards(db *gorm.DB, re *data.RewardEpoch, submit2 []payload.Message,
 		consensusHashByRound[round] = first.MerkleRoot.EncodedHash()
 	}
 
-	signersByRound := data.GetFdcSignersByRound(submitSignatures, consensusHashByRound, re)
-	attestationRequestsByRound := data.GetAttestationRequestsByRound(db, re.StartRound, re.EndRound)
+	signersByRound := fdc.GetSignersByRound(submitSignatures, consensusHashByRound, re)
+	attestationRequestsByRound := fdc.GetAttestationRequestsByRound(db, re.StartRound, re.EndRound)
 
-	consensusBitVoteByRound := map[ty.RoundId]*big.Int{}
+	consensusBitVoteByRound := map[ty2.RoundId]*big.Int{}
 	countByType := map[string]int{}
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		roundSigs, ok := signersByRound[round]
@@ -76,7 +78,7 @@ func GetFdcRewards(db *gorm.DB, re *data.RewardEpoch, submit2 []payload.Message,
 
 	rewardByRound := calculateFdcRoundRewards(re, countByType, attestationRequestsByRound, consensusBitVoteByRound)
 
-	rewardedRounds := map[ty.VoterId]int{}
+	rewardedRounds := map[ty2.VoterId]int{}
 	totalRewardedRounds := 0
 
 	epochClaims := make([]ty.RewardClaim, 0)
@@ -98,9 +100,9 @@ func GetFdcRewards(db *gorm.DB, re *data.RewardEpoch, submit2 []payload.Message,
 				logger.Fatal("error selecting finalizers for round %d: %s", round, err)
 			}
 
-			var eligibleVoters []*data.VoterInfo
+			var eligibleVoters []*fsp.VoterInfo
 			for addr := range finalizers {
-				voter, ok := re.VoterIndex.BySigning[ty.VoterSigning(addr)]
+				voter, ok := re.VoterIndex.BySigning[ty2.VoterSigning(addr)]
 				if ok {
 					eligibleVoters = append(eligibleVoters, voter)
 				}
@@ -120,7 +122,7 @@ func GetFdcRewards(db *gorm.DB, re *data.RewardEpoch, submit2 []payload.Message,
 			roundClaims = append(roundClaims, signingClaims...)
 			utils.PrintRoundResults(signingClaims, re.Epoch, round, "fdc-signing-claims")
 
-			offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[data.WrongSignatureIndicatorMessageHash], re.VoterIndex, consensusBitVoteByRound[round])
+			offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[fdc.WrongSignatureIndicatorMessageHash], re.VoterIndex, consensusBitVoteByRound[round])
 
 			penalties := getFdcPenalties(reward, params.Net.Fdc.PenaltyFactor, offenders, re.VoterIndex)
 			utils.PrintRoundResults(penalties, re.Epoch, round, "fdc-penalties")
@@ -140,11 +142,11 @@ func GetFdcRewards(db *gorm.DB, re *data.RewardEpoch, submit2 []payload.Message,
 	return epochClaims, metFDCCondition(totalRewardedRounds, rewardedRounds)
 }
 
-func updateCond(rewardedRounds map[ty.VoterId]int, index *data.VoterIndex, signingClaims []ty.RewardClaim, finalizationClaims []ty.RewardClaim, penalties []ty.RewardClaim) bool {
+func updateCond(rewardedRounds map[ty2.VoterId]int, index *fsp.VoterIndex, signingClaims []ty.RewardClaim, finalizationClaims []ty.RewardClaim, penalties []ty.RewardClaim) bool {
 	roundRewarded := false
-	eligibleForRound := map[ty.VoterId]bool{}
+	eligibleForRound := map[ty2.VoterId]bool{}
 	for _, claim := range append(append([]ty.RewardClaim{}, signingClaims...), finalizationClaims...) {
-		beneficiary := ty.VoterId(claim.Beneficiary)
+		beneficiary := ty2.VoterId(claim.Beneficiary)
 		if index.ById[beneficiary] == nil {
 			continue
 		}
@@ -152,7 +154,7 @@ func updateCond(rewardedRounds map[ty.VoterId]int, index *data.VoterIndex, signi
 		roundRewarded = true
 	}
 	for _, penalty := range penalties {
-		eligibleForRound[ty.VoterId(penalty.Beneficiary)] = false
+		eligibleForRound[ty2.VoterId(penalty.Beneficiary)] = false
 	}
 	for voter, eligible := range eligibleForRound {
 		if eligible {
@@ -162,8 +164,8 @@ func updateCond(rewardedRounds map[ty.VoterId]int, index *data.VoterIndex, signi
 	return roundRewarded
 }
 
-func firstSuccessful(finalizations []*data.Finalization) *data.Finalization {
-	successIndex := slices.IndexFunc(finalizations, func(f *data.Finalization) bool {
+func firstSuccessful(finalizations []*fsp.Finalization) *fsp.Finalization {
+	successIndex := slices.IndexFunc(finalizations, func(f *fsp.Finalization) bool {
 		return f.Info.Reverted == false
 	})
 	if successIndex < 0 {

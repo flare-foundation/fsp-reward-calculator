@@ -1,8 +1,11 @@
-package data
+package ftso
 
 import (
+	"fsp-rewards-calculator/common/fdc"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/ty"
+	"fsp-rewards-calculator/rewards"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -11,26 +14,18 @@ import (
 	"gorm.io/gorm"
 )
 
-type SignerMap map[ty.RoundId]map[common.Hash]map[ty.VoterSigning]SigInfo
-
-type SigInfo struct {
-	Signer          ty.VoterSigning
-	Timestamp       uint64
-	UnsignedMessage []byte // TOOD: Only use by FDC
-}
-
 // GetSignersByRound fetches signatures for the specified round range, and for each round
 // computes the list of valid signatures by signed hash. TODO: update doc
 // For each signer, only the last signature for a specific round and hash is retained.
-func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.Hash, re *RewardEpoch) SignerMap {
-	allSignatures, err := extractSignatures(msgs)
+func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.Hash, re *fsp.RewardEpoch) fsp.SignerMap {
+	allSignatures, err := ExtractSignatures(msgs)
 	if err != nil {
 		logger.Fatal("error extracting signatures: %s", err)
 	}
 
-	signers := SignerMap{}
+	signers := fsp.SignerMap{}
 	for round, signatures := range allSignatures {
-		sigsByHash := map[common.Hash]map[ty.VoterSigning]SigInfo{}
+		sigsByHash := map[common.Hash]map[ty.VoterSigning]fsp.SigInfo{}
 		for _, signatureSubmission := range signatures {
 
 			sender := ty.VoterSubmitSignatures(signatureSubmission.Info.From)
@@ -45,7 +40,7 @@ func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.H
 			signedHash := roundHash[round]
 			signerKey, err := crypto.SigToPub(
 				signedHash.Bytes(),
-				append(signature.bytes[1:65], signature.bytes[0]-27),
+				append(signature.Bytes[1:65], signature.Bytes[0]-27),
 			)
 			if err != nil {
 				logger.Debug("error recovering signerKey, skipping signature: %s", err)
@@ -54,21 +49,21 @@ func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.H
 
 			recoveredSigner := ty.VoterSigning(crypto.PubkeyToAddress(*signerKey))
 			if recoveredSigner != voter.Signing {
-				signedHash = WrongSignatureIndicatorMessageHash
+				signedHash = fdc.WrongSignatureIndicatorMessageHash
 			}
 
 			if _, ok := sigsByHash[signedHash]; !ok {
-				sigsByHash[signedHash] = map[ty.VoterSigning]SigInfo{}
+				sigsByHash[signedHash] = map[ty.VoterSigning]fsp.SigInfo{}
 			}
 			if _, ok := sigsByHash[signedHash][voter.Signing]; ok {
 				logger.Debug("earlier signature from %s already added, skipping", voter.Signing)
 				continue
 			}
 
-			sigsByHash[signedHash][voter.Signing] = SigInfo{
+			sigsByHash[signedHash][voter.Signing] = fsp.SigInfo{
 				Signer:          voter.Signing,
 				Timestamp:       signatureSubmission.Info.TimestampSec,
-				UnsignedMessage: signature.message,
+				UnsignedMessage: signature.Message,
 			}
 		}
 
@@ -77,43 +72,15 @@ func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.H
 	return signers
 }
 
-func GetFinalizationsByRound(fnz []*Finalization) map[ty.RoundId][]*Finalization {
-	finalizationsByRound := make(map[ty.RoundId][]*Finalization)
-
-loop:
-	for _, f := range fnz {
-		round := f.MerkleRoot.round
-
-		if _, ok := finalizationsByRound[round]; !ok {
-			finalizationsByRound[round] = []*Finalization{}
-		} else {
-			for _, rf := range finalizationsByRound[round] {
-				if rf.Info.From == f.Info.From {
-					logger.Info("Finalization for round %d from %s already seen, skipping", round, f.Info.From)
-					continue loop
-				}
-			}
-		}
-		finalizationsByRound[round] = append(finalizationsByRound[round], f)
-	}
-
-	return finalizationsByRound
-}
-
-type FUpdate struct {
-	Feeds      *FUpdateFeed
-	Submitters []ty.VoterSigning
-}
-
 func GetFUpdatesByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId) (map[ty.RoundId]*FUpdate, error) {
 	logger.Info("Fetching FastUpdates data for rounds %d-%d", from, to)
 
-	feeds, err := getFUpdateFeeds(db, from, to)
+	feeds, err := GetFUpdateFeeds(db, from, to)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching FUpdate feeds")
 	}
 
-	submitters, err := getFUpdateSubmits(db, from, to)
+	submitters, err := GetFUpdateSubmits(db, from, to)
 	if err != nil {
 		return nil, errors.Wrap(err, "error fetching FUpdate submitters")
 	}
@@ -130,24 +97,18 @@ func GetFUpdatesByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId) (map[ty.Rou
 	return byRound, nil
 }
 
-type RoundReveals struct {
-	Reveals             map[ty.VoterSubmit]*Reveal
-	RegisteredOffenders []ty.VoterSubmit
-	AllOffenders        []ty.VoterSubmit
-}
-
-func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message, epochs RewardEpochs) map[ty.RoundId]RoundReveals {
+func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message, epochs rewards.RewardEpochs) map[ty.RoundId]RoundReveals {
 	var (
 		commitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
 		revealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
 	)
 
-	commitsByRound, err := extractCommits(commitsMsgs)
+	commitsByRound, err := ExtractCommits(commitsMsgs)
 	if err != nil {
 		logger.Fatal("error extracting commitsByRound: %s", err)
 	}
 
-	revealsByRound, err = extractReveals(revealMsgs, epochs)
+	revealsByRound, err = ExtractReveals(revealMsgs, epochs)
 	if err != nil {
 		logger.Fatal("error extracting revealsByRound: %s", err)
 	}

@@ -3,9 +3,11 @@ package data
 import (
 	"encoding/json"
 	"fmt"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ftso"
+	"fsp-rewards-calculator/common/params"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
-	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
@@ -21,7 +23,7 @@ type RoundPrintData struct {
 	Offenders    []string
 	AllOffenders []string
 
-	Medians      []Result
+	Medians      []ftso.Result
 	Random       string
 	SecureRandom bool
 
@@ -31,7 +33,7 @@ type RoundPrintData struct {
 	FeedDecoded string
 }
 
-func PrintRoundData(results RoundResult, reveals RoundReveals, feed *ty.Feed, selection *big.Int, epoch ty.EpochId, round ty.RoundId) {
+func PrintRoundData(results ftso.RoundResult, reveals ftso.RoundReveals, feed *fsp.Feed, selection *big.Int, epoch ty.EpochId, round ty.RoundId) {
 	var roundData RoundPrintData
 
 	for voter, reveal := range reveals.Reveals {

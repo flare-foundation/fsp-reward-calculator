@@ -1,6 +1,7 @@
 package utils
 
 import (
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -50,7 +51,7 @@ var rndArgs = abi.Arguments{
 	},
 }
 
-func FeedSelectionRandom(random *big.Int, round ty.RoundId) *big.Int {
+func FeedSelectionRandom(random *big.Int, round ty2.RoundId) *big.Int {
 	encoded, err := rndArgs.Pack(random, big.NewInt(int64(round)))
 	if err != nil {
 		logger.Fatal("error packing arguments %d, %v: %s", round, random, err)
@@ -65,7 +66,7 @@ var finalizerArgs = abi.Arguments{
 	{Type: Uint64Type},
 }
 
-func FinalizerSelectionSeed(seed *big.Int, protocolId byte, round ty.RoundId) common.Hash {
+func FinalizerSelectionSeed(seed *big.Int, protocolId byte, round ty2.RoundId) common.Hash {
 	encoded, err := finalizerArgs.Pack(seed, protocolId, uint64(round))
 	if err != nil {
 		logger.Fatal("error packing arguments %d, %v: %s", round, seed, err)
@@ -84,7 +85,7 @@ var (
 	}
 )
 
-func RewardClaimHash(epoch ty.EpochId, claim ty.RewardClaim) common.Hash {
+func RewardClaimHash(epoch ty2.EpochId, claim ty.RewardClaim) common.Hash {
 	encoded, err := rewardClaimArgs.Pack(
 		epoch,
 		claim.Beneficiary,

@@ -1,20 +1,22 @@
-package data
+package ftso
 
 import (
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/ty"
 )
 
 type RoundResult struct {
 	Round  ty.RoundId
-	Median map[ty.FeedId]*Result
+	Median map[fsp.FeedId]*Result
 	Random RandomResult
 }
 
 func CalculateResults(
 	from ty.RoundId,
 	to ty.RoundId,
-	re *RewardEpoch,
+	feeds []fsp.Feed,
+	voterIndex *fsp.VoterIndex,
 	reveals map[ty.RoundId]RoundReveals,
 ) (map[ty.RoundId]RoundResult, error) {
 	var results = map[ty.RoundId]RoundResult{}
@@ -26,7 +28,7 @@ func CalculateResults(
 
 		eligibleReveals := map[ty.VoterSubmit]*Reveal{}
 		for voter, reveal := range validReveals {
-			if _, ok := re.VoterIndex.BySubmit[voter]; ok {
+			if _, ok := voterIndex.BySubmit[voter]; ok {
 				eligibleReveals[voter] = reveal
 			} else {
 				logger.Fatal("Voter %s not found in voterIndex, skipping reveal - should have been prefiletered before", voter)
@@ -38,7 +40,7 @@ func CalculateResults(
 		// Median
 		feedValues := map[ty.VoterSubmit][]FeedValue{}
 		for voter, reveal := range eligibleReveals {
-			values, err := DecodeFeedValues(reveal.EncodedValues, re.OrderedFeeds)
+			values, err := DecodeFeedValues(reveal.EncodedValues, feeds)
 			if err != nil {
 				logger.Error("error decoding feed values for voter %s: %s", voter, err)
 				continue
@@ -48,7 +50,7 @@ func CalculateResults(
 
 		logger.Debug("Calculating median for round %d", round)
 
-		median, err := calculateMedians(re, feedValues)
+		median, err := calculateMedians(feeds, voterIndex, feedValues)
 		if err != nil {
 			return nil, err
 		}

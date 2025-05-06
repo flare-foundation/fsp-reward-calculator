@@ -2,7 +2,9 @@ package rewards
 
 import (
 	"encoding/hex"
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/ftso"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
@@ -13,12 +15,12 @@ import (
 )
 
 type voterRecord struct {
-	voter        ty.VoterSubmit
+	voter        ty2.VoterSubmit
 	weight       *big.Int
 	isPct, isIqr bool
 }
 
-func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *data.Result) []ty.RewardClaim {
+func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *ftso.Result) []ty.RewardClaim {
 	var epochClaims []ty.RewardClaim
 
 	// Burn rewardOffer if turnout condition not reached
@@ -119,7 +121,7 @@ func getMedianClaims(round ty.RoundId, re *data.RewardEpoch, rewardShare *big.In
 	return claims
 }
 
-func getRecords(round ty.RoundId, re *data.RewardEpoch, medianResult *data.Result, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {
+func getRecords(round ty2.RoundId, re *fsp.RewardEpoch, medianResult *ftso.Result, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {
 	secondaryBandDiff := new(big.Int).Div(
 		new(big.Int).Mul(
 			big.NewInt(int64(abs(medianResult.Median))),
@@ -135,7 +137,7 @@ func getRecords(round ty.RoundId, re *data.RewardEpoch, medianResult *data.Resul
 
 	pctSum := big.NewInt(0)
 	iqrSum := big.NewInt(0)
-	voterRecords := map[ty.VoterSubmit]voterRecord{}
+	voterRecords := map[ty2.VoterSubmit]voterRecord{}
 	for _, submission := range medianResult.InputValues {
 		value := submission.Value
 
@@ -169,7 +171,7 @@ func getRecords(round ty.RoundId, re *data.RewardEpoch, medianResult *data.Resul
 
 var randomArgs = abi.Arguments{{Type: utils.BytesType}, {Type: utils.Uint256Type}, {Type: utils.AddressType}}
 
-func randomSelect(feedId ty.FeedId, round ty.RoundId, voter ty.VoterSubmit) bool {
+func randomSelect(feedId fsp.FeedId, round ty2.RoundId, voter ty2.VoterSubmit) bool {
 	pack, err := randomArgs.Pack(feedId[:], big.NewInt(int64(round)), common.Address(voter))
 	if err != nil {
 		logger.Fatal("error packing arguments, this should never happen: %s", err)
@@ -190,7 +192,7 @@ func isEnoughParticipation(participatingWeight, totalWeight *big.Int, minBips ui
 	) >= 0
 }
 
-func generateClaimsForVoter(voter *data.VoterInfo, reward *big.Int) []ty.RewardClaim {
+func generateClaimsForVoter(voter *fsp.VoterInfo, reward *big.Int) []ty.RewardClaim {
 	logger.Debug("Generating claims for voter %s, amount %d", hex.EncodeToString(voter.Identity[:]), reward)
 
 	var claims []ty.RewardClaim

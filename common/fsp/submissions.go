@@ -1,47 +1,17 @@
-package data
+package fsp
 
 import (
 	"encoding/hex"
+	"fsp-rewards-calculator/common"
+	"fsp-rewards-calculator/common/params"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
-	"fsp-rewards-calculator/ty"
-	"fsp-rewards-calculator/utils"
-	"github.com/ethereum/go-ethereum/common"
+	common2 "github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
-	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
-
-type TxInfo struct {
-	TimestampSec uint64
-	Reverted     bool
-	From         common.Address
-}
-
-type SignatureType0 struct {
-	bytes      []byte
-	merkleRoot ProtocolMerkleRoot
-	message    []byte
-}
-
-type SignatureType1 struct {
-	bytes   []byte
-	message []byte
-}
-
-type RawSignature struct {
-	bytes   []byte
-	message []byte
-}
-
-type Finalization struct {
-	Policy     policy.SigningPolicy
-	MerkleRoot ProtocolMerkleRoot
-	Signatures []ECDSASignatureWithIndex
-	Info       TxInfo
-}
 
 func GetSubmit1(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint8][]payload.Message, error) {
 	logger.Info("Fetching submit1 for rounds %d-%d", fromRound, toRound)
@@ -49,7 +19,7 @@ func GetSubmit1(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
 
-	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit1, params.Net.Contracts.Submission)
+	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.Submit1, params.Net.Contracts.Submission)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -64,7 +34,7 @@ func GetSubmit2(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1))
 
-	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.Submit2, params.Net.Contracts.Submission)
+	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.Submit2, params.Net.Contracts.Submission)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -79,7 +49,7 @@ func GetSubmitSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) 
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
-	msgs, err := querySubmissions(db, fromSec, toSec, utils.FunctionSignatures.SubmitSignatures, params.Net.Contracts.Submission)
+	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.SubmitSignatures, params.Net.Contracts.Submission)
 	if err != nil {
 		return nil, errors.Errorf("error querying messages: %s", err)
 	}
@@ -94,7 +64,7 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
-	txns, err := fetchTransactions(db, params.Net.Contracts.Relay, utils.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
+	txns, err := fetchTransactions(db, params.Net.Contracts.Relay, common.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
 	if err != nil {
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
@@ -118,7 +88,7 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 		}
 
 		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(txn.Timestamp) - 1
-		round := finalization.MerkleRoot.round
+		round := finalization.MerkleRoot.Round
 		if round != expectedRound {
 			logger.Debug("finalization round %d does not match expected round %d, skipping", round, expectedRound)
 			continue
@@ -129,12 +99,12 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 		}
 
 		finalization.Info = TxInfo{
-			From:         common.HexToAddress(txn.FromAddress),
+			From:         common2.HexToAddress(txn.FromAddress),
 			TimestampSec: txn.Timestamp,
 			Reverted:     txn.Status != 1,
 		}
 
-		protocolId := uint8(finalization.MerkleRoot.protocolId)
+		protocolId := uint8(finalization.MerkleRoot.ProtocolId)
 		if _, ok := finalizationsByProtocol[protocolId]; !ok {
 			finalizationsByProtocol[protocolId] = []*Finalization{}
 		}
@@ -145,7 +115,7 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 	return finalizationsByProtocol, nil
 }
 
-func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]byte, contractAddress common.Address) (map[uint8][]payload.Message, error) {
+func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]byte, contractAddress common2.Address) (map[uint8][]payload.Message, error) {
 	txns, err := fetchTransactions(db, contractAddress, signature, int64(fromSec), int64(toSec))
 	if err != nil {
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
@@ -173,7 +143,7 @@ func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]by
 // fetchTransactions retrieves transactions from the database that match the given criteria.
 // This is an optimised version that selects only the necessary columns.
 func fetchTransactions(
-	db *gorm.DB, toAddress common.Address, functionSel [4]byte, from int64, to int64,
+	db *gorm.DB, toAddress common2.Address, functionSel [4]byte, from int64, to int64,
 ) ([]database.Transaction, error) {
 	var transactions []database.Transaction
 

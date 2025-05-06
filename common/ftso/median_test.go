@@ -1,4 +1,4 @@
-package data
+package ftso
 
 import (
 	"math/big"

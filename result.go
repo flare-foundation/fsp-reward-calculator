@@ -3,8 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,10 +29,10 @@ type outputClaim struct {
 	Beneficiary common.Address `json:"beneficiary"`
 	Amount      *big.Int       `json:"amount"`
 	Type        int            `json:"claimType"`
-	Epoch       ty.EpochId     `json:"rewardEpochId"`
+	Epoch       ty2.EpochId    `json:"rewardEpochId"`
 }
 
-func buildResults(epoch ty.EpochId, finalClaims []ty.RewardClaim) epochResult {
+func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) epochResult {
 	var hashes []common.Hash
 	var weightBasedClaims = 0
 	for _, claim := range finalClaims {

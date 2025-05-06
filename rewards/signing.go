@@ -1,9 +1,10 @@
 package rewards
 
 import (
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
@@ -11,12 +12,12 @@ import (
 )
 
 func getSigningClaims(
-	round ty.RoundId,
-	re *data.RewardEpoch,
+	round ty2.RoundId,
+	re *fsp.RewardEpoch,
 	reward *big.Int,
-	eligibleVoters []*data.VoterInfo,
-	signers map[common.Hash]map[ty.VoterSigning]data.SigInfo,
-	finalizations []*data.Finalization,
+	eligibleVoters []*fsp.VoterInfo,
+	signers map[common.Hash]map[ty2.VoterSigning]fsp.SigInfo,
+	finalizations []*fsp.Finalization,
 ) []ty.RewardClaim {
 	doubleSigners := getDoubleSigners(signers)
 
@@ -25,9 +26,9 @@ func getSigningClaims(
 		round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows),
 	)
 
-	acceptedSigs := map[common.Hash]map[ty.VoterSigning]data.SigInfo{}
+	acceptedSigs := map[common.Hash]map[ty2.VoterSigning]fsp.SigInfo{}
 	for hash, sigs := range signers {
-		acceptedSigs[hash] = map[ty.VoterSigning]data.SigInfo{}
+		acceptedSigs[hash] = map[ty2.VoterSigning]fsp.SigInfo{}
 		for signer, sig := range sigs {
 			if sig.Timestamp < revealDeadline || sig.Timestamp > roundEnd {
 				continue
@@ -36,10 +37,10 @@ func getSigningClaims(
 		}
 	}
 
-	var rewardEligibleSigs []data.SigInfo
+	var rewardEligibleSigs []fsp.SigInfo
 
 	// TODO: Pre-compute
-	successIndex := slices.IndexFunc(finalizations, func(f *data.Finalization) bool {
+	successIndex := slices.IndexFunc(finalizations, func(f *fsp.Finalization) bool {
 		return f.Info.Reverted == false
 	})
 
@@ -80,13 +81,13 @@ func getSigningClaims(
 
 	var claims []ty.RewardClaim
 	// Sort signatures according to voter order in signing policy
-	slices.SortFunc(rewardEligibleSigs, func(i, j data.SigInfo) int {
+	slices.SortFunc(rewardEligibleSigs, func(i, j fsp.SigInfo) int {
 		indexI := re.Policy.Voters.VoterDataMap[common.Address(i.Signer)].Index
 		indexJ := re.Policy.Voters.VoterDataMap[common.Address(j.Signer)].Index
 		return indexI - indexJ
 	})
 
-	eligibleSigners := map[ty.VoterSigning]*data.VoterInfo{}
+	eligibleSigners := map[ty2.VoterSigning]*fsp.VoterInfo{}
 	for _, voter := range eligibleVoters {
 		eligibleSigners[voter.Signing] = voter
 	}
@@ -116,7 +117,7 @@ func getSigningClaims(
 	return claims
 }
 
-func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.RewardClaim {
+func SigningWeightClaimsForVoter(voter *fsp.VoterInfo, amount *big.Int) []ty.RewardClaim {
 	var claims []ty.RewardClaim
 
 	stakedWeight := big.NewInt(0)
@@ -196,13 +197,13 @@ func SigningWeightClaimsForVoter(voter *data.VoterInfo, amount *big.Int) []ty.Re
 }
 
 func acceptedHashSignatures(
-	re *data.RewardEpoch,
-	signaturesByHash map[common.Hash]map[ty.VoterSigning]data.SigInfo,
-) map[ty.VoterSigning]data.SigInfo {
+	re *fsp.RewardEpoch,
+	signaturesByHash map[common.Hash]map[ty2.VoterSigning]fsp.SigInfo,
+) map[ty2.VoterSigning]fsp.SigInfo {
 	threshold := uint64(re.Policy.Voters.TotalWeight) * uint64(params.Net.Ftso.MinimalRewardedNonConsensusDepositedSignaturesPerHashBips) / uint64(totalBips)
 
 	maxWeight := uint64(0)
-	var result map[ty.VoterSigning]data.SigInfo
+	var result map[ty2.VoterSigning]fsp.SigInfo
 
 	for _, signatures := range signaturesByHash {
 		hashWeight := uint64(0)
@@ -219,9 +220,9 @@ func acceptedHashSignatures(
 	return result
 }
 
-func getDoubleSigners(roundSigners map[common.Hash]map[ty.VoterSigning]data.SigInfo) map[ty.VoterSigning]bool {
-	signed := map[ty.VoterSigning]bool{}
-	doubleSigners := map[ty.VoterSigning]bool{}
+func getDoubleSigners(roundSigners map[common.Hash]map[ty2.VoterSigning]fsp.SigInfo) map[ty2.VoterSigning]bool {
+	signed := map[ty2.VoterSigning]bool{}
+	doubleSigners := map[ty2.VoterSigning]bool{}
 
 	for _, signers := range roundSigners {
 		for signer := range signers {

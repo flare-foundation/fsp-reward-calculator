@@ -1,14 +1,15 @@
 package rewards
 
 import (
-	"fsp-rewards-calculator/data"
+	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/params"
+	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/params"
 	"fsp-rewards-calculator/ty"
 	"math/big"
 )
 
-func generateFdcSigningClaims(finalizations []*data.Finalization, round ty.RoundId, reward *big.Int, bitVotes map[ty.VoterSubmit]*big.Int, consensusBitVote *big.Int, consensusSigs map[ty.VoterSigning]data.SigInfo, voterIndex *data.VoterIndex) []ty.RewardClaim {
+func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.RoundId, reward *big.Int, bitVotes map[ty2.VoterSubmit]*big.Int, consensusBitVote *big.Int, consensusSigs map[ty2.VoterSigning]fsp.SigInfo, voterIndex *fsp.VoterIndex) []ty.RewardClaim {
 	var signingClaims []ty.RewardClaim
 
 	if consensusBitVote == nil || consensusBitVote.Cmp(big.NewInt(0)) == 0 {
@@ -29,7 +30,7 @@ func generateFdcSigningClaims(finalizations []*data.Finalization, round ty.Round
 	)
 	gracePeriod := revealDeadline + params.Net.Ftso.GracePeriodForSignaturesDurationSec
 
-	signersToReward := map[ty.VoterSigning]data.SigInfo{}
+	signersToReward := map[ty2.VoterSigning]fsp.SigInfo{}
 	for voter, sig := range consensusSigs {
 		if sig.Timestamp <= gracePeriod || sig.Timestamp <= deadline {
 			signersToReward[voter] = sig
