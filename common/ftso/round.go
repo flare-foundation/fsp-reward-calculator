@@ -5,7 +5,6 @@ import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/rewards"
 	"fsp-rewards-calculator/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -97,7 +96,7 @@ func GetFUpdatesByRound(db *gorm.DB, from ty.RoundId, to ty.RoundId) (map[ty.Rou
 	return byRound, nil
 }
 
-func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message, epochs rewards.RewardEpochs) map[ty.RoundId]RoundReveals {
+func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message, getRoundEpoch func(ty.RoundId) *fsp.RewardEpoch) map[ty.RoundId]RoundReveals {
 	var (
 		commitsByRound map[ty.RoundId]map[ty.VoterSubmit]*Commit
 		revealsByRound map[ty.RoundId]map[ty.VoterSubmit]*Reveal
@@ -108,7 +107,7 @@ func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message
 		logger.Fatal("error extracting commitsByRound: %s", err)
 	}
 
-	revealsByRound, err = ExtractReveals(revealMsgs, epochs)
+	revealsByRound, err = ExtractReveals(revealMsgs, getRoundEpoch)
 	if err != nil {
 		logger.Fatal("error extracting revealsByRound: %s", err)
 	}
@@ -119,7 +118,7 @@ func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message
 
 	roundData := map[ty.RoundId]RoundReveals{}
 	for round := range commitsByRound {
-		voterIndex := epochs.EpochForRound(round).VoterIndex
+		voterIndex := getRoundEpoch(round).VoterIndex
 
 		validCommits := map[ty.VoterSubmit]*Commit{}
 		for voter, commit := range commitsByRound[round] {

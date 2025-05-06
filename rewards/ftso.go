@@ -30,7 +30,7 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 	)
 
 	re := epochs.Current
-	revealsByRound = ftso.GetRoundReveals(submit1, submit2, epochs)
+	revealsByRound = ftso.GetRoundReveals(submit1, submit2, epochs.EpochForRound)
 
 	finalizationsByRound = fsp.GetFinalizationsByRound(finalizations)
 	consensusHashByRound := map[ty2.RoundId]common.Hash{}
