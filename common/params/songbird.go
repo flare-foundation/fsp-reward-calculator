@@ -34,7 +34,7 @@ var songbird = Network{
 
 	Ftso: Ftso{
 		ProtocolId:                            100,
-		BurnAddress:                           common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
+		BurnAddress:                           common.HexToAddress("0xAC3F85d29119836545670b2FCeFe35C829bE35ab"),
 		RandomGenerationBenchingWindow:        20,
 		FutureSecureRandomWindow:              30,
 		AdditionalRewardFinalizationWindows:   0,
