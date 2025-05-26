@@ -34,7 +34,7 @@ var flare = Network{
 
 	Ftso: Ftso{
 		ProtocolId:                            100,
-		BurnAddress:                           common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
+		BurnAddress:                           common.HexToAddress("0xD9e5B450773B17593abAfCF73aB96ad99d589751"),
 		RandomGenerationBenchingWindow:        20,
 		FutureSecureRandomWindow:              30,
 		AdditionalRewardFinalizationWindows:   0,
