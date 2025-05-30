@@ -1,6 +1,7 @@
 package rewards
 
 import (
+	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
 	"math/big"
@@ -52,7 +53,7 @@ func ApplyPenalties(claims []ty.RewardClaim) []ty.RewardClaim {
 	burnAmount := big.NewInt(0)
 
 	for i, claim := range claims {
-		if claim.Beneficiary == BurnAddress {
+		if claim.Beneficiary == params.Net.Ftso.BurnAddress {
 			burnAmount.Add(burnAmount, claim.Amount)
 			continue
 		}

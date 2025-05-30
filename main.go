@@ -139,7 +139,7 @@ func applyMinConditions(epoch ty2.EpochId, merged []ty.RewardClaim, cond map[*fs
 	}
 
 	burnClaims := map[common.Address]bool{}
-	burnClaims[rewards.BurnAddress] = true
+	burnClaims[params.Net.Ftso.BurnAddress] = true
 
 	for voter, c := range cond {
 		passes := currentPasses[voter.Identity] + c.PassDelta
@@ -164,7 +164,7 @@ func applyMinConditions(epoch ty2.EpochId, merged []ty.RewardClaim, cond map[*fs
 
 	var resRewards []ty.RewardClaim
 	finalBurnClaim := ty.RewardClaim{
-		Beneficiary: rewards.BurnAddress,
+		Beneficiary: params.Net.Ftso.BurnAddress,
 		Amount:      big.NewInt(0),
 		Type:        ty.Direct,
 	}

@@ -3,6 +3,7 @@ package rewards
 import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ftso"
+	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"github.com/ethereum/go-ethereum/common"
@@ -56,7 +57,7 @@ func gatFUpdateClaims(re *fsp.RewardEpoch, roundUpdates *ftso.FUpdate, rewardOff
 func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, medianResult *ftso.Result, medianDecimals int) *ty.RewardClaim {
 	if rewardOffer.ShouldBurn {
 		return &ty.RewardClaim{
-			Beneficiary: BurnAddress,
+			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
 			Type:        ty.Direct,
 		}
@@ -64,7 +65,7 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, media
 	}
 	if len(roundUpdates.Submitters) == 0 || medianResult == nil {
 		return &ty.RewardClaim{
-			Beneficiary: BurnAddress,
+			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
 			Type:        ty.Direct,
 		}
@@ -90,7 +91,7 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, media
 
 	if value.Cmp(low) < 0 || value.Cmp(high) > 0 {
 		return &ty.RewardClaim{
-			Beneficiary: BurnAddress,
+			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
 			Type:        ty.Direct,
 		}

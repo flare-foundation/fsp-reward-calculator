@@ -1,7 +1,6 @@
 package rewards
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 )
 
@@ -9,7 +8,6 @@ const totalBips = 10000
 const totalPpm = 1000000
 
 var (
-	BurnAddress  = common.HexToAddress("0x000000000000000000000000000000000000dEaD")
 	bigTotalBips = big.NewInt(int64(totalBips))
 	bigTotalPPM  = big.NewInt(int64(totalPpm))
 	BigZero      = big.NewInt(0)

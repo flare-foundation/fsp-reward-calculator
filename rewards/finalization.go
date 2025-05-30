@@ -14,7 +14,7 @@ import (
 
 func burnClaim(amount *big.Int) ty.RewardClaim {
 	return ty.RewardClaim{
-		Beneficiary: BurnAddress,
+		Beneficiary: params.Net.Ftso.BurnAddress,
 		Amount:      amount,
 		Type:        ty.Direct,
 	}

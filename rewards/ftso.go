@@ -76,7 +76,7 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 
 		if totalRoundReward.ShouldBurn {
 			epochClaims = append(epochClaims, ty.RewardClaim{
-				Beneficiary: BurnAddress,
+				Beneficiary: params2.Net.Ftso.BurnAddress,
 				Amount:      new(big.Int).Set(totalRoundReward.Amount),
 				Type:        ty.Direct,
 			})

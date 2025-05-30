@@ -5,6 +5,7 @@ import (
 	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ftso"
+	"fsp-rewards-calculator/common/params"
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
@@ -26,7 +27,7 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 	// Burn rewardOffer if turnout condition not reached
 	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.VoterIndex.TotalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
 		epochClaims = append(epochClaims, ty.RewardClaim{
-			Beneficiary: BurnAddress,
+			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardShare),
 			Type:        ty.Direct,
 		})
@@ -72,7 +73,7 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 	if totalNormWeight.Cmp(BigZero) == 0 {
 		// Burn rewardOffer if no eligible submissions
 		epochClaims = append(epochClaims, ty.RewardClaim{
-			Beneficiary: BurnAddress,
+			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardShare),
 			Type:        ty.Direct,
 		})
