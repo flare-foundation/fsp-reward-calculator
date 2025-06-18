@@ -53,7 +53,7 @@ func calculateFURoundRewards(re *fsp.RewardEpoch, feedSelectionRandoms []*big.In
 				Amount:     amount,
 				ShouldBurn: true,
 			}
-			logger.Info("[FU] No secure random found for round %d, burning reward", round)
+			logger.Debug("[FU] No secure random found for round %d, burning reward", round)
 			continue
 		}
 
@@ -98,7 +98,7 @@ func calculateRoundRewards(re *fsp.RewardEpoch, feedSelectionRandoms []*big.Int)
 				Amount:     amount,
 				ShouldBurn: true,
 			}
-			logger.Info("No secure random found for round %d, burning reward", round)
+			logger.Debug("No secure random found for round %d, burning reward", round)
 			continue
 		}
 

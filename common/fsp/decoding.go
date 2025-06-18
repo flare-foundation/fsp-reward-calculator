@@ -122,13 +122,13 @@ func DecodeFinalization(hexMessage string) (*Finalization, error) {
 			signature.Bytes(),
 		)
 		if err != nil {
-			logger.Info("error recovering signer from signature: ", err)
+			logger.Debug("error recovering signer from signature: ", err)
 			continue
 		}
 		expectedSigner := signingPolicy.Voters.VoterAddress(int(index))
 
 		if expectedSigner != crypto.PubkeyToAddress(*actualSigner) {
-			logger.Info("signature at index %d does not match expected signer: %s", index, expectedSigner)
+			logger.Debug("signature at index %d does not match expected signer: %s", index, expectedSigner)
 			continue
 		}
 

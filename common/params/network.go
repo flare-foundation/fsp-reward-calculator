@@ -28,6 +28,11 @@ type ContractAddresses struct {
 	FdcHub                     common.Address
 }
 
+//type Fsp {
+//	BurnAddress common.Address
+//
+//}
+
 type Ftso struct {
 	ProtocolId  byte
 	BurnAddress common.Address

@@ -26,7 +26,7 @@ func getOffenders(
 		for voterSubmit, bitVote := range bitVotes {
 			voter := voterIndex.BySubmit[voterSubmit]
 			if voter == nil {
-				logger.Info("voter not found for bitVote submit address %s", voterSubmit.String())
+				logger.Debug("voter not found for bitVote submit address %s", voterSubmit.String())
 				continue
 			}
 			if !dominatesConsensusBitVote(bitVote, consensusBitVote) {
@@ -52,7 +52,7 @@ func getOffenders(
 			} else {
 				bitVote, err := fdc.DecodeBitVote(sig.UnsignedMessage)
 				if err != nil {
-					logger.Warn("error parsing bitVote for signer %s: %s", voterSigning.String(), hex.EncodeToString(sig.UnsignedMessage), err)
+					logger.Debug("error parsing bitVote for signer %s: %s", voterSigning.String(), hex.EncodeToString(sig.UnsignedMessage), err)
 					// TODO: should this be counted as an offence?
 					//offender = true
 				} else if consensusBitVote.Cmp(bitVote) != 0 {
@@ -72,14 +72,14 @@ func getOffenders(
 	for voterSigning := range wrongSigs {
 		voter, ok := voterIndex.BySigning[voterSigning]
 		if !ok {
-			logger.Info("voter not found for wrong signature %s", voterSigning.String())
+			logger.Debug("voter not found for wrong signature %s", voterSigning.String())
 			continue
 		}
 		wrongSignatureOffenders = append(wrongSignatureOffenders, voter.Identity)
 		offenders[voter.Signing] = true
 	}
 
-	logger.Warn("Offenders: reveal %d, wrong signature %d, bitVote %d", len(revealOffenders), len(wrongSignatureOffenders), len(bitVoteOffenders))
+	logger.Debug("Offenders: reveal %d, wrong signature %d, bitVote %d", len(revealOffenders), len(wrongSignatureOffenders), len(bitVoteOffenders))
 
 	return offenders
 }

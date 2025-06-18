@@ -35,7 +35,7 @@ func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.Round
 		if sig.Timestamp <= gracePeriod || sig.Timestamp <= deadline {
 			signersToReward[voter] = sig
 		} else {
-			logger.Warn("signer %s is late for round %d", voter.String(), round)
+			logger.Debug("signer %s is late for round %d", voter.String(), round)
 		}
 	}
 
@@ -74,7 +74,7 @@ func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.Round
 	}
 
 	if undistributedAmount.Cmp(big.NewInt(0)) > 0 {
-		logger.Warn("undistributed amount %s for round %d", undistributedAmount, round)
+		logger.Debug("undistributed amount %s for round %d", undistributedAmount, round)
 		signingClaims = append(signingClaims, burnClaim(undistributedAmount))
 	}
 

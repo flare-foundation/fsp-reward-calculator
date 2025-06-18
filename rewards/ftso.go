@@ -3,7 +3,7 @@ package rewards
 import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ftso"
-	params2 "fsp-rewards-calculator/common/params"
+	params "fsp-rewards-calculator/common/params"
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
@@ -68,15 +68,15 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 		totalRoundReward := roundRewards[round]
 
 		if totalRoundReward.Feed != nil {
-			logger.Info("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), totalRoundReward.Feed.Id[:])
+			logger.Debug("Round: %d, total reward: %s, feed: %s", round, totalRoundReward.Amount.String(), totalRoundReward.Feed.Id[:])
 			logger.Debug("Median: %+v", results[round].Median[totalRoundReward.Feed.Id])
 		} else {
-			logger.Info("Round: %d, total reward: %s, burned", round, totalRoundReward.Amount.String())
+			logger.Debug("Round: %d, total reward: %s, burned", round, totalRoundReward.Amount.String())
 		}
 
 		if totalRoundReward.ShouldBurn {
 			epochClaims = append(epochClaims, ty.RewardClaim{
-				Beneficiary: params2.Net.Ftso.BurnAddress,
+				Beneficiary: params.Net.Ftso.BurnAddress,
 				Amount:      new(big.Int).Set(totalRoundReward.Amount),
 				Type:        ty.Direct,
 			})
@@ -84,11 +84,11 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 		}
 
 		signingReward := new(big.Int).Div(
-			bigTmp.Mul(totalRoundReward.Amount, params2.Net.Ftso.SigningBips),
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.SigningBips),
 			bigTotalBips,
 		)
 		finalizationReward := new(big.Int).Div(
-			bigTmp.Mul(totalRoundReward.Amount, params2.Net.Ftso.FinalizationBips),
+			bigTmp.Mul(totalRoundReward.Amount, params.Net.Ftso.FinalizationBips),
 			bigTotalBips,
 		)
 		medianReward := new(big.Int).Sub(
@@ -96,9 +96,9 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 			bigTmp.Add(signingReward, finalizationReward),
 		)
 
-		logger.Info("Reward shares for round %d: signing %s, finalization %s, median %s", round, signingReward.String(), finalizationReward.String(), medianReward.String())
+		logger.Debug("Reward shares for round %d: signing %s, finalization %s, median %s", round, signingReward.String(), finalizationReward.String(), medianReward.String())
+		logger.Debug("Calculating median claims for round %d", round)
 
-		logger.Info("Calculating median claims for round %d", round)
 		medianClaims := getMedianClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
 
 		utils.PrintRoundResults(medianClaims, re.Epoch, round, "median-claims")
@@ -114,13 +114,13 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 				eligibleVoters = append(eligibleVoters, voter)
 			}
 		}
-		logger.Info("Calculating signing claims for round %d", round)
+		logger.Debug("Calculating signing claims for round %d", round)
 		signingClaims := getSigningClaims(round, re, signingReward, eligibleVoters, signersByRound[round], finalizationsByRound[round])
 
 		utils.PrintRoundResults(signingClaims, re.Epoch, round, "signing-claims")
 
-		logger.Info("Calculating finalization claims for round %d", round)
-		finalizers, err := selectFinalizers(round, re.Policy, params2.Net.Ftso.ProtocolId, params2.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
+		logger.Debug("Calculating finalization claims for round %d", round)
+		finalizers, err := selectFinalizers(round, re.Policy, params.Net.Ftso.ProtocolId, params.Net.Ftso.FinalizationVoterSelectionThresholdWeightBips)
 		if err != nil {
 			logger.Fatal("error selecting finalizers: %s", err)
 		}
@@ -134,7 +134,7 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 			dSignerInfos = append(dSignerInfos, re.VoterIndex.BySigning[dSigner])
 		}
 
-		doubleSigningPenalties := getPenalties(totalRoundReward.Amount, params2.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
+		doubleSigningPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
 
 		var offenderInfos []*fsp.VoterInfo
 		for _, offender := range revealsByRound[round].RegisteredOffenders {
@@ -143,9 +143,9 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 				offenderInfos = append(offenderInfos, re.VoterIndex.BySubmit[offender])
 			}
 		}
-		revealPenalties := getPenalties(totalRoundReward.Amount, params2.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
+		revealPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
 
-		logger.Info("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
+		logger.Debug("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
 
 		var roundClaims []ty.RewardClaim
 
@@ -242,7 +242,7 @@ func getFeedSelectionRandoms(
 		}
 	}
 
-	logger.Info("Extra random: %+v", lastRandom)
+	logger.Debug("Extra random: %+v", lastRandom)
 
 	var rnd *big.Int
 	// Random for last round is the first secure random from next reward epoch,

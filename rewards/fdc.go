@@ -59,13 +59,13 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 		}
 
 		consensusBitVote := getConsensusBitVote(consensusSigs, round, re.VoterIndex)
-		logger.Info("Consensus bitVote for round %d: %d", round, consensusBitVote)
+		logger.Debug("Consensus bitVote for round %d: %d", round, consensusBitVote)
 		consensusBitVoteByRound[round] = consensusBitVote
 
 		// Get appearances by type
 		for i, request := range attestationRequestsByRound[round] {
 			if len(request.Data) < 64 {
-				logger.Warn("attestation request malformed: data less than 64 bytes")
+				logger.Debug("attestation request malformed: data less than 64 bytes")
 				continue
 			}
 			if !isConfirmed(i, consensusBitVote) {
@@ -109,7 +109,7 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 
 			}
 			finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
-			logger.Info("Finalization rewards calculated for round %d: %d", round, len(finalizationClaims))
+			logger.Debug("Finalization rewards calculated for round %d: %d", round, len(finalizationClaims))
 			roundClaims = append(roundClaims, finalizationClaims...)
 			utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "fdc-finalz-claims")
 
@@ -138,7 +138,7 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 		epochClaims = append(epochClaims, roundClaims...)
 	}
 
-	logger.Info("FDC rewards calculated for re %d: %d", re.Epoch, len(epochClaims))
+	logger.Debug("FDC rewards calculated for re %d: %d", re.Epoch, len(epochClaims))
 	return epochClaims, metFDCCondition(totalRewardedRounds, rewardedRounds)
 }
 

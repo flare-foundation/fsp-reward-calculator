@@ -26,7 +26,7 @@ loop:
 		} else {
 			for _, rf := range finalizationsByRound[round] {
 				if rf.Info.From == f.Info.From {
-					logger.Info("Finalization for round %d from %s already seen, skipping", round, f.Info.From)
+					logger.Debug("Finalization for round %d from %s already seen, skipping", round, f.Info.From)
 					continue loop
 				}
 			}

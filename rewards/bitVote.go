@@ -28,12 +28,12 @@ func getConsensusBitVote(sigs map[ty.VoterSigning]fsp.SigInfo, round ty.RoundId,
 	bitVoteWeight := map[string]uint64{}
 	for signer, sig := range sigs {
 		if len(sig.UnsignedMessage) < 3 { // first two bytes are length
-			logger.Warn("bitVote message too short for signer %s in round %d", signer, round)
+			logger.Debug("bitVote message too short for signer %s in round %d", signer, round)
 			continue
 		}
 		bitVote, err := fdc.DecodeBitVote(sig.UnsignedMessage)
 		if err != nil {
-			logger.Warn("error parsing bitVote for signer %s in round %d: %s", signer.String(), round, err)
+			logger.Debug("error parsing bitVote for signer %s in round %d: %s", signer.String(), round, err)
 			continue
 		}
 		bitVoteWeight[bitVote.String()] += uint64(voters.BySigning[signer].SigningPolicyWeight)
