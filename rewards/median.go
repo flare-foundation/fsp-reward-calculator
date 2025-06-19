@@ -25,7 +25,7 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 	var epochClaims []ty.RewardClaim
 
 	// Burn rewardOffer if turnout condition not reached
-	if medianResult == nil || !isEnoughParticipation(medianResult.ParticipantWeight, re.VoterIndex.TotalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
+	if medianResult.Quartiles == nil || !isEnoughParticipation(medianResult.Quartiles.ParticipantWeight, re.VoterIndex.TotalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
 		epochClaims = append(epochClaims, ty.RewardClaim{
 			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardShare),
@@ -125,16 +125,16 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 func getRecords(round ty2.RoundId, re *fsp.RewardEpoch, medianResult *ftso.Result, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {
 	secondaryBandDiff := new(big.Int).Div(
 		new(big.Int).Mul(
-			big.NewInt(int64(abs(medianResult.Median))),
+			big.NewInt(int64(abs(medianResult.Quartiles.Median))),
 			big.NewInt(int64(rewardOffer.Feed.SecondaryBandWidthPPMs)),
 		),
 		bigTotalPPM,
 	).Uint64()
-	lowPct := medianResult.Median - int32(secondaryBandDiff)
-	highPct := medianResult.Median + int32(secondaryBandDiff)
+	lowPct := medianResult.Quartiles.Median - int32(secondaryBandDiff)
+	highPct := medianResult.Quartiles.Median + int32(secondaryBandDiff)
 
-	lowIQR := medianResult.Q1
-	highIQR := medianResult.Q3
+	lowIQR := medianResult.Quartiles.Q1
+	highIQR := medianResult.Quartiles.Q3
 
 	pctSum := big.NewInt(0)
 	iqrSum := big.NewInt(0)

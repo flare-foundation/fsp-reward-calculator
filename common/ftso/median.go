@@ -11,12 +11,16 @@ import (
 	"sort"
 )
 
-type Result struct {
+type Quartiles struct {
 	Q1                int32
 	Median            int32
 	Q3                int32
 	ParticipantWeight *big.Int
-	InputValues       []VoterValue
+}
+
+type Result struct {
+	Quartiles   *Quartiles
+	InputValues []VoterValue
 }
 
 type VoterValue struct {
@@ -57,13 +61,16 @@ func calculateMedians(feeds []fsp.Feed, voterIndex *fsp.VoterIndex, validReveals
 			continue
 		}
 
-		medianResults[feed.Id] = median
+		medianResults[feed.Id] = &Result{
+			Quartiles:   median,
+			InputValues: weightedValues,
+		}
 	}
 
 	return medianResults, nil
 }
 
-func calculateFeedMedian(voterValues []VoterValue) (*Result, error) {
+func calculateFeedMedian(voterValues []VoterValue) (*Quartiles, error) {
 	if len(voterValues) < 1 {
 		return nil, nil
 	}
@@ -110,11 +117,10 @@ func calculateFeedMedian(voterValues []VoterValue) (*Result, error) {
 		return nil, errors.New("could not calculate quartiles")
 	}
 
-	return &Result{
+	return &Quartiles{
 		Q1:                q1.value,
 		Median:            median.value,
 		Q3:                q3.value,
 		ParticipantWeight: totalWeight,
-		InputValues:       voterValues,
 	}, nil
 }

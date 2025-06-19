@@ -10,7 +10,7 @@ func TestCalculateMedian(t *testing.T) {
 	tests := []struct {
 		name    string
 		arg     []VoterValue
-		want    Result
+		want    Quartiles
 		wantErr bool
 	}{
 		{
@@ -23,7 +23,7 @@ func TestCalculateMedian(t *testing.T) {
 				{Value: 5, Weight: big.NewInt(1)},
 				{Value: 6, Weight: big.NewInt(1)},
 			},
-			want: Result{
+			want: Quartiles{
 				Q1:                2,
 				Median:            3,
 				Q3:                5,
@@ -38,7 +38,7 @@ func TestCalculateMedian(t *testing.T) {
 				{Value: 2, Weight: big.NewInt(1)},
 			},
 
-			want: Result{
+			want: Quartiles{
 				Q1:                1,
 				Median:            1,
 				Q3:                2,
@@ -55,7 +55,7 @@ func TestCalculateMedian(t *testing.T) {
 				{Value: 4, Weight: big.NewInt(1)},
 				{Value: 5, Weight: big.NewInt(1)},
 			},
-			want: Result{
+			want: Quartiles{
 				Q1:                1,
 				Median:            1,
 				Q3:                2,

@@ -27,7 +27,7 @@ func metFtsoCondition(voterIndex *fsp.VoterIndex, totalFeeds int, results map[ty
 				continue
 			}
 			for _, voterValue := range feedResult.InputValues {
-				median := big.NewInt(int64(feedResult.Median))
+				median := big.NewInt(int64(feedResult.Quartiles.Median))
 				delta := new(big.Int).Mul(median, FtsoScalingClosenessThresholdPpm)
 				delta.Div(delta, bigTotalPPM)
 

@@ -178,7 +178,7 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 			}
 		}
 		medianDecimals := int(re.OrderedFeeds[feedIndex].Decimals)
-		logger.Info("Calculating FastUpdate claims for round %d, feed %s", round, feedId.Hex())
+		logger.Debug("Calculating FastUpdate claims for round %d, feed %s", round, feedId.Hex())
 
 		median := results[round].Median[feedId]
 		if median == nil {
@@ -189,7 +189,7 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 		roundClaims = append(roundClaims, fuClaims...)
 		utils.PrintRoundResults(fuClaims, re.Epoch, round, "fu-claims")
 
-		logger.Info("Round %d, computed FU claims: %d", round, len(fuClaims))
+		logger.Debug("Round %d, computed FU claims: %d", round, len(fuClaims))
 		utils.PrintRoundResults(roundClaims, re.Epoch, round, "round-claims")
 
 		epochClaims = append(epochClaims, roundClaims...)

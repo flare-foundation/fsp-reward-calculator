@@ -22,7 +22,7 @@ func gatFUpdateClaims(re *fsp.RewardEpoch, roundUpdates *ftso.FUpdate, rewardOff
 	subs := big.NewInt(int64(len(roundUpdates.Submitters)))
 	perRound, rem := new(big.Int).DivMod(rewardOffer.Amount, subs, big.NewInt(0))
 
-	logger.Info("Reward offer amount %s, per round %s, remainder %s", rewardOffer.Amount, perRound, rem)
+	logger.Debug("Reward offer amount %s, per round %s, remainder %s", rewardOffer.Amount, perRound, rem)
 
 	for i := range roundUpdates.Submitters {
 		signing := roundUpdates.Submitters[i]
@@ -63,7 +63,7 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, media
 		}
 
 	}
-	if len(roundUpdates.Submitters) == 0 || medianResult == nil {
+	if len(roundUpdates.Submitters) == 0 || medianResult.Quartiles == nil {
 		return &ty.RewardClaim{
 			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
@@ -71,7 +71,7 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, media
 		}
 	}
 
-	median := big.NewInt(int64(medianResult.Median))
+	median := big.NewInt(int64(medianResult.Quartiles.Median))
 	value := roundUpdates.Feeds.Values[rewardOffer.FeedIndex]
 	decimals := int(roundUpdates.Feeds.Decimals[rewardOffer.FeedIndex])
 
