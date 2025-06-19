@@ -77,11 +77,6 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 			continue
 		}
 
-		if ty.EpochId(finalization.Policy.RewardEpochID) != re.Epoch {
-			logger.Debug("Finalization reward epoch %d does not match expected epoch %d, skipping", finalization.Policy.RewardEpochID, re.Epoch)
-			continue
-		}
-
 		if !finalization.Policy.Equals(re.Policy) {
 			logger.Debug("Finalization signing policy does not match expected, skipping")
 			continue
@@ -125,7 +120,7 @@ func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]by
 	for _, tx := range txns {
 		payloadsByProtocol, err := payload.ExtractPayloads(&tx)
 		if err != nil {
-			logger.Info("error extracting payloads, skipping submission: %s", err)
+			logger.Debug("error extracting payloads, skipping submission: %s", err)
 			continue
 		}
 
