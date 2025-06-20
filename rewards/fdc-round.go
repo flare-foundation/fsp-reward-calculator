@@ -49,7 +49,6 @@ func calculateFdcRoundRewards(
 	burnPerRound, remB := totalBurnAmount.DivMod(totalBurnAmount, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))
 
 	for round := re.StartRound; round <= re.EndRound; round++ {
-
 		amount := new(big.Int).Set(perRound)
 		if big.NewInt(int64(round-re.StartRound)).Cmp(rem) < 0 {
 			amount.Add(amount, big.NewInt(1))

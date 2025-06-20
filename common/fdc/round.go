@@ -24,7 +24,6 @@ func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.H
 	for round, signatures := range allSignatures {
 		sigsByHash := map[common.Hash]map[ty.VoterSigning]fsp.SigInfo{}
 		for _, signatureSubmission := range signatures {
-
 			sender := ty.VoterSubmitSignatures(signatureSubmission.Info.From)
 			voter := re.VoterIndex.BySubmitSignatures[sender]
 
@@ -81,7 +80,7 @@ func GetAttestationRequestsByRound(db *gorm.DB, fromRound ty.RoundId, toRound ty
 	}
 
 	parse := func(log types.Log, ts uint64) (eventWithTs, error) {
-		event, err := instance.FdcHubFilterer.ParseAttestationRequest(log)
+		event, err := instance.ParseAttestationRequest(log)
 		return eventWithTs{event, ts}, err
 	}
 

@@ -59,7 +59,7 @@ func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.Round
 			undistributedWeight.Sub(undistributedWeight, weight)
 			undistributedAmount.Sub(undistributedAmount, voterAmount)
 
-			bitVote, _ := bitVotes[voter.Submit]
+			bitVote := bitVotes[voter.Submit]
 
 			if !dominatesConsensusBitVote(bitVote, consensusBitVote) {
 				burnAmount := big.NewInt(0).Div(big.NewInt(0).Mul(voterAmount, big.NewInt(200000)),

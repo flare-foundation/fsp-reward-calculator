@@ -45,6 +45,9 @@ func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 	logger.Info("Signers fetched")
 
 	fUpdatesByRound, err := ftso.GetFUpdatesByRound(db, re.StartRound, re.EndRound)
+	if err != nil {
+		logger.Fatal("error fetching fast updates: %s", err)
+	}
 	logger.Info("Fast update data fetched")
 
 	results, err := ftso.CalculateResults(re.StartRound, re.EndRound, re.OrderedFeeds, re.VoterIndex, revealsByRound)

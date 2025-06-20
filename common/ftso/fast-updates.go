@@ -24,7 +24,7 @@ func GetFUpdateFeeds(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map
 
 	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*fupdater.FUpdaterFastUpdateFeeds, error) {
-		return instance.FUpdaterFilterer.ParseFastUpdateFeeds(log)
+		return instance.ParseFastUpdateFeeds(log)
 	}
 
 	events, err := fsp.QueryEvents(
@@ -62,7 +62,7 @@ func GetFUpdateSubmits(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (m
 
 	instance, _ := fupdater.NewFUpdater(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*fupdater.FUpdaterFastUpdateFeedsSubmitted, error) {
-		return instance.FUpdaterFilterer.ParseFastUpdateFeedsSubmitted(log)
+		return instance.ParseFastUpdateFeedsSubmitted(log)
 	}
 
 	events, err := fsp.QueryEvents(

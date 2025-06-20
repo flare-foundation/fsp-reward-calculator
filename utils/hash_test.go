@@ -17,7 +17,6 @@ func TestFinalizerSelectionSeed(t *testing.T) {
 			t.Errorf("expected %s, got %s", expected, res.Hex())
 		}
 	})
-
 }
 
 func TestRewardClaimHash(t *testing.T) {
