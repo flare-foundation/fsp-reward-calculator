@@ -61,7 +61,6 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, media
 			Amount:      new(big.Int).Set(rewardOffer.Amount),
 			Type:        ty.Direct,
 		}
-
 	}
 	if len(roundUpdates.Submitters) == 0 || medianResult.Quartiles == nil {
 		return &ty.RewardClaim{

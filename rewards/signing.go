@@ -41,7 +41,7 @@ func getSigningClaims(
 
 	// TODO: Pre-compute
 	successIndex := slices.IndexFunc(finalizations, func(f *fsp.Finalization) bool {
-		return f.Info.Reverted == false
+		return !f.Info.Reverted
 	})
 
 	if successIndex < 0 {
@@ -194,30 +194,6 @@ func SigningWeightClaimsForVoter(voter *fsp.VoterInfo, amount *big.Int) []ty.Rew
 	}
 
 	return claims
-}
-
-func acceptedHashSignatures(
-	re *fsp.RewardEpoch,
-	signaturesByHash map[common.Hash]map[ty2.VoterSigning]fsp.SigInfo,
-) map[ty2.VoterSigning]fsp.SigInfo {
-	threshold := uint64(re.Policy.Voters.TotalWeight) * uint64(params.Net.Ftso.MinimalRewardedNonConsensusDepositedSignaturesPerHashBips) / uint64(totalBips)
-
-	maxWeight := uint64(0)
-	var result map[ty2.VoterSigning]fsp.SigInfo
-
-	for _, signatures := range signaturesByHash {
-		hashWeight := uint64(0)
-		for _, info := range signatures {
-			signerWeight := re.Policy.Voters.VoterDataMap[common.Address(info.Signer)].Weight
-			hashWeight += uint64(signerWeight)
-		}
-		if hashWeight > threshold && hashWeight > maxWeight {
-			maxWeight = hashWeight
-			result = signatures
-		}
-	}
-
-	return result
 }
 
 func getDoubleSigners(roundSigners map[common.Hash]map[ty2.VoterSigning]fsp.SigInfo) map[ty2.VoterSigning]bool {

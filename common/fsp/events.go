@@ -17,7 +17,7 @@ import (
 func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]*registry.RegistryVoterRegistered, error) {
 	instance, _ := registry.NewRegistry(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*registry.RegistryVoterRegistered, error) {
-		return instance.RegistryFilterer.ParseVoterRegistered(log)
+		return instance.ParseVoterRegistered(log)
 	}
 
 	events, err := QueryEvents(
@@ -38,7 +38,7 @@ func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]*registry.
 func getVoterInfoEvents(db *gorm.DB, from uint64, to uint64) ([]*calculator.CalculatorVoterRegistrationInfo, error) {
 	instance, _ := calculator.NewCalculator(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*calculator.CalculatorVoterRegistrationInfo, error) {
-		return instance.CalculatorFilterer.ParseVoterRegistrationInfo(log)
+		return instance.ParseVoterRegistrationInfo(log)
 	}
 
 	events, err := QueryEvents(
@@ -59,7 +59,7 @@ func getVoterInfoEvents(db *gorm.DB, from uint64, to uint64) ([]*calculator.Calc
 func getRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offers.OffersRewardsOffered, error) {
 	instance, _ := offers.NewOffers(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*offers.OffersRewardsOffered, error) {
-		return instance.OffersFilterer.ParseRewardsOffered(log)
+		return instance.ParseRewardsOffered(log)
 	}
 
 	events, err := QueryEvents(
@@ -80,7 +80,7 @@ func getRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offers.Offers
 func getInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offers.OffersInflationRewardsOffered, error) {
 	instance, _ := offers.NewOffers(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*offers.OffersInflationRewardsOffered, error) {
-		return instance.OffersFilterer.ParseInflationRewardsOffered(log)
+		return instance.ParseInflationRewardsOffered(log)
 	}
 
 	events, err := QueryEvents(
@@ -101,7 +101,7 @@ func getInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*offe
 func getFURewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.FUManagerInflationRewardsOffered, error) {
 	instance, _ := fumanager.NewFUManager(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*fumanager.FUManagerInflationRewardsOffered, error) {
-		return instance.FUManagerFilterer.ParseInflationRewardsOffered(log)
+		return instance.ParseInflationRewardsOffered(log)
 	}
 
 	events, err := QueryEvents(
@@ -122,7 +122,7 @@ func getFURewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.F
 func getFUIncentiveOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanager.FUManagerIncentiveOffered, error) {
 	instance, _ := fumanager.NewFUManager(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*fumanager.FUManagerIncentiveOffered, error) {
-		return instance.FUManagerFilterer.ParseIncentiveOffered(log)
+		return instance.ParseIncentiveOffered(log)
 	}
 
 	events, err := QueryEvents(
@@ -143,7 +143,7 @@ func getFUIncentiveOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fumanage
 func getFdcInflationRewardOfferEvents(db *gorm.DB, from uint64, to uint64) ([]*fdchub.FdcHubInflationRewardsOffered, error) {
 	instance, _ := fdchub.NewFdcHub(common.Address{}, nil)
 	parse := func(log types.Log, _ uint64) (*fdchub.FdcHubInflationRewardsOffered, error) {
-		return instance.FdcHubFilterer.ParseInflationRewardsOffered(log)
+		return instance.ParseInflationRewardsOffered(log)
 	}
 
 	events, err := QueryEvents(

@@ -1,4 +1,4 @@
-package main
+package rewards
 
 import (
 	"encoding/json"
@@ -13,14 +13,14 @@ import (
 	"math/big"
 )
 
-type epochResult struct {
+type EpochResult struct {
 	RewardEpochId         int              `json:"rewardEpochId"`
 	NoOfWeightBasedClaims int              `json:"noOfWeightBasedClaims"`
 	MerkleRoot            string           `json:"merkleRoot"`
-	RewardClaims          []claimWithProof `json:"rewardClaims"`
+	RewardClaims          []ClaimWithProof `json:"rewardClaims"`
 }
 
-type claimWithProof struct {
+type ClaimWithProof struct {
 	Proof []common.Hash `json:"merkleProof"`
 	Claim outputClaim   `json:"body"`
 }
@@ -32,7 +32,7 @@ type outputClaim struct {
 	Epoch       ty2.EpochId    `json:"rewardEpochId"`
 }
 
-func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) epochResult {
+func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) EpochResult {
 	var hashes []common.Hash
 	var weightBasedClaims = 0
 	for _, claim := range finalClaims {
@@ -46,7 +46,7 @@ func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) epochResult {
 	merkleTree := merkle.Build(hashes, false)
 	root, err := merkleTree.Root()
 
-	var cl []claimWithProof
+	var cl []ClaimWithProof
 	for i := range finalClaims {
 		claim := finalClaims[i]
 
@@ -60,7 +60,7 @@ func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) epochResult {
 			proofHex[i] = p.Hex()
 		}
 
-		cl = append(cl, claimWithProof{
+		cl = append(cl, ClaimWithProof{
 			Proof: proof,
 			Claim: outputClaim{
 				Beneficiary: claim.Beneficiary,
@@ -75,7 +75,7 @@ func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) epochResult {
 		logger.Fatal("Error calculating merkle root: %s", err)
 	}
 
-	res := epochResult{
+	res := EpochResult{
 		RewardEpochId:         int(epoch),
 		NoOfWeightBasedClaims: weightBasedClaims,
 		MerkleRoot:            root.Hex(),
@@ -84,7 +84,7 @@ func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) epochResult {
 	return res
 }
 
-func printResults(result epochResult, suffix string) {
+func PrintResults(result EpochResult, suffix string) {
 	filePath := fmt.Sprintf("results/%s/%d/result%s.json", params.Net.Name, result.RewardEpochId, suffix)
 
 	jsonData, err := json.MarshalIndent(result, "", "    ")

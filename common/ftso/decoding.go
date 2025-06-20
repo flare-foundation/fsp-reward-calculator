@@ -47,7 +47,6 @@ func DecodeCommit(bytes []byte) (*Commit, error) {
 	return &Commit{
 		Hash: hash,
 	}, nil
-
 }
 
 func DecodeReveal(bytes []byte, expectedFeeds int) (*Reveal, error) {

@@ -16,11 +16,6 @@ import (
 	"slices"
 )
 
-type FdcMinConditions struct {
-	rewardedRounds      map[ty2.VoterId]int
-	totalRewardedRounds int
-}
-
 type roundReward struct {
 	amount *big.Int
 	burn   *big.Int
@@ -106,7 +101,6 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 				if ok {
 					eligibleVoters = append(eligibleVoters, voter)
 				}
-
 			}
 			finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
 			logger.Debug("Finalization rewards calculated for round %d: %d", round, len(finalizationClaims))
@@ -114,9 +108,9 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 			utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "fdc-finalz-claims")
 
 			consensusBitVote := consensusBitVoteByRound[round]
-			roundSigs, _ := signersByRound[round]
+			roundSigs := signersByRound[round]
 			hash := consensusHashByRound[round]
-			consensusSigs, _ := roundSigs[hash]
+			consensusSigs := roundSigs[hash]
 
 			signingClaims := generateFdcSigningClaims(finalizationsByRound[round], round, signingReward, bitVotesByRound[round], consensusBitVote, consensusSigs, re.VoterIndex)
 			roundClaims = append(roundClaims, signingClaims...)
@@ -166,7 +160,7 @@ func updateCond(rewardedRounds map[ty2.VoterId]int, index *fsp.VoterIndex, signi
 
 func firstSuccessful(finalizations []*fsp.Finalization) *fsp.Finalization {
 	successIndex := slices.IndexFunc(finalizations, func(f *fsp.Finalization) bool {
-		return f.Info.Reverted == false
+		return !f.Info.Reverted
 	})
 	if successIndex < 0 {
 		return nil
