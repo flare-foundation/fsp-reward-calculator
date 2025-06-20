@@ -39,7 +39,7 @@ var flare = Network{
 		FutureSecureRandomWindow:              30,
 		AdditionalRewardFinalizationWindows:   0,
 		PenaltyFactor:                         big.NewInt(30),
-		GracePeriodForSignaturesDurationSec:   10,
+		GracePeriodForSignaturesDurationSec:   15,
 		GracePeriodForFinalizationDurationSec: 20,
 		SigningBips:                           big.NewInt(1000),
 		FinalizationBips:                      big.NewInt(1000),
