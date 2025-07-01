@@ -49,7 +49,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty2.EpochId) ([]ty.RewardClaim, map[*fsp.
 
 	epochClaims := make([]ty.RewardClaim, 0)
 
-	ftsoClaims, ftsoCond := getFtsoRewards(db, epochs, windowEnd, submit1[ftso.ProtocolId], submit2[ftso.ProtocolId], submitSignatures[ftso.ProtocolId], finalizations[ftso.ProtocolId])
+	ftsoClaims, ftsoCond := GetFtsoRewards(db, epochs, windowEnd, submit1[ftso.ProtocolId], submit2[ftso.ProtocolId], submitSignatures[ftso.ProtocolId], finalizations[ftso.ProtocolId])
 	fdcClaims, fdcCond := GetFdcRewards(db, epochs.Current, submit2[fdc.ProtocolId], submitSignatures[fdc.ProtocolId], finalizations[fdc.ProtocolId])
 
 	epochClaims = append(epochClaims, ftsoClaims...)

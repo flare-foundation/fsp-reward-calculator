@@ -6,6 +6,7 @@ toolchain go1.23.10
 
 require (
 	github.com/btcsuite/btcutil v1.0.2
+	github.com/docker/go-connections v0.5.0
 	github.com/ethereum/go-ethereum v1.14.12
 	github.com/flare-foundation/go-flare-common v1.2.1-0.20250411125137-d2c796c43d34
 	github.com/pkg/errors v0.9.1
@@ -35,7 +36,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/docker v28.0.1+incompatible // indirect
-	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/ethereum/c-kzg-4844 v1.0.3 // indirect

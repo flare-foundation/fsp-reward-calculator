@@ -3,7 +3,7 @@ package rewards
 import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ftso"
-	params "fsp-rewards-calculator/common/params"
+	"fsp-rewards-calculator/common/params"
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
@@ -20,7 +20,7 @@ type FtsoMinConditions struct {
 	FastUpdates map[ty2.VoterId]bool
 }
 
-func getFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, submit1 []payload.Message, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*fsp.Finalization) ([]ty.RewardClaim, FtsoMinConditions) {
+func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, submit1 []payload.Message, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*fsp.Finalization) ([]ty.RewardClaim, FtsoMinConditions) {
 	var (
 		revealsByRound       map[ty2.RoundId]ftso.RoundReveals
 		signersByRound       fsp.SignerMap

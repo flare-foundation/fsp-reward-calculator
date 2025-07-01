@@ -1,27 +1,30 @@
-
 # Flare Systems Protocol Rewards Calculator
 
 ## Overview
 
-Reward calculator for Flare Systems Protocols, currently supports FTSOv2 Scaling with Fast Updates.
-Produces the combined Merkle root for epoch and reward distribution data for claimers.
+Reward calculator for Flare Systems Protocols. Produces a reward Merkle root hash and claims for a specified epoch.
 
 ## Prerequisites
 
 - Go 1.23 or later
-- Access to a C-chain indexer instance
+- Access to a [FSP C-Chain indexer](https://github.com/flare-foundation/flare-system-c-chain-indexer) instance.
+
+**Note:** Reward calculation performance is primarily bounded by network I/O when retrieving data from the indexer. For
+fastest results, run the calculator on the same host as the indexer.
 
 ## Configuration
 
 The application uses command-line flags to configure its parameters. The following flags are available:
 
-- `-n` (string): Network (coston, coston2, songbird, flare)
-- `-e` (uint64): Reward epoch number
-- `-h` (string): Database host (default: localhost)
-- `-p` (int): Database port (default: 3306)
-- `-d` (string): Database name (default: flare_ftso_indexer)
-- `-u` (string): Database user (default: root)
-- `-w` (string): Database password (default: root)
+| Flag | Type   | Description                       | Default            |
+|------|--------|-----------------------------------|--------------------|
+| `-n` | string | Network (coston, songbird, flare) | -                  |
+| `-e` | uint64 | Reward epoch id                   | previous epoch     |
+| `-h` | string | Indexer db host                   | localhost          |
+| `-p` | int    | Indexer db port                   | 3306               |
+| `-d` | string | Indexer db name                   | flare_ftso_indexer |
+| `-u` | string | Indexer db user                   | root               |
+| `-w` | string | Indexer db password               | root               |
 
 ## Usage
 
@@ -39,4 +42,10 @@ The application uses command-line flags to configure its parameters. The followi
     ```sh
     ./fsp-rewards-calculator -n coston -e 123 -h localhost -p 3306 -d flare_ftso_indexer -u root -w root
     ```
+   If using default db connection parameters, and calculating for the previous reward epoch, you can specify only the
+   network:
+    ```sh
+    ./fsp-rewards-calculator -n coston
+    ```
+
 3. Results will be produced under `./results/<network>/<epoch>`.
