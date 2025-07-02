@@ -111,7 +111,7 @@ func GetRoundReveals(commitsMsgs []payload.Message, revealMsgs []payload.Message
 	}
 
 	if len(commitsByRound) != len(revealsByRound) {
-		logger.Fatal("commitsByRound and revealsByRound have different lengths")
+		logger.Warn("commitsByRound and revealsByRound have different lengths: %d vs %d", len(commitsByRound), len(revealsByRound))
 	}
 
 	roundData := map[ty.RoundId]RoundReveals{}

@@ -46,7 +46,7 @@ func GetSubmit2(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 func GetSubmitSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint8][]payload.Message, error) {
 	logger.Info("Fetching submitSignatures for rounds %d-%d", fromRound, toRound)
 
-	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
+	fromSec := params.Net.Epoch.RevealDeadlineSec(ty.VotingEpochId(fromRound)+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(+params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.SubmitSignatures, params.Net.Contracts.Submission)
@@ -61,7 +61,7 @@ func GetSubmitSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) 
 func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRound ty.RoundId) (map[uint8][]*Finalization, error) {
 	logger.Info("Fetching finalizations for rounds %d-%d", fromRound, toRound)
 
-	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
+	fromSec := params.Net.Epoch.RevealDeadlineSec(ty.VotingEpochId(fromRound)+1) + 1
 	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
 	txns, err := fetchTransactions(db, params.Net.Contracts.Relay, common.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
