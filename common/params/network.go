@@ -74,5 +74,5 @@ func InitNetwork(network string) {
 		logger.Fatal("Unsupported network: %s.", network)
 	}
 
-	logger.Info("Network: %s", network)
+	logger.Info("Initialized network: %s", network)
 }

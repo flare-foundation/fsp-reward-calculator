@@ -22,11 +22,14 @@ func GetEpochClaims(db *gorm.DB, epoch ty2.EpochId) ([]ty.RewardClaim, map[*fsp.
 	}
 
 	re := epochs.Current
+	logger.Info("Epoch round range: %d-%d", re.StartRound, re.EndRound)
+
 	windowStart := ty2.RoundId(uint64(re.StartRound) - params.Net.Ftso.RandomGenerationBenchingWindow)
 	windowEnd := re.EndRound.Add(params.Net.Ftso.FutureSecureRandomWindow)
 
 	ensureDataRange(db, windowStart, windowEnd)
 
+	logger.Info("Fetching submission data, this will take a while...")
 	submit1, err := fsp.GetSubmit1(db, windowStart, windowEnd)
 	if err != nil {
 		logger.Fatal("error fetching submit1")
@@ -47,9 +50,13 @@ func GetEpochClaims(db *gorm.DB, epoch ty2.EpochId) ([]ty.RewardClaim, map[*fsp.
 	}
 	logger.Info("Finalizations fetched")
 
+	logger.Info("Done fetching submission data, calculating rewards...")
+
 	epochClaims := make([]ty.RewardClaim, 0)
 
+	logger.Info("Calculating FTSO rewards")
 	ftsoClaims, ftsoCond := GetFtsoRewards(db, epochs, windowEnd, submit1[ftso.ProtocolId], submit2[ftso.ProtocolId], submitSignatures[ftso.ProtocolId], finalizations[ftso.ProtocolId])
+	logger.Info("Calculating FDC rewards")
 	fdcClaims, fdcCond := GetFdcRewards(db, epochs.Current, submit2[fdc.ProtocolId], submitSignatures[fdc.ProtocolId], finalizations[fdc.ProtocolId])
 
 	epochClaims = append(epochClaims, ftsoClaims...)

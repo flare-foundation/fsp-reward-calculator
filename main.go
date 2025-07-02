@@ -2,8 +2,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"fsp-rewards-calculator/common/params"
-	ty2 "fsp-rewards-calculator/common/ty"
+	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/rewards"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
@@ -22,9 +23,68 @@ type ClientFlags struct {
 	DbPass *string
 }
 
-func parseFlags() *ClientFlags {
+func main() {
+	start := time.Now()
+	logger.Info("Starting FSP rewards calculation")
+
+	flags, err := parseFlags()
+	if err != nil {
+		logger.Fatal("Configuration error: %v", err)
+	}
+
+	logger.Info("Configuration: network=%s, epoch=%d, indexer_db=%s:%d",
+		*flags.Network, *flags.Epoch, *flags.DbHost, *flags.DbPort)
+
+	params.InitNetwork(*flags.Network)
+
+	var epoch ty.EpochId
+	if *flags.Epoch == 0 {
+		current, err := params.Net.Epoch.RewardEpochForTimeSec(uint64(time.Now().UnixMilli() / 1000))
+		if err != nil {
+			logger.Fatal("Error calculating epoch: %s", err)
+		}
+		epoch = ty.EpochId(current - 1)
+		logger.Info("Epoch number not provided, defaulting to last epoch: %d", epoch)
+	} else {
+		epoch = ty.EpochId(*flags.Epoch)
+	}
+
+	db := getDb(flags)
+	defer func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	}()
+
+	res := rewards.CalculateResults(db, epoch)
+	rewards.PrintResults(res, "")
+
+	logger.Info(
+		"Calculation completed successfully - Epoch: %d, Hash: %s, Weight-based claims: %d, Total Time: %s",
+		epoch, res.MerkleRoot, res.NoOfWeightBasedClaims, time.Since(start),
+	)
+}
+
+func (f *ClientFlags) validate() error {
+	if *f.Network == "" {
+		return fmt.Errorf("network is required: must be one of coston, songbird, flare")
+	}
+
+	validNetworks := map[string]bool{"coston": true, "songbird": true, "flare": true}
+	if !validNetworks[*f.Network] {
+		return fmt.Errorf("invalid network '%s': must be one of coston, songbird, flare", *f.Network)
+	}
+
+	if *f.DbPort <= 0 || *f.DbPort > 65535 {
+		return fmt.Errorf("invalid database port %d: must be between 1 and 65535", *f.DbPort)
+	}
+
+	return nil
+}
+
+func parseFlags() (*ClientFlags, error) {
 	f := &ClientFlags{
-		Network: flag.String("n", "coston", "Network"),
+		Network: flag.String("n", "", "Network (coston, songbird, flare)"),
 		Epoch:   flag.Uint64("e", 0, "Epoch number"),
 		DbHost:  flag.String("h", "localhost", "Database host"),
 		DbPort:  flag.Int("p", 3306, "Database port"),
@@ -33,51 +93,13 @@ func parseFlags() *ClientFlags {
 		DbPass:  flag.String("w", "root", "Database password"),
 	}
 	flag.Parse()
-	return f
-}
 
-func main() {
-	// Start CPU profiling
-	//f, err := os.Create("cpu.prof")
-	//if err != nil {
-	//	logger.Fatal("could not create CPU profile: %s", err)
-	//}
-	//defer f.Close()
-	//if err := pprof.StartCPUProfile(f); err != nil {
-	//	logger.Fatal("could not start CPU profile: %s", err)
-	//}
-	//defer pprof.StopCPUProfile()
-
-	//analytics.RunAnalytics()
-
-	flags := parseFlags()
-
-	if *flags.Network == "" {
+	if err := f.validate(); err != nil {
 		flag.PrintDefaults()
-		logger.Fatal("Network is required: coston, songbird, flare")
-	}
-	params.InitNetwork(*flags.Network)
-
-	var epoch ty2.EpochId
-	if *flags.Epoch == 0 {
-		logger.Warn("Epoch number not provided, defaulting to last epoch")
-		current, err := params.Net.Epoch.RewardEpochForTimeSec(uint64(time.Now().UnixMilli() / 1000))
-		if err != nil {
-			logger.Fatal("Error calculating epoch: %s", err)
-		}
-		epoch = ty2.EpochId(current - 1)
-	} else {
-		epoch = ty2.EpochId(*flags.Epoch)
+		return nil, err
 	}
 
-	db := getDb(flags)
-
-	start := time.Now()
-	res := rewards.CalculateResults(db, epoch)
-	rewards.PrintResults(res, "")
-
-	elapsed := time.Since(start)
-	logger.Info("Merkle root for epoch %d: %s, no weight based %d, duration: %s", epoch, res.MerkleRoot, res.NoOfWeightBasedClaims, elapsed)
+	return f, nil
 }
 
 func getDb(flags *ClientFlags) *gorm.DB {
@@ -89,7 +111,6 @@ func getDb(flags *ClientFlags) *gorm.DB {
 		Password: *flags.DbPass,
 	}
 
-	logger.Info("Connecting to database: +%v", config)
 	db, err := database.Connect(&config)
 	if err != nil {
 		logger.Fatal("Error connecting to database: %s", err)

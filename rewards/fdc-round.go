@@ -43,7 +43,7 @@ func calculateFdcRoundRewards(
 		totalRewardAmount = big.NewInt(0).Sub(inflationOffer.Amount, totalBurnAmount)
 	}
 
-	logger.Info("Total reward amount %s, total burn amount %s", totalRewardAmount, totalBurnAmount)
+	logger.Info("Total FDC reward amount: %s, total amount to be burned: %s", totalRewardAmount, totalBurnAmount)
 
 	perRound, rem := totalRewardAmount.DivMod(totalRewardAmount, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))
 	burnPerRound, remB := totalBurnAmount.DivMod(totalBurnAmount, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))

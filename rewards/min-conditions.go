@@ -55,7 +55,7 @@ func metFtsoCondition(voterIndex *fsp.VoterIndex, totalFeeds int, results map[ty
 		if new(big.Int).Mul(bigTotalPPM, bigHits).Cmp(new(big.Int).Mul(FtsoScalingAvailabilityThresholdPpm, big.NewInt(int64(availableHits)))) >= 0 {
 			metCondition[voter] = true
 		}
-		logger.Info("Voter %s hits: %d, met condition: %b", voter.String(), hits, metCondition[voter])
+		logger.Debug("Voter %s hits: %d, met condition: %b", voter.String(), hits, metCondition[voter])
 	}
 
 	return metCondition
@@ -75,7 +75,7 @@ func metFUCondition(index *fsp.VoterIndex, updates map[ty.RoundId]*ftso.FUpdate)
 	}
 
 	for _, voter := range index.PolicyOrder {
-		logger.Info("Voter %s submits: %d", voter.Identity.String(), voterUpdates[voter.Signing])
+		logger.Debug("Voter %s submits: %d", voter.Identity.String(), voterUpdates[voter.Signing])
 	}
 
 	metCondition := map[ty.VoterId]bool{}
@@ -107,10 +107,10 @@ func metFUCondition(index *fsp.VoterIndex, updates map[ty.RoundId]*ftso.FUpdate)
 			metCondition[voter.Identity] = true
 		}
 
-		logger.Info("Voter %s expected updates: %d, actual updates: %d", voter.Identity.String(), expectedUpdates, voterUpdates[voter.Signing])
+		logger.Debug("Voter %s expected updates: %d, actual updates: %d", voter.Identity.String(), expectedUpdates, voterUpdates[voter.Signing])
 	}
 
-	logger.Info("Total submitters: %d", totalUpdates)
+	logger.Debug("Total submitters: %d", totalUpdates)
 	return metCondition
 }
 
@@ -122,7 +122,7 @@ func metFDCCondition(totalRewardedRounds int, rewardedRounds map[ty.VoterId]int)
 	bigTotalRounds := big.NewInt(int64(totalRewardedRounds))
 	for voter, rewardedCount := range rewardedRounds {
 		bigRewardedCount := big.NewInt(int64(rewardedCount))
-		logger.Info("Voter %s rewarded count: %d", voter.String(), rewardedCount)
+		logger.Debug("Voter %s rewarded count: %d", voter.String(), rewardedCount)
 		// rewardedCount >= totalRewardedRounds * FDCThresholdPpm/TotalPPM
 		if new(big.Int).Mul(bigRewardedCount, bigTotalPPM).Cmp(new(big.Int).Mul(FDCThresholdPpm, bigTotalRounds)) >= 0 {
 			metCondition[voter] = true
