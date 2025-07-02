@@ -9,61 +9,61 @@ import (
 
 type Epoch struct {
 	FirstVotingRoundStartTs                    uint64
-	VotingRoundDurationSeconds                 uint64
+	VotingEpochDurationSeconds                 uint64
 	FirstRewardEpochStartVotingRoundId         ty.RoundId
 	RewardEpochDurationInVotingEpochs          uint64
 	RevealDeadlineSeconds                      uint64
 	NewSigningPolicyInitializationStartSeconds uint64
 }
 
-func (e *Epoch) VotingRoundForTimeSec(unixSeconds uint64) ty.RoundId {
-	return ty.RoundId(uint64(math.Floor(float64(unixSeconds-e.FirstVotingRoundStartTs) / float64(e.VotingRoundDurationSeconds))))
+func (e *Epoch) VotingEpochForTimeSec(unixSeconds uint64) ty.VotingEpochId {
+	return ty.VotingEpochId(math.Floor(float64(unixSeconds-e.FirstVotingRoundStartTs) / float64(e.VotingEpochDurationSeconds)))
 }
 
-func (e *Epoch) VotingRoundForTime(unixMilli uint64) ty.RoundId {
-	unixSeconds := unixMilli / 1000
-	return e.VotingRoundForTimeSec(unixSeconds)
-}
-
-func (e *Epoch) NextVotingRoundStartMs(unixMilli uint64) uint64 {
-	currentEpoch := e.VotingRoundForTime(unixMilli)
-	return e.VotingRoundStartMs(currentEpoch + 1)
-}
-
+// VotingRoundStartSec returns Unix seconds for the start of the voting round.
+// A voting round begins at the start of the voting epoch with the same id.
 func (e *Epoch) VotingRoundStartSec(round ty.RoundId) uint64 {
-	return e.FirstVotingRoundStartTs + uint64(round)*e.VotingRoundDurationSeconds
+	return e.VotingEpochStartSec(ty.VotingEpochId(round))
 }
 
-func (e *Epoch) VotingRoundStartMs(round ty.RoundId) uint64 {
-	return e.VotingRoundStartSec(round) * 1000
+func (e *Epoch) VotingEpochStartSec(votingEpoch ty.VotingEpochId) uint64 {
+	return e.FirstVotingRoundStartTs + uint64(votingEpoch)*e.VotingEpochDurationSeconds
 }
 
+// VotingRoundEndSec returns Unix seconds for the end of the voting round.
+// A voting round begins at the start of the voting epoch with the same id and ends at the end of the next voting epoch.
 func (e *Epoch) VotingRoundEndSec(round ty.RoundId) uint64 {
-	return e.VotingRoundStartSec(round+1) - 1
+	startEpoch := ty.VotingEpochId(round)
+	endEpoch := startEpoch + 1
+	return e.VotingEpochStartSec(endEpoch+1) - 1
 }
 
-func (e *Epoch) RevealDeadlineSec(round ty.RoundId) uint64 {
-	return e.VotingRoundStartSec(round) + e.RevealDeadlineSeconds - 1
+func (e *Epoch) RevealDeadlineSec(votingEpoch ty.VotingEpochId) uint64 {
+	return e.VotingEpochStartSec(votingEpoch) + e.RevealDeadlineSeconds - 1
 }
 
-func (e *Epoch) ExpectedFirstVotingRoundForRewardEpoch(epoch ty.EpochId) ty.RoundId {
-	return ty.RoundId(uint64(e.FirstRewardEpochStartVotingRoundId) + uint64(epoch)*e.RewardEpochDurationInVotingEpochs)
+func (e *Epoch) ExpectedFirstVotingRoundForRewardEpoch(rewardEpoch ty.RewardEpochId) ty.RoundId {
+	return ty.RoundId(uint64(e.FirstRewardEpochStartVotingRoundId) + uint64(rewardEpoch)*e.RewardEpochDurationInVotingEpochs)
 }
 
-func (e *Epoch) ExpectedRewardEpochStartTimeSec(epoch ty.EpochId) uint64 {
-	return e.VotingRoundStartSec(e.ExpectedFirstVotingRoundForRewardEpoch(epoch))
+func (e *Epoch) ExpectedRewardEpochStartTimeSec(rewardEpoch ty.RewardEpochId) uint64 {
+	return e.VotingRoundStartSec(e.ExpectedFirstVotingRoundForRewardEpoch(rewardEpoch))
 }
 
-func (e *Epoch) RewardEpochForTimeSec(timeSec uint64) (uint64, error) {
-	votingEpochId := e.VotingRoundForTimeSec(timeSec)
-	return e.ExpectedRewardEpochForVotingRound(votingEpochId)
+func (e *Epoch) RewardEpochForTimeSec(timeSec uint64) (ty.RewardEpochId, error) {
+	votingEpoch := e.VotingEpochForTimeSec(timeSec)
+	return e.ExpectedRewardEpochForVotingEpoch(votingEpoch)
 }
 
-func (e *Epoch) ExpectedRewardEpochForVotingRound(round ty.RoundId) (uint64, error) {
-	if round < e.FirstRewardEpochStartVotingRoundId {
+func (e *Epoch) ExpectedRewardEpochForVotingEpoch(votingEpoch ty.VotingEpochId) (ty.RewardEpochId, error) {
+	if votingEpoch.Value() < e.FirstRewardEpochStartVotingRoundId.Value() {
 		return 0, errors.Errorf(
-			"votingEpochId %d is before firstRewardEpochStartVotingRoundId %d", round, e.FirstRewardEpochStartVotingRoundId,
+			"votingEpoch %d is before firstRewardEpochStartVotingRoundId %d", votingEpoch, e.FirstRewardEpochStartVotingRoundId,
 		)
 	}
-	return uint64(math.Floor(float64(round-e.FirstRewardEpochStartVotingRoundId) / float64(e.RewardEpochDurationInVotingEpochs))), nil
+	return ty.RewardEpochId(
+		math.Floor(
+			float64(votingEpoch.Value()-e.FirstRewardEpochStartVotingRoundId.Value()) / float64(e.RewardEpochDurationInVotingEpochs),
+		),
+	), nil
 }

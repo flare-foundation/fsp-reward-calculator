@@ -18,7 +18,7 @@ import (
 )
 
 type RewardEpoch struct {
-	Epoch         ty.EpochId
+	Epoch         ty.RewardEpochId
 	StartRound    ty.RoundId
 	EndRound      ty.RoundId
 	Policy        *policy.SigningPolicy
@@ -36,11 +36,11 @@ type RewardOffers struct {
 	FdcInflation []*fdchub.FdcHubInflationRewardsOffered
 }
 
-func GetRewardEpoch(epoch ty.EpochId, db *gorm.DB) (RewardEpoch, error) {
+func GetRewardEpoch(epoch ty.RewardEpochId, db *gorm.DB) (RewardEpoch, error) {
 	currentTimestamp := time.Now().Unix()
 
 	expectedStartSec := params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch)
-	epochDuration := params.Net.Epoch.RewardEpochDurationInVotingEpochs * params.Net.Epoch.VotingRoundDurationSeconds
+	epochDuration := params.Net.Epoch.RewardEpochDurationInVotingEpochs * params.Net.Epoch.VotingEpochDurationSeconds
 
 	searchIntervalStartSec := expectedStartSec - (epochDuration * 2)
 	searchIntervalEndSec := min(expectedStartSec+(epochDuration*2), uint64(currentTimestamp))
@@ -117,7 +117,7 @@ func getOrderedVoters(event *relay.RelaySigningPolicyInitialized) []ty.VoterSign
 	return voters
 }
 
-func getRewardOffers(db *gorm.DB, epoch ty.EpochId, startSec, endSec uint64) (RewardOffers, error) {
+func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint64) (RewardOffers, error) {
 	extraWindow := uint64(6 * 60 * 60)
 	previousStartSec := params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch-1) - extraWindow
 

@@ -25,7 +25,7 @@ var coston = Network{
 
 	Epoch: Epoch{
 		FirstVotingRoundStartTs:                    1658429955,
-		VotingRoundDurationSeconds:                 90,
+		VotingEpochDurationSeconds:                 90,
 		FirstRewardEpochStartVotingRoundId:         0,
 		RewardEpochDurationInVotingEpochs:          240,
 		RevealDeadlineSeconds:                      45,

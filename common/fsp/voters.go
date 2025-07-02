@@ -35,7 +35,7 @@ type VoterIndex struct {
 	TotalSigningPolicyWeight uint16
 }
 
-func GetVoterIndex(db *gorm.DB, epoch ty.EpochId, fromSec, toSec uint64, policyVoters map[common.Address]voters.VoterData) (*VoterIndex, error) {
+func GetVoterIndex(db *gorm.DB, epoch ty.RewardEpochId, fromSec, toSec uint64, policyVoters map[common.Address]voters.VoterData) (*VoterIndex, error) {
 	regs, err := getVoterRegisteredEvents(db, fromSec, toSec)
 	if err != nil {
 		return nil, errors.Errorf("error fetching voter registered regs: %s", err)

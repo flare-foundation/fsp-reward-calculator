@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 )
 
-func PrintEpochClaims(records []ty.RewardClaim, epoch ty2.EpochId, suffix string) {
+func PrintEpochClaims(records []ty.RewardClaim, epoch ty2.RewardEpochId, suffix string) {
 	jsonData, err := json.MarshalIndent(records, "", "    ")
 	if err != nil {
 		logger.Error("Error serializing to JSON:", err)
@@ -21,7 +21,7 @@ func PrintEpochClaims(records []ty.RewardClaim, epoch ty2.EpochId, suffix string
 	WriteToFile(jsonData, filePath)
 }
 
-func PrintRoundResults(records []ty.RewardClaim, epoch ty2.EpochId, round ty2.RoundId, suffix string) {
+func PrintRoundResults(records []ty.RewardClaim, epoch ty2.RewardEpochId, round ty2.RoundId, suffix string) {
 	jsonData, err := json.MarshalIndent(records, "", "    ")
 	if err != nil {
 		logger.Error("Error serializing to JSON:", err)

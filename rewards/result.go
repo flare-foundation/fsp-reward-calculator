@@ -26,13 +26,13 @@ type ClaimWithProof struct {
 }
 
 type outputClaim struct {
-	Beneficiary common.Address `json:"beneficiary"`
-	Amount      *big.Int       `json:"amount"`
-	Type        int            `json:"claimType"`
-	Epoch       ty2.EpochId    `json:"rewardEpochId"`
+	Beneficiary common.Address    `json:"beneficiary"`
+	Amount      *big.Int          `json:"amount"`
+	Type        int               `json:"claimType"`
+	Epoch       ty2.RewardEpochId `json:"rewardEpochId"`
 }
 
-func buildResults(epoch ty2.EpochId, finalClaims []ty.RewardClaim) EpochResult {
+func buildResults(epoch ty2.RewardEpochId, finalClaims []ty.RewardClaim) EpochResult {
 	var hashes []common.Hash
 	var weightBasedClaims = 0
 	for _, claim := range finalClaims {

@@ -18,13 +18,14 @@ func ExtractBitVotes(messages []payload.Message) map[ty.RoundId]map[ty.VoterSubm
 		}
 
 		round := ty.RoundId(msg.VotingRound)
-		submitRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
-		if round != submitRound.Add(-1) {
-			logger.Debug("bitvote round %d does not match expected round %d, skipping", round, submitRound.Add(-1))
+		submitEpoch := params.Net.Epoch.VotingEpochForTimeSec(msg.Timestamp)
+		expectedRound := ty.RoundId(submitEpoch - 1)
+		if round != expectedRound {
+			logger.Debug("bitvote round %d does not match expected round %d, skipping", round, expectedRound)
 			continue
 		}
 
-		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitRound) {
+		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitEpoch) {
 			logger.Debug("bitvote from %s too late", msg.From)
 			continue
 		}
@@ -69,7 +70,8 @@ func ExtractFdcSignatures(messages []payload.Message) map[ty.RoundId][]*Signatur
 		}
 
 		round := ty.RoundId(msg.VotingRound)
-		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp) - 1
+		submitEpoch := params.Net.Epoch.VotingEpochForTimeSec(msg.Timestamp)
+		expectedRound := ty.RoundId(submitEpoch - 1)
 		if round != expectedRound {
 			logger.Debug("Signature round %d does not match expected round %d, skipping", round, expectedRound)
 			continue

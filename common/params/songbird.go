@@ -25,7 +25,7 @@ var songbird = Network{
 
 	Epoch: Epoch{
 		FirstVotingRoundStartTs:                    1658429955,
-		VotingRoundDurationSeconds:                 90,
+		VotingEpochDurationSeconds:                 90,
 		FirstRewardEpochStartVotingRoundId:         0,
 		RewardEpochDurationInVotingEpochs:          3360,
 		RevealDeadlineSeconds:                      45,

@@ -16,7 +16,7 @@ import (
 	"net/http"
 )
 
-func CalculateResults(db *gorm.DB, epoch ty.EpochId) EpochResult {
+func CalculateResults(db *gorm.DB, epoch ty.RewardEpochId) EpochResult {
 	logger.Info("Calculating reward claims for epoch %d", epoch)
 
 	allClaims, minCond := GetEpochClaims(db, epoch)
@@ -42,7 +42,7 @@ func CalculateResults(db *gorm.DB, epoch ty.EpochId) EpochResult {
 	return buildResults(epoch, resultClaims)
 }
 
-func applyMinConditions(epoch ty.EpochId, merged []ty2.RewardClaim, cond map[*fsp.VoterInfo]MinConditions) []ty2.RewardClaim {
+func applyMinConditions(epoch ty.RewardEpochId, merged []ty2.RewardClaim, cond map[*fsp.VoterInfo]MinConditions) []ty2.RewardClaim {
 	currentPasses, err := fetCurrentPasses(epoch - 1)
 	if err != nil {
 		logger.Error("Error fetching current passes: %s, defaulting to 0 for all providers", err)
@@ -99,7 +99,7 @@ func applyMinConditions(epoch ty.EpochId, merged []ty2.RewardClaim, cond map[*fs
 	return resRewards
 }
 
-func fetCurrentPasses(epoch ty.EpochId) (map[ty.VoterId]int, error) {
+func fetCurrentPasses(epoch ty.RewardEpochId) (map[ty.VoterId]int, error) {
 	url := fmt.Sprintf("https://raw.githubusercontent.com/flare-foundation/fsp-rewards/refs/heads/main/%s/%d/passes.json", params.Net.Name, epoch)
 
 	resp, err := http.Get(url)
@@ -131,7 +131,7 @@ func fetCurrentPasses(epoch ty.EpochId) (map[ty.VoterId]int, error) {
 
 	passes := map[ty.VoterId]int{}
 	for _, d := range raw {
-		parsedEpoch := ty.EpochId(d.RewardEpochId)
+		parsedEpoch := ty.RewardEpochId(d.RewardEpochId)
 		if parsedEpoch != epoch {
 			return nil, fmt.Errorf("epoch mismatch: %d != %d", parsedEpoch, epoch)
 		}
@@ -141,7 +141,7 @@ func fetCurrentPasses(epoch ty.EpochId) (map[ty.VoterId]int, error) {
 	return passes, nil
 }
 
-func PrintConditions(conditions map[*fsp.VoterInfo]MinConditions, epoch ty.EpochId) {
+func PrintConditions(conditions map[*fsp.VoterInfo]MinConditions, epoch ty.RewardEpochId) {
 	byIdAddress := make(map[string]MinConditions)
 	for voterInfo, condition := range conditions {
 		byIdAddress[voterInfo.Identity.String()] = condition

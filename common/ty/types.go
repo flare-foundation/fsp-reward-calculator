@@ -4,17 +4,25 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type EpochId uint64
+type RewardEpochId uint64
 
-func (r *EpochId) Add(n uint64) EpochId {
-	return EpochId(uint64(*r) + n)
+func (r *RewardEpochId) Add(n uint64) RewardEpochId {
+	return RewardEpochId(uint64(*r) + n)
 }
 
-type RoundId uint64
+type VotingEpochId uint32
+
+func (v *VotingEpochId) Add(n uint32) VotingEpochId {
+	return VotingEpochId(uint32(*v) + n)
+}
+func (v *VotingEpochId) Value() uint32 { return uint32(*v) }
+
+type RoundId uint32
 
 func (r *RoundId) Add(n int) RoundId {
 	return RoundId(int(*r) + n)
 }
+func (r *RoundId) Value() uint32 { return uint32(*r) }
 
 type VoterId common.Address
 type VoterSubmit common.Address

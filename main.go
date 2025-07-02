@@ -37,16 +37,16 @@ func main() {
 
 	params.InitNetwork(*flags.Network)
 
-	var epoch ty.EpochId
+	var epoch ty.RewardEpochId
 	if *flags.Epoch == 0 {
 		current, err := params.Net.Epoch.RewardEpochForTimeSec(uint64(time.Now().UnixMilli() / 1000))
 		if err != nil {
 			logger.Fatal("Error calculating epoch: %s", err)
 		}
-		epoch = ty.EpochId(current - 1)
+		epoch = current - 1
 		logger.Info("Epoch number not provided, defaulting to last epoch: %d", epoch)
 	} else {
-		epoch = ty.EpochId(*flags.Epoch)
+		epoch = ty.RewardEpochId(*flags.Epoch)
 	}
 
 	db := getDb(flags)
