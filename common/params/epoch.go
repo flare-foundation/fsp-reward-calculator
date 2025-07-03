@@ -8,16 +8,23 @@ import (
 )
 
 /*
-    FSP Voting Epochs and Rounds Timeline
+    FSP Voting Epochs and Rounds
 
-    Voting Epochs (90 seconds each):
+	Voting epochs start at timestamp specified by the FirstVotingRoundStartTs system parameter, and run continuously
+	every VotingEpochDurationSeconds.
+
+	Voting Epochs (90 seconds each):
     ┌─────────────────────┬─────────────────────┬─────────────────────┐
     │      Epoch 0        │      Epoch 1        │      Epoch 2        │
     │       90s           │       90s           │       90s           │
     └─────────────────────┴─────────────────────┴─────────────────────┘
     0                    90                   180                   270
 
-    Voting Rounds (overlapping):
+	Voting rounds are aligned with epochs: round X starts at the beginning of epoch X.
+	However, voting rounds contain multiple phases and overlap with each other: round X finishes once the finalization
+	phase completes during epoch X+1.
+
+    Voting Rounds:
     ┌──────────────────────────────────────┐
     │                  Round 0             │  ← Epochs 0-1
     ├─────────────────────┬──────────┬──┬──┤
@@ -26,22 +33,11 @@ import (
     └─────────────────────┴──────────┴──┴──┘
 
                           ┌──────────────────────────────────────┐
-                          │                  Round 0             │  ← Epochs 0-1
+                          │                  Round 1             │  ← Epochs 1-2
                           ├─────────────────────┬──────────┬──┬──┤
                           │       Commit        │  Reveal  │Sg│F │
                           │        90s          │   45s    │15│10│
                           └─────────────────────┴──────────┴──┴──┘
-
-    Phase details:
-	- Commit (90s): Providers submit hash of feed values for the round.
-	- Reveal (45s): Providers reveal feed values.
-	- Sign (15s): Providers sign the round result with median values.
-	- Finalize (10s): Providers collect signatures and finalize the round.
-
-	Key properties:
-	- Voting Epoch N starts at: FirstVotingRoundStartTs + N * 90s
-	- Voting Round N starts at: same time as Voting Epoch N
-	- Multiple rounds run concurrently with overlapping phases
 */
 
 type Epoch struct {
