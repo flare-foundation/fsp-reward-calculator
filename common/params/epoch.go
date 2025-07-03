@@ -8,38 +8,38 @@ import (
 )
 
 /*
-	FSP Voting Epochs and Rounds Timeline
+    FSP Voting Epochs and Rounds Timeline
 
-	Voting Epochs (90 seconds each):
-	┌─────────────────────────────────────┬─────────────────────────────────────┬─────────────────────────────────────┐
-	│               Epoch 0               │               Epoch 1               │               Epoch 2               │
-	│               90s                   │               90s                   │               90s                   │
-	└─────────────────────────────────────┴─────────────────────────────────────┴─────────────────────────────────────┘
-	0                                    90                                   180                                   270
+    Voting Epochs (90 seconds each):
+    ┌─────────────────────┬─────────────────────┬─────────────────────┐
+    │      Epoch 0        │      Epoch 1        │      Epoch 2        │
+    │       90s           │       90s           │       90s           │
+    └─────────────────────┴─────────────────────┴─────────────────────┘
+    0                    90                   180                   270
 
-    Voting Rounds (overlapping), using FTSO as an example:
-	┌──────────────────────────────────────────────────────────────────────┐
-	│                                  Round 0                             │  ← Epochs 0-1
-	├─────────────────────────────────────┬───────────────────┬──────┬─────┤
-	│               Commit                │      Reveal       │ Sig  │ Fin │
-	│               90s                   │      45s          │ 15s  │ 10s │
-	└─────────────────────────────────────┴───────────────────┴──────┴─────┘
+    Voting Rounds (overlapping):
+    ┌──────────────────────────────────────┐
+    │                  Round 0             │  ← Epochs 0-1
+    ├─────────────────────┬──────────┬──┬──┤
+    │       Commit        │  Reveal  │Sg│F │
+    │        90s          │   45s    │15│10│
+    └─────────────────────┴──────────┴──┴──┘
 
-										  ┌──────────────────────────────────────────────────────────────────────┐
-										  │                                  Round 1                             │  ← Epochs 1-2
-										  ├─────────────────────────────────────┬───────────────────┬──────┬─────┤
-										  │               Commit                │      Reveal       │ Sig  │ Fin │
-										  │               90s                   │      45s          │ 15s  │ 10s │
-										  └─────────────────────────────────────┴───────────────────┴──────┴─────┘
+                          ┌──────────────────────────────────────┐
+                          │                  Round 0             │  ← Epochs 0-1
+                          ├─────────────────────┬──────────┬──┬──┤
+                          │       Commit        │  Reveal  │Sg│F │
+                          │        90s          │   45s    │15│10│
+                          └─────────────────────┴──────────┴──┴──┘
 
-	FTSO phase details:
-	- Commit Phase (90s): Providers submit hash of feed values for the round.
-	- Reveal Phase (45s): Providers reveal feed values.
-	- Sign Phase (15s): Providers sign the round result, which includes median values.
-	- Finalize Phase (10s): Providers collect signatures, and finalize the round.
+    Phase details:
+	- Commit (90s): Providers submit hash of feed values for the round.
+	- Reveal (45s): Providers reveal feed values.
+	- Sign (15s): Providers sign the round result with median values.
+	- Finalize (10s): Providers collect signatures and finalize the round.
 
 	Key properties:
-	- Voting Epoch 0 starts at: FirstVotingRoundStartTs
+	- Voting Epoch N starts at: FirstVotingRoundStartTs + N * 90s
 	- Voting Round N starts at: same time as Voting Epoch N
 	- Multiple rounds run concurrently with overlapping phases
 */
