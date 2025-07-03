@@ -17,7 +17,7 @@ func GetSubmit1(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 	logger.Info("Fetching submit1 for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound)
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.Submit1, params.Net.Contracts.Submission)
 	if err != nil {
@@ -32,7 +32,7 @@ func GetSubmit2(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 	logger.Info("Fetching submit2 for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound)
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.Submit2, params.Net.Contracts.Submission)
 	if err != nil {
@@ -47,7 +47,7 @@ func GetSubmitSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) 
 	logger.Info("Fetching submitSignatures for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.RevealDeadlineSec(ty.VotingEpochId(fromRound)+1) + 1
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(+params.Net.Ftso.AdditionalRewardFinalizationWindows))
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound.Add(+params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.SubmitSignatures, params.Net.Contracts.Submission)
 	if err != nil {
@@ -62,7 +62,7 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 	logger.Info("Fetching finalizations for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.RevealDeadlineSec(ty.VotingEpochId(fromRound)+1) + 1
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(params.Net.Ftso.AdditionalRewardFinalizationWindows))
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound.Add(params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
 	txns, err := fetchTransactions(db, params.Net.Contracts.Relay, common.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
 	if err != nil {

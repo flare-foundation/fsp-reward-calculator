@@ -22,7 +22,7 @@ func getSigningClaims(
 	doubleSigners := getDoubleSigners(signers)
 
 	revealDeadline := params.Net.Epoch.RevealDeadlineSec(ty2.VotingEpochId(round) + 1)
-	roundEnd := params.Net.Epoch.VotingRoundEndSec(
+	roundEnd := params.Net.Epoch.VotingRoundRewardEndSec(
 		round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows),
 	)
 

@@ -69,7 +69,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty2.RewardEpochId) ([]ty.RewardClaim, map
 
 func ensureDataRange(db *gorm.DB, start, end ty2.RoundId) {
 	startSec := params.Net.Epoch.VotingRoundStartSec(start)
-	endSec := params.Net.Epoch.VotingRoundEndSec(end)
+	endSec := params.Net.Epoch.VotingRoundRewardEndSec(end)
 
 	firstSec, err := database.FetchFirstDBBlockTs(context.Background(), db)
 	if err != nil {

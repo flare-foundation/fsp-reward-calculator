@@ -74,7 +74,7 @@ func GetRewardEpoch(epoch ty.RewardEpochId, db *gorm.DB) (RewardEpoch, error) {
 	}
 
 	epochStartSec := params.Net.Epoch.VotingRoundStartSec(startRound)
-	epochEndSec := params.Net.Epoch.VotingRoundEndSec(endRound)
+	epochEndSec := params.Net.Epoch.VotingRoundRewardEndSec(endRound)
 
 	if endRound == 0 {
 		epochEndSec = params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch + 1)

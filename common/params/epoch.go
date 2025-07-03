@@ -31,21 +31,23 @@ import (
     │                  Round 0             │  ← Epochs 0-1
     ├─────────────────────┬──────────┬──┬──┤
     │       Commit        │  Reveal  │Sg│F │
-    │        90s          │   45s    │15│10│
+    │        90s          │   45s    │15│5 │
     └─────────────────────┴──────────┴──┴──┘
 
                           ┌──────────────────────────────────────┐
                           │                  Round 1             │  ← Epochs 1-2
                           ├─────────────────────┬──────────┬──┬──┤
                           │       Commit        │  Reveal  │Sg│F │
-                          │        90s          │   45s    │15│10│
+                          │        90s          │   45s    │15│5 │
                           └─────────────────────┴──────────┴──┴──┘
 
     Phase details:
-	- Commit (90s):   Providers submit hash of feed values for the round.
-	- Reveal (45s):   Providers reveal feed values.
-	- Sign (15s):     Providers sign the round result with median values.
-	- Finalize (10s): Providers collect signatures and finalize the round.
+	- Commit (90s):  Providers submit hash of feed values for the round.
+	- Reveal (45s):  Providers reveal feed values.
+	- Sign (15s):    Providers sign the round result with median values.
+	- Finalize (5s): Providers collect signatures and finalize the round.
+	Note: Sign and Finalize phases may extend longer, until enough signatures are submitted and collected. The durations
+    for these two phases indicate expected time widows that are eligible for rewards.
 */
 
 type Epoch struct {
@@ -71,9 +73,14 @@ func (e *Epoch) VotingEpochStartSec(votingEpoch ty.VotingEpochId) uint64 {
 	return e.FirstVotingRoundStartTs + uint64(votingEpoch)*e.VotingEpochDurationSeconds
 }
 
-// VotingRoundEndSec returns Unix time for the end of the voting round.
-// A voting round begins at the start of the voting epoch with the same id and ends at the end of the next voting epoch.
-func (e *Epoch) VotingRoundEndSec(round ty.RoundId) uint64 {
+// VotingRoundRewardEndSec returns Unix time for the end of the rewarded voting round.
+// A voting round X begins at the start of the voting epoch X and is expected to finish by the end of the next voting epoch X + 1.
+// Technically, a voting round only finishes once the finalization phase completes, which may extend into further voting epochs.
+// The hard deadline set by the Relay contract is 10 reward epochs or around 30 days after the voting epoch in which
+// it was expected to finish.
+// However, in this case, no rewards are issued for the round, so for rewarding purposes we only consider submission data
+// for round X with timestamp up until the end of the voting epoch X + 1.
+func (e *Epoch) VotingRoundRewardEndSec(round ty.RoundId) uint64 {
 	startEpoch := ty.VotingEpochId(round)
 	endEpoch := startEpoch + 1
 	return e.VotingEpochStartSec(endEpoch+1) - 1
