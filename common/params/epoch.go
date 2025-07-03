@@ -24,7 +24,9 @@ import (
 	However, voting rounds contain multiple phases and overlap with each other: round X finishes once the finalization
 	phase completes during epoch X+1.
 
-    Voting Rounds:
+
+
+    Voting Rounds, using FTSO as an example:
     ┌──────────────────────────────────────┐
     │                  Round 0             │  ← Epochs 0-1
     ├─────────────────────┬──────────┬──┬──┤
@@ -38,6 +40,12 @@ import (
                           │       Commit        │  Reveal  │Sg│F │
                           │        90s          │   45s    │15│10│
                           └─────────────────────┴──────────┴──┴──┘
+
+    Phase details:
+	- Commit (90s):   Providers submit hash of feed values for the round.
+	- Reveal (45s):   Providers reveal feed values.
+	- Sign (15s):     Providers sign the round result with median values.
+	- Finalize (10s): Providers collect signatures and finalize the round.
 */
 
 type Epoch struct {
