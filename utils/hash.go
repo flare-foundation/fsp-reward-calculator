@@ -54,7 +54,7 @@ var (
 	}
 )
 
-func RewardClaimHash(epoch ty2.EpochId, claim ty.RewardClaim) common.Hash {
+func RewardClaimHash(epoch ty2.RewardEpochId, claim ty.RewardClaim) common.Hash {
 	encoded, err := rewardClaimArgs.Pack(
 		epoch,
 		claim.Beneficiary,

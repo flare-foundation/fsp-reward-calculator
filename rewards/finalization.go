@@ -33,10 +33,10 @@ func getFinalizationClaims(
 		return []ty.RewardClaim{burnClaim(reward)}
 	}
 
-	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(round+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec + 1
+	gracePeriodDeadline := params.Net.Epoch.RevealDeadlineSec(ty2.VotingEpochId(round)+1) + params.Net.Ftso.GracePeriodForFinalizationDurationSec + 1
 
 	if firstSuccessfulFinalization.Info.TimestampSec > gracePeriodDeadline {
-		// No voter provided finalization in grace period. The first successful finalizer gets the full reward.
+		// No voter provided finalization in the grace period. The first successful finalizer gets the full reward.
 		return []ty.RewardClaim{
 			{
 				Beneficiary: firstSuccessfulFinalization.Info.From,

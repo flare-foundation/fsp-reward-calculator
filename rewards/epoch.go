@@ -15,7 +15,7 @@ import (
 )
 
 // GetEpochClaims calculates the reward claims for a reward epoch
-func GetEpochClaims(db *gorm.DB, epoch ty2.EpochId) ([]ty.RewardClaim, map[*fsp.VoterInfo]MinConditions) {
+func GetEpochClaims(db *gorm.DB, epoch ty2.RewardEpochId) ([]ty.RewardClaim, map[*fsp.VoterInfo]MinConditions) {
 	epochs, err := LoadRewardEpochs(epoch, db)
 	if err != nil {
 		logger.Fatal("Error fetching reward epochs, required data may not be indexed: %s", err)
@@ -69,7 +69,7 @@ func GetEpochClaims(db *gorm.DB, epoch ty2.EpochId) ([]ty.RewardClaim, map[*fsp.
 
 func ensureDataRange(db *gorm.DB, start, end ty2.RoundId) {
 	startSec := params.Net.Epoch.VotingRoundStartSec(start)
-	endSec := params.Net.Epoch.VotingRoundEndSec(end)
+	endSec := params.Net.Epoch.VotingRoundRewardEndSec(end)
 
 	firstSec, err := database.FetchFirstDBBlockTs(context.Background(), db)
 	if err != nil {
@@ -88,7 +88,7 @@ func ensureDataRange(db *gorm.DB, start, end ty2.RoundId) {
 	}
 }
 
-func calcConditions(epoch ty2.EpochId, voters *fsp.VoterIndex, conditions FtsoMinConditions, fdcCond map[ty2.VoterId]bool) map[*fsp.VoterInfo]MinConditions {
+func calcConditions(epoch ty2.RewardEpochId, voters *fsp.VoterIndex, conditions FtsoMinConditions, fdcCond map[ty2.VoterId]bool) map[*fsp.VoterInfo]MinConditions {
 	stakingCond := map[ty2.VoterId]StakingCondition{}
 	if params.Net.Name == "flare" {
 		stakingCond = MetStakingCondition(epoch, voters)
@@ -150,7 +150,7 @@ type RewardEpochs struct {
 	next    *fsp.RewardEpoch
 }
 
-func LoadRewardEpochs(epoch ty2.EpochId, db *gorm.DB) (RewardEpochs, error) {
+func LoadRewardEpochs(epoch ty2.RewardEpochId, db *gorm.DB) (RewardEpochs, error) {
 	prev, err := fsp.GetRewardEpoch(epoch-1, db)
 	if err != nil {
 		return RewardEpochs{}, errors.Wrap(err, "error fetching previous epoch")

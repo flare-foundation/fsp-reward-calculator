@@ -31,7 +31,7 @@ func TestCalculateResults(t *testing.T) {
 	defer mysqlC.Terminate(ctx) // nolint:errcheck
 
 	params.InitNetwork(network)
-	testEpoch := ty2.EpochId(testEpochId)
+	testEpoch := ty2.RewardEpochId(testEpochId)
 	result := CalculateResults(gormDB, testEpoch)
 
 	if result.MerkleRoot != testEpochExpectedRoot {

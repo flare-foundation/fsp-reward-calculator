@@ -79,7 +79,8 @@ func ExtractCommits(messages []payload.Message) (map[ty.RoundId]map[ty.VoterSubm
 		}
 
 		round := ty.RoundId(msg.VotingRound)
-		submitRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
+		submitEpoch := params.Net.Epoch.VotingEpochForTimeSec(msg.Timestamp)
+		submitRound := ty.RoundId(submitEpoch)
 		if round != submitRound {
 			logger.Debug("commit round %d does not match expected round %d, skipping", round, submitRound)
 			continue
@@ -110,13 +111,14 @@ func ExtractReveals(messages []payload.Message, getRoundEpoch func(ty.RoundId) *
 		}
 
 		round := ty.RoundId(msg.VotingRound)
-		submitRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp)
-		if round != submitRound.Add(-1) {
-			logger.Debug("reveal round %d does not match expected round %d, skipping", round, submitRound.Add(-1))
+		submitEpoch := params.Net.Epoch.VotingEpochForTimeSec(msg.Timestamp)
+		submitRound := ty.RoundId(submitEpoch - 1)
+		if round != submitRound {
+			logger.Debug("reveal round %d does not match expected round %d, skipping", round, submitRound)
 			continue
 		}
 
-		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitRound) {
+		if msg.Timestamp > params.Net.Epoch.RevealDeadlineSec(submitEpoch) {
 			logger.Debug("reveal from %s too late", msg.From)
 			continue
 		}
@@ -147,9 +149,10 @@ func ExtractSignatures(messages []payload.Message) (map[ty.RoundId][]*SignatureS
 		}
 
 		round := ty.RoundId(msg.VotingRound)
-		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(msg.Timestamp) - 1
-		if round != expectedRound {
-			logger.Debug("Signature round %d does not match expected round %d, skipping", round, expectedRound)
+		submitEpoch := params.Net.Epoch.VotingEpochForTimeSec(msg.Timestamp)
+		submitRound := ty.RoundId(submitEpoch - 1)
+		if round != submitRound {
+			logger.Debug("Signature round %d does not match expected round %d, skipping", round, submitRound)
 			continue
 		}
 

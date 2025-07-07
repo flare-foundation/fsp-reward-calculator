@@ -17,7 +17,7 @@ func GetSubmit1(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 	logger.Info("Fetching submit1 for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound)
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound)
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound)
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.Submit1, params.Net.Contracts.Submission)
 	if err != nil {
@@ -32,7 +32,7 @@ func GetSubmit2(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 	logger.Info("Fetching submit2 for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1))
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound)
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.Submit2, params.Net.Contracts.Submission)
 	if err != nil {
@@ -46,8 +46,8 @@ func GetSubmit2(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 func GetSubmitSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint8][]payload.Message, error) {
 	logger.Info("Fetching submitSignatures for rounds %d-%d", fromRound, toRound)
 
-	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
+	fromSec := params.Net.Epoch.RevealDeadlineSec(ty.VotingEpochId(fromRound)+1) + 1
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound.Add(+params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.SubmitSignatures, params.Net.Contracts.Submission)
 	if err != nil {
@@ -61,8 +61,8 @@ func GetSubmitSignatures(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) 
 func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRound ty.RoundId) (map[uint8][]*Finalization, error) {
 	logger.Info("Fetching finalizations for rounds %d-%d", fromRound, toRound)
 
-	fromSec := params.Net.Epoch.RevealDeadlineSec(fromRound+1) + 1
-	toSec := params.Net.Epoch.VotingRoundEndSec(toRound.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows))
+	fromSec := params.Net.Epoch.RevealDeadlineSec(ty.VotingEpochId(fromRound)+1) + 1
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound.Add(params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
 	txns, err := fetchTransactions(db, params.Net.Contracts.Relay, common.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
 	if err != nil {
@@ -82,7 +82,8 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 			continue
 		}
 
-		expectedRound := params.Net.Epoch.VotingRoundForTimeSec(txn.Timestamp) - 1
+		txnEpoch := params.Net.Epoch.VotingEpochForTimeSec(txn.Timestamp)
+		expectedRound := ty.RoundId(txnEpoch - 1)
 		round := finalization.MerkleRoot.Round
 		if round != expectedRound {
 			logger.Debug("finalization round %d does not match expected round %d, skipping", round, expectedRound)

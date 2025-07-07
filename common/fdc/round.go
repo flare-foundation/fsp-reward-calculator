@@ -99,7 +99,9 @@ func GetAttestationRequestsByRound(db *gorm.DB, fromRound ty.RoundId, toRound ty
 	var eventsByRound = map[ty.RoundId][]*fdchub.FdcHubAttestationRequest{}
 
 	for _, event := range events {
-		round := params.Net.Epoch.VotingRoundForTime(event.timestamp * 1000)
+		submitEpoch := params.Net.Epoch.VotingEpochForTimeSec(event.timestamp)
+		// Attestation requests submitted in voting epoch i get assigned to voting round i.
+		round := ty.RoundId(submitEpoch)
 		if round < fromRound || round > toRound {
 			continue
 		}

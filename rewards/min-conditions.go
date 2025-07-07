@@ -145,7 +145,7 @@ const (
 	MetNoPass
 )
 
-func MetStakingCondition(epoch ty.EpochId, voters *fsp.VoterIndex) map[ty.VoterId]StakingCondition {
+func MetStakingCondition(epoch ty.RewardEpochId, voters *fsp.VoterIndex) map[ty.VoterId]StakingCondition {
 	metCondition := map[ty.VoterId]StakingCondition{}
 
 	validatorInfoByNode, err := FetchValidatorInfo(epoch)
@@ -196,7 +196,7 @@ type ValidatorInfo struct {
 	UptimeEligible   bool
 }
 
-func FetchValidatorInfo(epoch ty.EpochId) (map[string]ValidatorInfo, error) {
+func FetchValidatorInfo(epoch ty.RewardEpochId) (map[string]ValidatorInfo, error) {
 	url := fmt.Sprintf("https://raw.githubusercontent.com/flare-foundation/reward-scripts/refs/heads/main/generated-files/reward-epoch-%d/initial-nodes-data.json", epoch)
 
 	resp, err := http.Get(url)
