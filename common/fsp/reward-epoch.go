@@ -4,6 +4,9 @@ import (
 	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
+	"slices"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
@@ -13,8 +16,6 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"slices"
-	"time"
 )
 
 type RewardEpoch struct {
@@ -129,6 +130,10 @@ func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint6
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching inflation reward offer events: %s", err)
 	}
+	if len(inflation) == 0 {
+		return RewardOffers{}, errors.Errorf("no inflation reward offers found for epoch %d", epoch)
+	}
+
 	fastUpdates, err := getFURewardOfferEvents(db, previousStartSec, startSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
