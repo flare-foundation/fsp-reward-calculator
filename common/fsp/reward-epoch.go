@@ -131,7 +131,7 @@ func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint6
 		return RewardOffers{}, errors.Errorf("error fetching inflation reward offer events: %s", err)
 	}
 	if len(inflation) == 0 {
-		return RewardOffers{}, errors.Errorf("no inflation reward offers found for epoch %d", epoch)
+		return RewardOffers{}, errors.Errorf("no inflation reward offers found for epoch %d. Required history from %d (%v)", epoch, previousStartSec, time.Unix(int64(previousStartSec), 0))
 	}
 
 	fastUpdates, err := getFURewardOfferEvents(db, previousStartSec, startSec)
