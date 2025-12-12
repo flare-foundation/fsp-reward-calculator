@@ -8,11 +8,12 @@ import (
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
+	"math/big"
+	"slices"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
-	"math/big"
-	"slices"
 )
 
 type FtsoMinConditions struct {
@@ -59,8 +60,10 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 	roundRewards := calculateRoundRewards(re, feedSelectionRandoms)
 	fuRoundRewards := calculateFURoundRewards(re, feedSelectionRandoms)
 
-	for round := re.StartRound; round <= re.EndRound; round++ {
-		PrintRoundData(results[round], revealsByRound[round], roundRewards[round].Feed, feedSelectionRandoms[round-re.StartRound], re.Epoch, round)
+	if utils.IsVerbose() {
+		for round := re.StartRound; round <= re.EndRound; round++ {
+			PrintRoundData(results[round], revealsByRound[round], roundRewards[round].Feed, feedSelectionRandoms[round-re.StartRound], re.Epoch, round)
+		}
 	}
 
 	logger.Info("All data fetched, calculating rewards.")

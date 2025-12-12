@@ -6,6 +6,7 @@ import (
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
+
 	common2 "github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
@@ -32,7 +33,7 @@ func GetSubmit2(db *gorm.DB, fromRound ty.RoundId, toRound ty.RoundId) (map[uint
 	logger.Info("Fetching submit2 for rounds %d-%d", fromRound, toRound)
 
 	fromSec := params.Net.Epoch.VotingRoundStartSec(fromRound.Add(1))
-	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound)
+	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound + 1)
 
 	msgs, err := querySubmissions(db, fromSec, toSec, common.FunctionSignatures.Submit2, params.Net.Contracts.Submission)
 	if err != nil {

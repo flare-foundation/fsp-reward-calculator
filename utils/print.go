@@ -11,7 +11,21 @@ import (
 	"path/filepath"
 )
 
+var verbose bool
+
+func SetVerbose(v bool) {
+	verbose = v
+}
+
+func IsVerbose() bool {
+	return verbose
+}
+
 func PrintEpochClaims(records []ty.RewardClaim, epoch ty2.RewardEpochId, suffix string) {
+	if !IsVerbose() {
+		return
+	}
+
 	jsonData, err := json.MarshalIndent(records, "", "    ")
 	if err != nil {
 		logger.Error("Error serializing to JSON:", err)
@@ -22,6 +36,9 @@ func PrintEpochClaims(records []ty.RewardClaim, epoch ty2.RewardEpochId, suffix 
 }
 
 func PrintRoundResults(records []ty.RewardClaim, epoch ty2.RewardEpochId, round ty2.RoundId, suffix string) {
+	if !IsVerbose() {
+		return
+	}
 	jsonData, err := json.MarshalIndent(records, "", "    ")
 	if err != nil {
 		logger.Error("Error serializing to JSON:", err)

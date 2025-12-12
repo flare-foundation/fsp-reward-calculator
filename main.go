@@ -7,9 +7,11 @@ import (
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/rewards"
+	"fsp-rewards-calculator/utils"
+	"time"
+
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"gorm.io/gorm"
-	"time"
 )
 
 type ClientFlags struct {
@@ -21,6 +23,8 @@ type ClientFlags struct {
 	DbName *string
 	DbUser *string
 	DbPass *string
+
+	Verbose *bool
 }
 
 func main() {
@@ -31,6 +35,8 @@ func main() {
 	if err != nil {
 		logger.Fatal("Configuration error: %v", err)
 	}
+
+	utils.SetVerbose(*flags.Verbose)
 
 	logger.Info("Configuration: network=%s, epoch=%d, indexer_db=%s:%d",
 		*flags.Network, *flags.Epoch, *flags.DbHost, *flags.DbPort)
@@ -91,6 +97,7 @@ func parseFlags() (*ClientFlags, error) {
 		DbName:  flag.String("d", "flare_ftso_indexer", "Database name"),
 		DbUser:  flag.String("u", "root", "Database user"),
 		DbPass:  flag.String("w", "root", "Database password"),
+		Verbose: flag.Bool("v", false, "Verbose output - enable writing per-round claim data"),
 	}
 	flag.Parse()
 

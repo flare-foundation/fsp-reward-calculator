@@ -9,11 +9,12 @@ import (
 	"fsp-rewards-calculator/logger"
 	ty2 "fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
-	"github.com/ethereum/go-ethereum/common"
-	"gorm.io/gorm"
 	"io"
 	"math/big"
 	"net/http"
+
+	"github.com/ethereum/go-ethereum/common"
+	"gorm.io/gorm"
 )
 
 func CalculateResults(db *gorm.DB, epoch ty.RewardEpochId) EpochResult {
@@ -32,7 +33,9 @@ func CalculateResults(db *gorm.DB, epoch ty.RewardEpochId) EpochResult {
 	var resultClaims []ty2.RewardClaim
 	if params.Net.Name == "flare" || params.Net.Name == "songbird" {
 		nonConditions := buildResults(epoch, finalClaims)
-		PrintResults(nonConditions, "-raw")
+		if utils.IsVerbose() {
+			PrintResults(nonConditions, "-raw")
+		}
 
 		resultClaims = applyMinConditions(epoch, finalClaims, minCond)
 	} else {
@@ -55,7 +58,7 @@ func applyMinConditions(epoch ty.RewardEpochId, merged []ty2.RewardClaim, cond m
 		passes := currentPasses[voter.Identity] + c.PassDelta
 
 		if passes < 0 {
-			logger.Warn("Voter id %s del %s has negative passes: %d, burning claims", voter.Identity.String(), voter.Delegation.String(), passes)
+			logger.Info("Voter id %s del %s has negative passes: %d, burning claims", voter.Identity.String(), voter.Delegation.String(), passes)
 
 			burnClaims[common.Address(voter.Identity)] = true
 			burnClaims[common.Address(voter.Delegation)] = true
