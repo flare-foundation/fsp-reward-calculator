@@ -4,7 +4,7 @@ stages:
 
 variables:
   GOPATH: /go
-  GOLANG_VERSION: "1.23"
+  GOLANG_VERSION: "1.25.5"
   GOLINT_VERSION: "v2.0.2"
   DOCKER_HOST: "tcp://docker:2375"
   DOCKER_TLS_CERTDIR: ""
