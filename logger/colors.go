@@ -4,8 +4,7 @@ import "go.uber.org/zap/zapcore"
 
 type Color string
 
-// Colors taken from Avalanche logger colors
-// (avalanchego/utils/logging/color.go)
+// Colors taken from Avalanche logger colors (avalanchego/utils/logging/color.go).
 const (
 	Black       Color = "\033[0;30m"
 	DarkGray    Color = "\033[1;30m"

@@ -9,12 +9,13 @@ import (
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
+
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
 
-// GetEpochClaims calculates the reward claims for a reward epoch
+// GetEpochClaims calculates the reward claims for a reward epoch.
 func GetEpochClaims(db *gorm.DB, epoch ty2.RewardEpochId) ([]ty.RewardClaim, map[*fsp.VoterInfo]MinConditions) {
 	epochs, err := LoadRewardEpochs(epoch, db)
 	if err != nil {

@@ -8,11 +8,12 @@ import (
 	"fsp-rewards-calculator/common/ftso"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"github.com/btcsuite/btcutil/base58"
-	"github.com/pkg/errors"
 	"io"
 	"math/big"
 	"net/http"
+
+	"github.com/btcsuite/btcutil/base58"
+	"github.com/pkg/errors"
 )
 
 var FtsoScalingClosenessThresholdPpm = big.NewInt(5000)      // 0.5%
@@ -203,7 +204,7 @@ func FetchValidatorInfo(epoch ty.RewardEpochId) (map[string]ValidatorInfo, error
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to fetch raw: %s", resp.Status)

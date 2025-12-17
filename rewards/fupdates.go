@@ -6,8 +6,9 @@ import (
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func gatFUpdateClaims(re *fsp.RewardEpoch, roundUpdates *ftso.FUpdate, rewardOffer FUFeedReward, medianResult *ftso.Result, medianDecimals int) []ty.RewardClaim {
@@ -99,7 +100,7 @@ func checkBurnReward(rewardOffer FUFeedReward, roundUpdates *ftso.FUpdate, media
 	return nil
 }
 
-// PowerOfTen calculates 10^n using big.Int
+// PowerOfTen calculates 10^n using big.Int.
 func PowerOfTen(n int64) *big.Int {
 	base := big.NewInt(10)
 	exponent := big.NewInt(n)

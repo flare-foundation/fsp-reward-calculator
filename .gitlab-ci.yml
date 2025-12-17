@@ -4,8 +4,8 @@ stages:
 
 variables:
   GOPATH: /go
-  GOLANG_VERSION: "1.23"
-  GOLINT_VERSION: "v2.0.2"
+  GOLANG_VERSION: "1.25.5"
+  GOLINT_VERSION: "v2.7.0"
   DOCKER_HOST: "tcp://docker:2375"
   DOCKER_TLS_CERTDIR: ""
   DOCKER_DRIVER: overlay2
