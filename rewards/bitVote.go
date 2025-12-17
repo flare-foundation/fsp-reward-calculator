@@ -23,7 +23,6 @@ func isConfirmed(attestationIndex int, consensusBitVote *big.Int) bool {
 	return consensusBitVote.Bit(attestationIndex) == 1
 }
 
-// getConsensusBitVote returns the
 func getConsensusBitVote(sigs map[ty.VoterSigning]fsp.SigInfo, round ty.RoundId, voters *fsp.VoterIndex) *big.Int {
 	bitVoteWeight := map[string]uint64{}
 	for signer, sig := range sigs {

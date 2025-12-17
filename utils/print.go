@@ -60,7 +60,7 @@ func WriteToFile(jsonData []byte, filePath string) {
 		logger.Error("Error creating file:", err)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.Write(jsonData)
 	if err != nil {

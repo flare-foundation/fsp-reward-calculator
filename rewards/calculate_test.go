@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"fsp-rewards-calculator/common/params"
 	ty2 "fsp-rewards-calculator/common/ty"
+	"testing"
+	"time"
+
 	"github.com/docker/go-connections/nat"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"testing"
-	"time"
 )
 
 var (
@@ -28,7 +29,7 @@ var (
 func TestCalculateResults(t *testing.T) {
 	ctx := context.Background()
 	gormDB, mysqlC := setUpMySqlDb(t, ctx)
-	defer mysqlC.Terminate(ctx) // nolint:errcheck
+	defer mysqlC.Terminate(ctx) //nolint:errcheck
 
 	params.InitNetwork(network)
 	testEpoch := ty2.RewardEpochId(testEpochId)

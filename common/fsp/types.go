@@ -3,6 +3,7 @@ package fsp
 import (
 	"encoding/hex"
 	"fsp-rewards-calculator/common/ty"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -21,7 +22,7 @@ type ECDSASignatureWithIndex struct {
 	signerIndex uint16
 }
 
-// Bytes returns the byte representation of the signature (R + S + V), without the signer index
+// Bytes returns the byte representation of the signature (R + S + V), without the signer index.
 func (s *ECDSASignatureWithIndex) Bytes() []byte {
 	bytes := make([]byte, 65)
 	copy(bytes[0:32], s.R[:])

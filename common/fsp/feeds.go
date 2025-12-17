@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fsp-rewards-calculator/logger"
-	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
-	"golang.org/x/exp/maps"
 	"math/big"
 	"slices"
 	"sort"
+
+	"maps"
+
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 )
 
 func getOrderedFeeds(of RewardOffers) []Feed {
@@ -54,7 +56,7 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 		}
 	}
 
-	feeds := maps.Values(feedById)
+	feeds := slices.AppendSeq(make([]Feed, 0, len(feedById)), maps.Values(feedById))
 	sort.Slice(feeds, func(i, j int) bool {
 		valueI := amountPerFeed[feeds[i].Id]
 		valueJ := amountPerFeed[feeds[j].Id]
@@ -90,7 +92,7 @@ func getInflationFeeds(offers []*offers.OffersInflationRewardsOffered) []Feed {
 		}
 	}
 
-	feeds := maps.Values(feedById)
+	feeds := slices.AppendSeq(make([]Feed, 0, len(feedById)), maps.Values(feedById))
 	sort.Slice(feeds, func(i, j int) bool {
 		return bytes.Compare(feeds[i].Id[:], feeds[j].Id[:]) < 0
 	})

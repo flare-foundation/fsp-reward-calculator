@@ -4,8 +4,9 @@ import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"math/big"
+
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 )
 
 type FeedReward struct {
@@ -21,7 +22,7 @@ type FUFeedReward struct {
 	ShouldBurn bool
 }
 
-// calculateFURoundRewards total FastUpdates reward offer share per round
+// calculateFURoundRewards total FastUpdates reward offer share per round.
 func calculateFURoundRewards(re *fsp.RewardEpoch, feedSelectionRandoms []*big.Int) map[ty.RoundId]FUFeedReward {
 	totalReward := big.NewInt(0)
 	for i := range re.Offers.FastUpdates {
@@ -68,7 +69,7 @@ func calculateFURoundRewards(re *fsp.RewardEpoch, feedSelectionRandoms []*big.In
 	return roundRewards
 }
 
-// calculateRoundRewards total reward offer share per round
+// calculateRoundRewards total reward offer share per round.
 func calculateRoundRewards(re *fsp.RewardEpoch, feedSelectionRandoms []*big.Int) map[ty.RoundId]FeedReward {
 	totalReward := big.NewInt(0)
 	for i := range re.Offers.Inflation {

@@ -3,6 +3,7 @@ package fsp
 import (
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -11,7 +12,7 @@ type SignerMap map[ty.RoundId]map[common.Hash]map[ty.VoterSigning]SigInfo
 type SigInfo struct {
 	Signer          ty.VoterSigning
 	Timestamp       uint64
-	UnsignedMessage []byte // TOOD: Only use by FDC
+	UnsignedMessage []byte // TODO: Only use by FDC
 }
 
 func GetFinalizationsByRound(fnz []*Finalization) map[ty.RoundId][]*Finalization {
