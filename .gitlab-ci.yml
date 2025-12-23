@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - report
 
 variables:
   GOPATH: /go
@@ -19,6 +20,12 @@ cache:
   paths:
     - ${GOPATH}/pkg/mod
     - ${GOPATH}/bin
+
+include:
+  - component: gitlab.com/flarenetwork/ci-components-private/cursor-code-review@1
+    inputs:
+      rules_condition: $CI_MERGE_REQUEST_IID != null && $GITLAB_USER_NAME != "SealBot" && $CI_MERGE_REQUEST_EVENT_TYPE != "merge_train"
+      rules_when: always
 
 build:
   stage: build
