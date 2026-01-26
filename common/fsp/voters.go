@@ -2,13 +2,15 @@ package fsp
 
 import (
 	"fsp-rewards-calculator/common/ty"
+	"fsp-rewards-calculator/logger"
+	"math/big"
+	"sort"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
 	"github.com/flare-foundation/go-flare-common/pkg/voters"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"math/big"
-	"sort"
 )
 
 type VoterInfo struct {
@@ -55,15 +57,21 @@ func GetVoterIndex(db *gorm.DB, epoch ty.RewardEpochId, fromSec, toSec uint64, p
 		return nil, errors.Errorf("voter registered and voter info event count mismatch: %d != %d", len(regs), len(infos))
 	}
 
-	var voters []*VoterInfo
+	var voterInfos []*VoterInfo
 	for _, reg := range regs {
 		if reg.RewardEpochId.Uint64() != uint64(epoch) {
 			continue
 		}
 
+		policyWeight, ok := policyVoters[reg.SigningPolicyAddress]
+		if !ok {
+			logger.Debug("Registered voter %s with signing address %s not in signing policy, skipping", reg.Voter.String(), reg.SigningPolicyAddress.String())
+			continue
+		}
+
 		info := infoByIdentity[reg.Voter]
 
-		voters = append(voters, &VoterInfo{
+		voterInfos = append(voterInfos, &VoterInfo{
 			Identity:            ty.VoterId(reg.Voter),
 			Submit:              ty.VoterSubmit(reg.SubmitAddress),
 			SubmitSignatures:    ty.VoterSubmitSignatures(reg.SubmitSignaturesAddress),
@@ -73,18 +81,18 @@ func GetVoterIndex(db *gorm.DB, epoch ty.RewardEpochId, fromSec, toSec uint64, p
 			DelegationFeeBips:   info.DelegationFeeBIPS,
 			NodeIds:             info.NodeIds,
 			NodeWeights:         info.NodeWeights,
-			SigningPolicyWeight: policyVoters[reg.SigningPolicyAddress].Weight,
+			SigningPolicyWeight: policyWeight.Weight,
 		})
 	}
 
 	// Sort according to signing policy order
-	sort.Slice(voters, func(i, j int) bool {
-		indexI := policyVoters[common.Address(voters[i].Signing)].Index
-		indexJ := policyVoters[common.Address(voters[j].Signing)].Index
+	sort.Slice(voterInfos, func(i, j int) bool {
+		indexI := policyVoters[common.Address(voterInfos[i].Signing)].Index
+		indexJ := policyVoters[common.Address(voterInfos[j].Signing)].Index
 		return indexI < indexJ
 	})
 
-	return newVoterIndex(voters), nil
+	return newVoterIndex(voterInfos), nil
 }
 
 func newVoterIndex(voters []*VoterInfo) *VoterIndex {
