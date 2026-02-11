@@ -5,12 +5,13 @@ import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fupdater"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"math/big"
 )
 
 type FastUpdateFeed struct {

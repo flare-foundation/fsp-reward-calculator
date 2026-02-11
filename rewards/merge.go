@@ -3,8 +3,9 @@ package rewards
 import (
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/ty"
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // MergeClaims merges claims with the same beneficiary, type, and amount sign (penalty or reward).

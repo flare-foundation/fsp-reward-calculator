@@ -3,6 +3,7 @@ package ftso
 import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ty"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 

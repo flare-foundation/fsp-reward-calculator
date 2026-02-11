@@ -3,9 +3,10 @@ package utils
 import (
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/ty"
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestFinalizerSelectionSeed(t *testing.T) {

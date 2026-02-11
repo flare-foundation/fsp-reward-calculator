@@ -6,9 +6,10 @@ import (
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
-	"github.com/ethereum/go-ethereum/common"
 	"math/big"
 	"slices"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func getSigningClaims(

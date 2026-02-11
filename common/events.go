@@ -2,6 +2,7 @@ package common
 
 import (
 	"fsp-rewards-calculator/logger"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"

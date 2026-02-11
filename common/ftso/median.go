@@ -6,9 +6,10 @@ import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"github.com/pkg/errors"
 	"math/big"
 	"sort"
+
+	"github.com/pkg/errors"
 )
 
 type Quartiles struct {

@@ -3,6 +3,7 @@ package fsp
 import (
 	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/params"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"

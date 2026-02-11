@@ -9,11 +9,12 @@ import (
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
+	"math/big"
+	"slices"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
-	"math/big"
-	"slices"
 )
 
 type roundReward struct {

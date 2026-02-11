@@ -2,13 +2,14 @@ package fsp
 
 import (
 	"fsp-rewards-calculator/logger"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/events"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"strings"
 )
 
 func QueryEvents[T interface{}](

@@ -5,6 +5,7 @@ import (
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"github.com/pkg/errors"

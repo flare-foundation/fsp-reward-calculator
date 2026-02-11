@@ -6,10 +6,11 @@ import (
 	ty2 "fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/pkg/errors"
-	"math/big"
 )
 
 func burnClaim(amount *big.Int) ty.RewardClaim {

@@ -5,9 +5,10 @@ import (
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
+	"math/big"
+
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"github.com/pkg/errors"
-	"math/big"
 )
 
 func ExtractBitVotes(messages []payload.Message) map[ty.RoundId]map[ty.VoterSubmit]*big.Int {

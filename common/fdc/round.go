@@ -6,13 +6,14 @@ import (
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/payload"
 	"gorm.io/gorm"
-	"math/big"
 )
 
 var WrongSignatureIndicatorMessageHash = common.Hash{}

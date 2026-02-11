@@ -8,9 +8,10 @@ import (
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/ty"
 	"fsp-rewards-calculator/utils"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/merkle"
-	"math/big"
 )
 
 type EpochResult struct {

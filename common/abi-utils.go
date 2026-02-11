@@ -2,6 +2,7 @@ package common
 
 import (
 	"fsp-rewards-calculator/logger"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	common2 "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
