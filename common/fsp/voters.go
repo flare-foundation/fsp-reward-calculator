@@ -59,7 +59,7 @@ func GetVoterIndex(db *gorm.DB, epoch ty.RewardEpochId, fromSec, toSec uint64, p
 
 	var voterInfos []*VoterInfo
 	for _, reg := range regs {
-		if reg.RewardEpochId.Uint64() != uint64(epoch) {
+		if reg.RewardEpochId != uint32(epoch) {
 			continue
 		}
 
