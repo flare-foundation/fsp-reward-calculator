@@ -44,7 +44,7 @@ func QueryEventsForContracts[T interface{}](
 		addresses = append(addresses, strings.ToLower(strings.TrimPrefix(contractAddress.String(), "0x")))
 	}
 
-	err := db.Debug().Where(
+	err := db.Where(
 		"address IN ? AND topic0 = ? AND timestamp >= ? AND timestamp < ?",
 		addresses,
 		strings.ToLower(strings.TrimPrefix(topic0, "0x")),

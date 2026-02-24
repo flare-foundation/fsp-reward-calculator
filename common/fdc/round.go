@@ -53,7 +53,7 @@ func GetSignersByRound(msgs []payload.Message, roundHash map[ty.RoundId]common.H
 				sigsByHash[signedHash] = map[ty.VoterSigning]fsp.SigInfo{}
 			}
 			if _, ok := sigsByHash[signedHash][voter.Signing]; ok {
-				logger.Debug("earlier signature from %s already added, skipping", voter.Signing)
+				logger.Debug("earlier signature from %s already added, skipping", voter.Signing.String())
 				continue
 			}
 

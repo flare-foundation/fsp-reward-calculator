@@ -94,3 +94,15 @@ func Debug(msg string, args ...interface{}) {
 func Fatal(msg string, args ...interface{}) {
 	sugar.Fatalf(msg, args...)
 }
+
+func IsDebugEnabled() bool {
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "INFO"
+	}
+	level, err := zapcore.ParseLevel(logLevel)
+	if err != nil {
+		return false
+	}
+	return level <= zapcore.DebugLevel
+}

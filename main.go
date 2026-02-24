@@ -8,10 +8,13 @@ import (
 	"fsp-rewards-calculator/logger"
 	"fsp-rewards-calculator/rewards"
 	"fsp-rewards-calculator/utils"
+	"log"
+	"os"
 	"time"
 
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 type ClientFlags struct {
@@ -122,5 +125,22 @@ func getDb(flags *ClientFlags) *gorm.DB {
 	if err != nil {
 		logger.Fatal("Error connecting to database: %s", err)
 	}
-	return db
+	if err := db.Exec("SET SESSION TRANSACTION READ ONLY").Error; err != nil {
+		logger.Fatal("Error setting DB session to read-only: %s", err)
+	}
+	gormSQLLogger := gormlogger.New(
+		log.New(os.Stdout, "", log.LstdFlags),
+		gormlogger.Config{
+			SlowThreshold:             24 * time.Hour,
+			LogLevel:                  gormlogger.Silent,
+			IgnoreRecordNotFoundError: true,
+			Colorful:                  false,
+		},
+	)
+	if logger.IsDebugEnabled() {
+		gormSQLLogger = gormSQLLogger.LogMode(gormlogger.Info)
+	}
+	return db.Session(&gorm.Session{
+		Logger: gormSQLLogger,
+	})
 }
