@@ -75,3 +75,14 @@ The application uses command-line flags to configure its parameters. The followi
     ```sh
     ./fsp-rewards-calculator -n coston -e 123 -v
     ```
+
+## Logging
+
+- Default log level is `INFO`.
+- To enable debug logs, set `LOG_LEVEL=DEBUG` before running:
+
+```sh
+LOG_LEVEL=DEBUG ./fsp-rewards-calculator -n coston -e 123
+```
+
+- SQL query logs (including duration) are printed only when `LOG_LEVEL=DEBUG`.
