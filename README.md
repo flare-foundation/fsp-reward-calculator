@@ -55,13 +55,13 @@ The application uses command-line flags to configure its parameters. The followi
 
    Example:
     ```sh
-    ./fsp-rewards-calculator -n coston -e 123 -h localhost -p 3306 -d flare_ftso_indexer -u root -w root
+    ./fsp-rewards-calculator -n flare -e 123 -h localhost -p 3306 -d flare_ftso_indexer -u root -w root
     ```
 
    If using default db connection parameters, and calculating for the previous reward epoch, you can specify only the
    network:
     ```sh
-    ./fsp-rewards-calculator -n coston
+    ./fsp-rewards-calculator -n flare
     ```
 
 3. Results will be produced under `./results/<network>/<epoch>`.
@@ -73,7 +73,7 @@ The application uses command-line flags to configure its parameters. The followi
    This is useful for debugging or auditing. Example:
 
     ```sh
-    ./fsp-rewards-calculator -n coston -e 123 -v
+    ./fsp-rewards-calculator -n flare -e 123 -v
     ```
 
 ## Logging
@@ -82,7 +82,7 @@ The application uses command-line flags to configure its parameters. The followi
 - To enable debug logs, set `LOG_LEVEL=DEBUG` before running:
 
 ```sh
-LOG_LEVEL=DEBUG ./fsp-rewards-calculator -n coston -e 123
+LOG_LEVEL=DEBUG ./fsp-rewards-calculator -n flare -e 123
 ```
 
 - SQL query logs (including duration) are printed only when `LOG_LEVEL=DEBUG`.
