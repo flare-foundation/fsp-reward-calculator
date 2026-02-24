@@ -65,7 +65,13 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 	fromSec := params.Net.Epoch.RevealDeadlineSec(ty.VotingEpochId(fromRound)+1) + 1
 	toSec := params.Net.Epoch.VotingRoundRewardEndSec(toRound.Add(params.Net.Ftso.AdditionalRewardFinalizationWindows))
 
-	txns, err := fetchTransactions(db, params.Net.Contracts.Relay, common.FunctionSignatures.Relay, int64(fromSec), int64(toSec))
+	txns, err := fetchTransactionsForContracts(
+		db,
+		[]common2.Address{params.Net.Contracts.Relay, params.Net.Contracts.OldRelay},
+		common.FunctionSignatures.Relay,
+		int64(fromSec),
+		int64(toSec),
+	)
 	if err != nil {
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
@@ -142,12 +148,22 @@ func querySubmissions(db *gorm.DB, fromSec uint64, toSec uint64, signature [4]by
 func fetchTransactions(
 	db *gorm.DB, toAddress common2.Address, functionSel [4]byte, from int64, to int64,
 ) ([]database.Transaction, error) {
+	return fetchTransactionsForContracts(db, []common2.Address{toAddress}, functionSel, from, to)
+}
+
+func fetchTransactionsForContracts(
+	db *gorm.DB, toAddresses []common2.Address, functionSel [4]byte, from int64, to int64,
+) ([]database.Transaction, error) {
 	var transactions []database.Transaction
+	addresses := make([]string, 0, len(toAddresses))
+	for _, toAddress := range toAddresses {
+		addresses = append(addresses, hex.EncodeToString(toAddress[:]))
+	}
 
 	err := db.Model(database.Transaction{}).
 		Where(
-			"to_address = ? AND function_sig = ? AND timestamp >= ? AND timestamp <= ?",
-			hex.EncodeToString(toAddress[:]), // encodes without 0x prefix and without checksum
+			"to_address IN ? AND function_sig = ? AND timestamp >= ? AND timestamp <= ?",
+			addresses,
 			hex.EncodeToString(functionSel[:]),
 			from, to,
 		).

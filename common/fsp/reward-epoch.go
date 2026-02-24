@@ -51,7 +51,14 @@ func GetRewardEpoch(epoch ty.RewardEpochId, db *gorm.DB) (RewardEpoch, error) {
 		return relayInst.ParseSigningPolicyInitialized(log)
 	}
 
-	policies, err := QueryEvents(db, searchIntervalStartSec, searchIntervalEndSec, params.Net.Contracts.Relay, common2.EventTopic0.SigningPolicyInitialized, parsePolicyInitialized)
+	policies, err := QueryEventsForContracts(
+		db,
+		searchIntervalStartSec,
+		searchIntervalEndSec,
+		[]common.Address{params.Net.Contracts.Relay, params.Net.Contracts.OldRelay},
+		common2.EventTopic0.SigningPolicyInitialized,
+		parsePolicyInitialized,
+	)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching signing policy events: %s", err)
 	}

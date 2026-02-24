@@ -20,10 +20,33 @@ func QueryEvents[T interface{}](
 	topic0 string,
 	parseEvent func(types.Log, uint64) (T, error),
 ) ([]T, error) {
+	return QueryEventsForContracts(
+		db,
+		searchIntervalStartSec,
+		searchIntervalEndSec,
+		[]common.Address{contractAddress},
+		topic0,
+		parseEvent,
+	)
+}
+
+func QueryEventsForContracts[T interface{}](
+	db *gorm.DB,
+	searchIntervalStartSec uint64, //inclusive
+	searchIntervalEndSec uint64, //exclusive
+	contractAddresses []common.Address,
+	topic0 string,
+	parseEvent func(types.Log, uint64) (T, error),
+) ([]T, error) {
 	var logs []database.Log
-	err := db.Where(
-		"address = ? AND topic0 = ? AND timestamp >= ? AND timestamp < ?",
-		strings.ToLower(strings.TrimPrefix(contractAddress.String(), "0x")),
+	addresses := make([]string, 0, len(contractAddresses))
+	for _, contractAddress := range contractAddresses {
+		addresses = append(addresses, strings.ToLower(strings.TrimPrefix(contractAddress.String(), "0x")))
+	}
+
+	err := db.Debug().Where(
+		"address IN ? AND topic0 = ? AND timestamp >= ? AND timestamp < ?",
+		addresses,
 		strings.ToLower(strings.TrimPrefix(topic0, "0x")),
 		searchIntervalStartSec, searchIntervalEndSec,
 	).

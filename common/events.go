@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fsp-rewards-calculator/contracts/registryOld"
 	"fsp-rewards-calculator/logger"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -31,6 +32,7 @@ type EventIds struct {
 
 	SigningPolicyInitialized string
 	VoterRegistered          string
+	VoterRegisteredOld       string
 	VoterRegistrationInfo    string
 
 	FdcAttestationRequest string
@@ -56,6 +58,7 @@ var EventTopic0 = EventIds{
 
 	SigningPolicyInitialized: eventIDFromMetadata(relay.RelayMetaData, "SigningPolicyInitialized"),
 	VoterRegistered:          eventIDFromMetadata(registry.RegistryMetaData, "VoterRegistered"),
+	VoterRegisteredOld:       eventIDFromMetadata(registryOld.RegistryMetaData, "VoterRegistered"),
 	VoterRegistrationInfo:    eventIDFromMetadata(calculator.CalculatorMetaData, "VoterRegistrationInfo"),
 
 	FastUpdateFeeds:          eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeeds"),

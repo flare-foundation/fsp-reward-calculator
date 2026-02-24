@@ -21,6 +21,7 @@ type ContractAddresses struct {
 	FtsoRewardOffersManager    common.Address
 	RewardManager              common.Address
 	Submission                 common.Address
+	OldRelay                   common.Address
 	Relay                      common.Address
 	FlareSystemsCalculator     common.Address
 	VoterRegistry              common.Address
@@ -28,11 +29,6 @@ type ContractAddresses struct {
 	FastUpdater                common.Address
 	FdcHub                     common.Address
 }
-
-//type Fsp {
-//	BurnAddress common.Address
-//
-//}
 
 type Ftso struct {
 	ProtocolId  byte

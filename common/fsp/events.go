@@ -3,6 +3,7 @@ package fsp
 import (
 	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/params"
+	"fsp-rewards-calculator/contracts/registryOld"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -15,22 +16,71 @@ import (
 	"gorm.io/gorm"
 )
 
-func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]*registry.RegistryVoterRegistered, error) {
-	instance, _ := registry.NewRegistry(common.Address{}, nil)
-	parse := func(log types.Log, _ uint64) (*registry.RegistryVoterRegistered, error) {
-		return instance.ParseVoterRegistered(log)
+type VoterRegisteredEvent struct {
+	Voter                   common.Address
+	RewardEpochId           uint64
+	SigningPolicyAddress    common.Address
+	SubmitAddress           common.Address
+	SubmitSignaturesAddress common.Address
+}
+
+// Fetches VoterRegistered events from indexer. Some networks use updated VoterRegistry contract with new ABI,
+// so we try to query for both old and new event signature.
+func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]VoterRegisteredEvent, error) {
+	oldRegistry, _ := registryOld.NewRegistry(common.Address{}, nil)
+	parseOld := func(log types.Log, _ uint64) (*registryOld.RegistryVoterRegistered, error) {
+		return oldRegistry.ParseVoterRegistered(log)
+	}
+	oldEvents, err := QueryEvents(
+		db,
+		from,
+		to,
+		params.Net.Contracts.VoterRegistry,
+		common2.EventTopic0.VoterRegisteredOld,
+		parseOld,
+	)
+	if err != nil {
+		return nil, errors.Errorf("error fetching voter registered events: %s", err)
+	}
+	if len(oldEvents) > 0 {
+		events := make([]VoterRegisteredEvent, 0, len(oldEvents))
+		for _, event := range oldEvents {
+			events = append(events, VoterRegisteredEvent{
+				Voter:                   event.Voter,
+				RewardEpochId:           event.RewardEpochId.Uint64(),
+				SigningPolicyAddress:    event.SigningPolicyAddress,
+				SubmitAddress:           event.SubmitAddress,
+				SubmitSignaturesAddress: event.SubmitSignaturesAddress,
+			})
+		}
+		return events, nil
 	}
 
-	events, err := QueryEvents(
+	newRegistry, _ := registry.NewRegistry(common.Address{}, nil)
+	parseNew := func(log types.Log, _ uint64) (*registry.RegistryVoterRegistered, error) {
+		return newRegistry.ParseVoterRegistered(log)
+	}
+	newEvents, err := QueryEvents(
 		db,
 		from,
 		to,
 		params.Net.Contracts.VoterRegistry,
 		common2.EventTopic0.VoterRegistered,
-		parse,
+		parseNew,
 	)
 	if err != nil {
-		return nil, errors.Errorf("err fetching events: %s", err)
+		return nil, errors.Errorf("error fetching voter registered events: %s", err)
+	}
+
+	events := make([]VoterRegisteredEvent, 0, len(newEvents))
+	for _, event := range newEvents {
+		events = append(events, VoterRegisteredEvent{
+			Voter:                   event.Voter,
+			RewardEpochId:           uint64(event.RewardEpochId),
+			SigningPolicyAddress:    event.SigningPolicyAddress,
+			SubmitAddress:           event.SubmitAddress,
+			SubmitSignaturesAddress: event.SubmitSignaturesAddress,
+		})
 	}
 
 	return events, nil
