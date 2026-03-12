@@ -4,6 +4,7 @@ import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
+	"fsp-rewards-calculator/utils"
 	"math/big"
 
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
@@ -37,7 +38,28 @@ func calculateFURoundRewards(re *fsp.RewardEpoch, feedSelectionRandoms []*big.In
 	perRound, rem := totalReward.DivMod(totalReward, big.NewInt(int64(re.EndRound-re.StartRound+1)), big.NewInt(0))
 
 	feedConfigs := re.Offers.FastUpdates[0].FeedConfigurations
-	numFeeds := big.NewInt(int64(len(feedConfigs)))
+	orderedFeeds := make(map[fsp.FeedId]struct{}, len(re.OrderedFeeds))
+	for i := range re.OrderedFeeds {
+		orderedFeeds[re.OrderedFeeds[i].Id] = struct{}{}
+	}
+
+	selectableFeedIndexes := make([]int, 0, len(feedConfigs))
+	for i := range feedConfigs {
+		feedId := fsp.FeedId(feedConfigs[i].FeedId)
+		if _, ok := orderedFeeds[feedId]; ok {
+			selectableFeedIndexes = append(selectableFeedIndexes, i)
+			continue
+		}
+
+		renamedFeedId, renamed := utils.OldToNewFeed[feedId]
+		if renamed {
+			if _, ok := orderedFeeds[renamedFeedId]; ok {
+				selectableFeedIndexes = append(selectableFeedIndexes, i)
+			}
+		}
+	}
+
+	numFeeds := big.NewInt(int64(len(selectableFeedIndexes)))
 
 	for round := re.StartRound; round <= re.EndRound; round++ {
 		random := feedSelectionRandoms[round-re.StartRound]
@@ -58,7 +80,8 @@ func calculateFURoundRewards(re *fsp.RewardEpoch, feedSelectionRandoms []*big.In
 			continue
 		}
 
-		feedIndex := new(big.Int).Mod(random, numFeeds).Uint64()
+		selectedIndex := new(big.Int).Mod(random, numFeeds).Int64()
+		feedIndex := uint64(selectableFeedIndexes[selectedIndex])
 
 		roundRewards[round] = FUFeedReward{
 			FeedIndex:  feedIndex,
