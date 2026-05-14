@@ -65,7 +65,7 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 		if res == 0 {
 			return bytes.Compare(feeds[i].Id[:], feeds[j].Id[:]) < 0
 		} else {
-			return res < 0
+			return res > 0
 		}
 	})
 	return feeds
