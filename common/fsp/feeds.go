@@ -50,7 +50,7 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 		}
 
 		if value, ok := amountPerFeed[offer.FeedId]; !ok {
-			amountPerFeed[offer.FeedId] = big.NewInt(0)
+			amountPerFeed[offer.FeedId] = new(big.Int).Set(offer.Amount)
 		} else {
 			amountPerFeed[offer.FeedId].Add(value, offer.Amount)
 		}
@@ -65,7 +65,7 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 		if res == 0 {
 			return bytes.Compare(feeds[i].Id[:], feeds[j].Id[:]) < 0
 		} else {
-			return res < 0
+			return res > 0
 		}
 	})
 	return feeds
