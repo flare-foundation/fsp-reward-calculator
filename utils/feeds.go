@@ -7,6 +7,7 @@ import (
 var renames = map[string]string{
 	"DAI/USD": "USDS/USD",
 	"FTM/USD": "S/USD",
+	"TON/USD": "GRAM/USD",
 }
 
 func toFeedIds() map[fsp.FeedId]fsp.FeedId {
