@@ -44,9 +44,12 @@ func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.Round
 
 	for index, voter := range voterIndex.PolicyOrder {
 		weight := big.NewInt(int64(voter.SigningPolicyWeight))
+		if weight.Cmp(BigZero) == 0 {
+			continue
+		}
 
 		if undistributedWeight.Cmp(big.NewInt(0)) == 0 {
-			logger.Fatal("no weight for signer %s, index %d", voter.Signing, index)
+			logger.Fatal("no weight for signer %s, index %d", voter.Signing.String(), index)
 		}
 
 		voterAmount := big.NewInt(0).Div(
