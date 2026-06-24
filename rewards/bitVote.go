@@ -13,7 +13,7 @@ func dominatesConsensusBitVote(bitVote *big.Int, consensusBitVote *big.Int) bool
 	if consensusBitVote == nil || bitVote == nil {
 		return false
 	}
-	return bitVote.And(bitVote, consensusBitVote).Cmp(consensusBitVote) == 0
+	return new(big.Int).And(bitVote, consensusBitVote).Cmp(consensusBitVote) == 0
 }
 
 func isConfirmed(attestationIndex int, consensusBitVote *big.Int) bool {
