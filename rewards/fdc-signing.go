@@ -20,13 +20,14 @@ func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.Round
 	successfulFinalization := firstSuccessful(finalizations)
 
 	revealDeadline := params.Net.Epoch.RevealDeadlineSec(ty2.VotingEpochId(round) + 1)
-	roundEnd := params.Net.Epoch.VotingRoundRewardEndSec(
-		round.Add(1 + params.Net.Ftso.AdditionalRewardFinalizationWindows),
-	)
 
+	// Reward eligibility is capped at the end of voting epoch round+1 (+ additional windows), matching the TS
+	// reference's votingEpochEndSec(round+1). roundEnd (VotingRoundRewardEndSec) is one voting epoch later.
 	deadline := min(
 		successfulFinalization.Info.TimestampSec,
-		roundEnd,
+		params.Net.Epoch.VotingEpochEndSec(
+			ty2.VotingEpochId(round.Add(1+params.Net.Ftso.AdditionalRewardFinalizationWindows)),
+		),
 	)
 	gracePeriod := revealDeadline + params.Net.Ftso.GracePeriodForSignaturesDurationSec
 
