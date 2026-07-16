@@ -73,6 +73,13 @@ func (e *Epoch) VotingEpochStartSec(votingEpoch ty.VotingEpochId) uint64 {
 	return e.FirstVotingRoundStartTs + uint64(votingEpoch)*e.VotingEpochDurationSeconds
 }
 
+// VotingEpochEndSec returns the inclusive Unix time of the last second of the given voting epoch.
+// The interval is [start, nextStart), so the last included second is nextStart-1. Matches the TS
+// reference's votingEpochEndSec.
+func (e *Epoch) VotingEpochEndSec(votingEpoch ty.VotingEpochId) uint64 {
+	return e.VotingEpochStartSec(votingEpoch+1) - 1
+}
+
 // VotingRoundRewardEndSec returns Unix time for the end of the rewarded voting round.
 // A voting round X begins at the start of the voting epoch X and is expected to finish by the end of the next voting epoch X + 1.
 // Technically, a voting round only finishes once the finalization phase completes, which may extend into further voting epochs.

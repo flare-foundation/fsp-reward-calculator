@@ -85,36 +85,54 @@ func calculateFeedMedian(voterValues []VoterValue) (*Quartiles, error) {
 		totalWeight.Add(totalWeight, vw.Weight)
 	}
 
-	q1Weight := new(big.Int).Div(totalWeight, big.NewInt(4))
-	medianWeight, medianMod := new(big.Int).DivMod(totalWeight, big.NewInt(2), new(big.Int))
-	q3Weight := new(big.Int).Sub(totalWeight, q1Weight)
+	// Quartile boundary weight is floor(T/4); the median threshold is ceil(T/2). This matches the TS reference
+	// (ftso-scaling: libs/ftso-core/src/ftso-calculation/ftso-median.ts), which is what the on-chain/consensus
+	// median follows. Using floor(T/2) or a forward Q3 scan diverges on exact-boundary cumulative weights.
+	quartileWeight := new(big.Int).Div(totalWeight, big.NewInt(4))
+	medianQuotient, medianMod := new(big.Int).DivMod(totalWeight, big.NewInt(2), new(big.Int))
+	medianWeight := new(big.Int).Add(medianQuotient, medianMod) // ceil(T/2)
 
 	var q1, median, q3 *nullInt32
 	accumulatedWeight := big.NewInt(0)
 
-	i := 0
-	for ; i < len(voterValues); i++ {
+	for i := 0; i < len(voterValues); i++ {
 		wv := voterValues[i]
 		accumulatedWeight.Add(accumulatedWeight, wv.Weight)
 
-		if q1 == nil && accumulatedWeight.Cmp(q1Weight) > 0 {
+		if q1 == nil && accumulatedWeight.Cmp(quartileWeight) > 0 {
 			q1 = &nullInt32{wv.Value}
 		}
 		if median == nil && accumulatedWeight.Cmp(medianWeight) >= 0 {
-			if accumulatedWeight.Cmp(medianWeight) == 0 && medianMod.Cmp(big.NewInt(0)) == 0 {
-				median = &nullInt32{(wv.Value + voterValues[i+1].Value) / 2}
+			if accumulatedWeight.Cmp(medianWeight) == 0 && medianMod.Sign() == 0 {
+				// Even total weight: average the two middle values, rounding toward negative infinity
+				// (JS Math.floor) and widening to int64 to avoid int32 overflow.
+				sum := int64(wv.Value) + int64(voterValues[i+1].Value)
+				avg := sum / 2
+				if sum%2 != 0 && sum < 0 {
+					avg--
+				}
+				median = &nullInt32{int32(avg)}
 			} else {
 				median = &nullInt32{wv.Value}
 			}
 		}
-		if accumulatedWeight.Cmp(q3Weight) > 0 {
+		if q1 != nil && median != nil {
 			break
 		}
 	}
 
-	q3 = &nullInt32{voterValues[i].Value}
+	// Third quartile: highest value whose cumulative weight from the top exceeds floor(T/4), matching the TS
+	// reference's backward scan (a forward scan diverges when a prefix lands exactly on T - floor(T/4)).
+	suffixWeight := big.NewInt(0)
+	for j := len(voterValues) - 1; j >= 0; j-- {
+		suffixWeight.Add(suffixWeight, voterValues[j].Weight)
+		if suffixWeight.Cmp(quartileWeight) > 0 {
+			q3 = &nullInt32{voterValues[j].Value}
+			break
+		}
+	}
 
-	if q1 == nil || median == nil {
+	if q1 == nil || median == nil || q3 == nil {
 		return nil, errors.New("could not calculate quartiles")
 	}
 

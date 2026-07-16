@@ -31,7 +31,11 @@ func getSigningClaims(
 	for hash, sigs := range signers {
 		acceptedSigs[hash] = map[ty2.VoterSigning]fsp.SigInfo{}
 		for signer, sig := range sigs {
-			if sig.Timestamp < revealDeadline || sig.Timestamp > roundEnd {
+			// A reward-eligible signature must land strictly after the reveal deadline second, matching the TS
+			// reference's `relativeTimestamp >= revealDeadlineSeconds`. RevealDeadlineSec is start+revealDeadlineSeconds-1
+			// (the last reveal second), so use <= here — otherwise a signature at exactly that second (rel = deadline)
+			// is wrongly counted, inflating the signing-weight denominator.
+			if sig.Timestamp <= revealDeadline || sig.Timestamp > roundEnd {
 				continue
 			}
 			acceptedSigs[hash][signer] = sig
@@ -50,9 +54,14 @@ func getSigningClaims(
 	} else {
 		successfulFinalization := finalizations[successIndex]
 
+		// Reward eligibility is capped at the end of voting epoch round+1 (+ additional windows), matching the TS
+		// reference's votingEpochEndSec(round+1). roundEnd (VotingRoundRewardEndSec) is one voting epoch later and
+		// must not be used here — doing so rewards signatures the reference excludes and shifts the signing split.
 		deadline := min(
 			successfulFinalization.Info.TimestampSec,
-			roundEnd,
+			params.Net.Epoch.VotingEpochEndSec(
+				ty2.VotingEpochId(round.Add(1+params.Net.Ftso.AdditionalRewardFinalizationWindows)),
+			),
 		)
 		gracePeriod := revealDeadline + params.Net.Ftso.GracePeriodForSignaturesDurationSec
 
