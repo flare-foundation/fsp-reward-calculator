@@ -31,7 +31,11 @@ func getSigningClaims(
 	for hash, sigs := range signers {
 		acceptedSigs[hash] = map[ty2.VoterSigning]fsp.SigInfo{}
 		for signer, sig := range sigs {
-			if sig.Timestamp < revealDeadline || sig.Timestamp > roundEnd {
+			// A reward-eligible signature must land strictly after the reveal deadline second, matching the TS
+			// reference's `relativeTimestamp >= revealDeadlineSeconds`. RevealDeadlineSec is start+revealDeadlineSeconds-1
+			// (the last reveal second), so use <= here — otherwise a signature at exactly that second (rel = deadline)
+			// is wrongly counted, inflating the signing-weight denominator.
+			if sig.Timestamp <= revealDeadline || sig.Timestamp > roundEnd {
 				continue
 			}
 			acceptedSigs[hash][signer] = sig
