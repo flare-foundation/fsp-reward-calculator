@@ -5,7 +5,6 @@ import (
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
-	"fsp-rewards-calculator/utils"
 	"math/big"
 )
 
@@ -38,28 +37,28 @@ func getConsensusBitVote(sigs map[ty.VoterSigning]fsp.SigInfo, round ty.RoundId,
 		bitVoteWeight[bitVote.String()] += uint64(voters.BySigning[signer].SigningPolicyWeight)
 	}
 
-	var consensusBitVote *string
-	if len(bitVoteWeight) > 0 {
-		maxWeight := uint64(0)
-		for bitVote, weight := range bitVoteWeight {
-			if weight >= maxWeight {
-				if consensusBitVote == nil {
-					consensusBitVote = &bitVote
-				} else {
-					// if we have more than one candidate with max weight, choose the one with the smaller bitVote
-					minBitVote := utils.MinDec(bitVote, *consensusBitVote)
-					consensusBitVote = &minBitVote
-				}
+	if len(bitVoteWeight) == 0 {
+		return nil
+	}
 
-				maxWeight = weight
-			}
+	maxWeight := uint64(0)
+	for _, weight := range bitVoteWeight {
+		maxWeight = max(maxWeight, weight)
+	}
+
+	// If there is more than one candidate with max weight, the TS implementation sorts them
+	// with the default Array.sort, which compares BigInts as decimal strings, and takes the
+	// first one. Compare lexicographically to match.
+	consensusBitVote := ""
+	for bitVote, weight := range bitVoteWeight {
+		if weight != maxWeight {
+			continue
+		}
+		if consensusBitVote == "" || bitVote < consensusBitVote {
+			consensusBitVote = bitVote
 		}
 	}
 
-	if consensusBitVote != nil {
-		bitVector, _ := new(big.Int).SetString(*consensusBitVote, 10)
-		return bitVector
-	} else {
-		return nil
-	}
+	bitVector, _ := new(big.Int).SetString(consensusBitVote, 10)
+	return bitVector
 }
