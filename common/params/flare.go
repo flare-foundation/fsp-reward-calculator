@@ -57,5 +57,10 @@ var flare = Network{
 		ProtocolId:       200,
 		FinalizationBips: big.NewInt(1000),
 		PenaltyFactor:    big.NewInt(30),
+		FireFeeSplitBips: big.NewInt(9000),
 	},
+
+	// FIP.16 activates on Flare with reward epoch 417.
+	Fip16ActivationEpoch: 417,
+	FirePoolAddress:      common.HexToAddress("0x0ce6831DF00A6018c4d316009980DbAa6c44E525"),
 }

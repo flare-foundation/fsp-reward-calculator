@@ -58,5 +58,10 @@ var coston = Network{
 		ProtocolId:       200,
 		FinalizationBips: big.NewInt(1000),
 		PenaltyFactor:    big.NewInt(30),
+		FireFeeSplitBips: big.NewInt(0),
 	},
+
+	// TODO(FIP.16): set once the Coston activation reward epoch is known.
+	Fip16ActivationEpoch: Fip16NotActivated,
+	FirePoolAddress:      common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 }

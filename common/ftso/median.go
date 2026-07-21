@@ -38,14 +38,25 @@ type nullInt32 struct {
 	value int32
 }
 
-func calculateMedians(feeds []fsp.Feed, voterIndex *fsp.VoterIndex, validReveals map[ty.VoterSubmit][]FeedValue) (map[fsp.FeedId]*Result, error) {
+func calculateMedians(feeds []fsp.Feed, voterIndex *fsp.VoterIndex, validReveals map[ty.VoterSubmit][]FeedValue, fip16Active bool) (map[fsp.FeedId]*Result, error) {
 	medianResults := map[fsp.FeedId]*Result{}
 	for feedIndex, feed := range feeds {
 		var weightedValues []VoterValue
 
 		for voterSubmit, values := range validReveals {
 			feedValue := values[feedIndex]
-			weight := voterIndex.BySubmit[voterSubmit].CappedWeight
+			// FIP.16: the median vote weight is the normalized signing-policy weight instead of
+			// the capped delegation weight, and zero-weight votes are excluded from the median
+			// and quartile calculation.
+			var weight *big.Int
+			if fip16Active {
+				weight = big.NewInt(int64(voterIndex.BySubmit[voterSubmit].SigningPolicyWeight))
+				if weight.Sign() == 0 {
+					continue
+				}
+			} else {
+				weight = voterIndex.BySubmit[voterSubmit].CappedWeight
+			}
 			if feedValue.IsEmpty || weight == nil {
 				continue
 			}

@@ -22,6 +22,7 @@ func burnClaim(amount *big.Int) ty.RewardClaim {
 }
 
 func getFinalizationClaims(
+	epoch ty2.RewardEpochId,
 	round ty2.RoundId,
 	reward *big.Int,
 	finalizations []*fsp.Finalization,
@@ -80,7 +81,7 @@ func getFinalizationClaims(
 		undistributedAmount.Sub(undistributedAmount, claimAmount)
 		undistributedWeight.Sub(undistributedWeight, big.NewInt(1))
 
-		claims = append(claims, SigningWeightClaimsForVoter(voter, claimAmount)...)
+		claims = append(claims, SigningWeightClaimsForVoter(voter, claimAmount, epoch)...)
 	}
 
 	if undistributedAmount.Cmp(BigZero) != 0 {

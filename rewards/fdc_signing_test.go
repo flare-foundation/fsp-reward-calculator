@@ -42,6 +42,7 @@ func TestGenerateFdcSigningClaimsSkipsZeroWeightVotersAfterDistribution(t *testi
 	}
 
 	claims := generateFdcSigningClaims(
+		416,
 		finalizations,
 		round,
 		big.NewInt(1000),

@@ -9,7 +9,7 @@ import (
 	"math/big"
 )
 
-func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.RoundId, reward *big.Int, bitVotes map[ty2.VoterSubmit]*big.Int, consensusBitVote *big.Int, consensusSigs map[ty2.VoterSigning]fsp.SigInfo, voterIndex *fsp.VoterIndex) []ty.RewardClaim {
+func generateFdcSigningClaims(epoch ty2.RewardEpochId, finalizations []*fsp.Finalization, round ty2.RoundId, reward *big.Int, bitVotes map[ty2.VoterSubmit]*big.Int, consensusBitVote *big.Int, consensusSigs map[ty2.VoterSigning]fsp.SigInfo, voterIndex *fsp.VoterIndex) []ty.RewardClaim {
 	var signingClaims []ty.RewardClaim
 
 	if consensusBitVote == nil || consensusBitVote.Cmp(big.NewInt(0)) == 0 {
@@ -73,7 +73,7 @@ func generateFdcSigningClaims(finalizations []*fsp.Finalization, round ty2.Round
 					voterAmount.Sub(voterAmount, burnAmount)
 				}
 			}
-			signingClaims = append(signingClaims, SigningWeightClaimsForVoter(voter, voterAmount)...)
+			signingClaims = append(signingClaims, SigningWeightClaimsForVoter(voter, voterAmount, epoch)...)
 		}
 	}
 

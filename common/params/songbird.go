@@ -57,5 +57,13 @@ var songbird = Network{
 		ProtocolId:       200,
 		FinalizationBips: big.NewInt(1000),
 		PenaltyFactor:    big.NewInt(30),
+		// Songbird has no FDC->FIRE split (0 bips).
+		FireFeeSplitBips: big.NewInt(0),
 	},
+
+	// FIP.16 activates on Songbird with reward epoch 417. There is no P-chain staking on Songbird,
+	// so the 5x stake weighting is inert and no FDC->FIRE split applies; the FIRE pool address is
+	// the conventional burn address.
+	Fip16ActivationEpoch: 417,
+	FirePoolAddress:      common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 }

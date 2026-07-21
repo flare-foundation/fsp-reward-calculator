@@ -22,17 +22,28 @@ type voterRecord struct {
 	isPct, isIqr bool
 }
 
-func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *ftso.Result) []ty.RewardClaim {
+// getMedianClaims calculates the median (accuracy) reward claims for the round. It also returns
+// the voters that earned a non-zero median reward — once FIP.16 is active this precise set drives
+// signing/finalization eligibility (a stake-only voter can earn an accuracy reward without
+// producing a WNAT claim).
+func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *ftso.Result) ([]ty.RewardClaim, []*fsp.VoterInfo) {
 	var epochClaims []ty.RewardClaim
 
+	// FIP.16: turnout is measured against the total normalized signing weight instead of the
+	// total capped delegation weight (matching the unified median voting weight).
+	totalVotingWeight := re.VoterIndex.TotalCappedWeight
+	if params.Fip16Active(re.Epoch) {
+		totalVotingWeight = big.NewInt(int64(re.VoterIndex.TotalSigningPolicyWeight))
+	}
+
 	// Burn rewardOffer if turnout condition not reached
-	if medianResult.Quartiles == nil || !isEnoughParticipation(medianResult.Quartiles.ParticipantWeight, re.VoterIndex.TotalCappedWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
+	if medianResult.Quartiles == nil || !isEnoughParticipation(medianResult.Quartiles.ParticipantWeight, totalVotingWeight, rewardOffer.Feed.MinRewardedTurnoutBIPS) {
 		epochClaims = append(epochClaims, ty.RewardClaim{
 			Beneficiary: params.Net.Ftso.BurnAddress,
 			Amount:      new(big.Int).Set(rewardShare),
 			Type:        ty.Direct,
 		})
-		return epochClaims
+		return epochClaims, nil
 	}
 
 	sortedRecords, pctSum, iqrSum := getRecords(round, re, medianResult, rewardOffer)
@@ -78,7 +89,7 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 			Amount:      new(big.Int).Set(rewardShare),
 			Type:        ty.Direct,
 		})
-		return epochClaims
+		return epochClaims, nil
 	}
 
 	totalReward := big.NewInt(0)
@@ -90,6 +101,8 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 	}
 
 	var claims []ty.RewardClaim
+	var rewardedVoters []*fsp.VoterInfo
+	fip16Active := params.Fip16Active(re.Epoch)
 	for _, record := range sortedRecords {
 		if record.weight.Cmp(BigZero) == 0 {
 			continue
@@ -113,14 +126,25 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 		availableWeight.Sub(availableWeight, record.weight)
 		totalReward.Add(totalReward, reward)
 
-		claims = append(claims, generateClaimsForVoter(re.VoterIndex.BySubmit[record.voter], reward)...)
+		voter := re.VoterIndex.BySubmit[record.voter]
+		// FIP.16: the accuracy reward is split between delegators (WNAT) and stakers (MIRROR)
+		// exactly like signing/finalization rewards. Before activation it is split into
+		// fee + WNAT (delegation) only.
+		if fip16Active {
+			claims = append(claims, SigningWeightClaimsForVoter(voter, reward, re.Epoch)...)
+		} else {
+			claims = append(claims, generateClaimsForVoter(voter, reward)...)
+		}
+		if reward.Cmp(BigZero) > 0 {
+			rewardedVoters = append(rewardedVoters, voter)
+		}
 	}
 
 	if totalReward.Cmp(rewardShare) != 0 {
 		logger.Fatal("totalReward %d is not equal to rewardShare %d, this should never happen", totalReward, rewardShare)
 	}
 
-	return claims
+	return claims, rewardedVoters
 }
 
 func getRecords(round ty2.RoundId, re *fsp.RewardEpoch, medianResult *ftso.Result, rewardOffer FeedReward) ([]voterRecord, *big.Int, *big.Int) {

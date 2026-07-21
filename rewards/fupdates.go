@@ -32,12 +32,20 @@ func gatFUpdateClaims(re *fsp.RewardEpoch, roundUpdates *ftso.FUpdate, rewardOff
 			logger.Fatal("Voter not found for FU submitter signing address %s", signing)
 		}
 
-		feeBips := big.NewInt(int64(voter.DelegationFeeBips))
-
 		amount := new(big.Int).Set(perRound)
 		if big.NewInt(int64(i)).Cmp(rem) < 0 {
 			amount.Add(amount, big.NewInt(1))
 		}
+
+		// FIP.16: block-latency (fast updates) rewards are also split to stakers — the submitter's
+		// share is split between delegators (WNAT) and stakers (MIRROR) exactly like
+		// signing/finalization/median rewards. Before activation the share goes to fee + WNAT only.
+		if params.Fip16Active(re.Epoch) {
+			claims = append(claims, SigningWeightClaimsForVoter(voter, amount, re.Epoch)...)
+			continue
+		}
+
+		feeBips := big.NewInt(int64(voter.DelegationFeeBips))
 		feeAmount := new(big.Int).Div(bigTmp.Mul(amount, feeBips), bigTotalBips)
 
 		claims = append(claims, ty.RewardClaim{
