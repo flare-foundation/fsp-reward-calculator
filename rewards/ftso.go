@@ -230,7 +230,8 @@ func getFeedSelectionRandoms(
 	var lastRandom *ftso.RandomResult
 	var lastRandomRound ty2.RoundId
 
-	for round := re.EndRound + 1; round < windowEnd; round++ {
+	// Inclusive: the TS reference scans the full lookahead window (rounds end+1 .. end+offset).
+	for round := re.EndRound + 1; round <= windowEnd; round++ {
 		validReveals := reveals[round].Reveals
 
 		eligibleReveals := map[ty2.VoterSubmit]*ftso.Reveal{}
