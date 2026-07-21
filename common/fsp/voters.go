@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"sort"
 
+	"fsp-rewards-calculator/contracts/calculator"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
 	"github.com/flare-foundation/go-flare-common/pkg/voters"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"

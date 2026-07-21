@@ -23,7 +23,9 @@ type ContractAddresses struct {
 	Submission                 common.Address
 	OldRelay                   common.Address
 	Relay                      common.Address
+	OldFlareSystemsCalculator  common.Address
 	FlareSystemsCalculator     common.Address
+	OldVoterRegistry           common.Address
 	VoterRegistry              common.Address
 	FastUpdateIncentiveManager common.Address
 	FastUpdater                common.Address
