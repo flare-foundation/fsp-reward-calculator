@@ -61,7 +61,7 @@ var coston = Network{
 		FireFeeSplitBips: big.NewInt(0),
 	},
 
-	// TODO(FIP.16): set once the Coston activation reward epoch is known.
+	// FIP.16 does not apply to testnets.
 	Fip16ActivationEpoch: Fip16NotActivated,
 	FirePoolAddress:      common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 }
