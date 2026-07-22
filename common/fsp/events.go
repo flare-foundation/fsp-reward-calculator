@@ -3,11 +3,12 @@ package fsp
 import (
 	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/params"
+	"fsp-rewards-calculator/contracts/calculator"
 	"fsp-rewards-calculator/contracts/registryOld"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	calculatorOld "github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
@@ -24,8 +25,9 @@ type VoterRegisteredEvent struct {
 	SubmitSignaturesAddress common.Address
 }
 
-// Fetches VoterRegistered events from indexer. Some networks use updated VoterRegistry contract with new ABI,
-// so we try to query for both old and new event signature.
+// Fetches VoterRegistered events from indexer. Registrations may live on the old or the new (post
+// reward epoch 417 upgrade) VoterRegistry contract, and the two contracts use different event ABIs,
+// so we query both addresses with their respective event signatures (like Relay/OldRelay).
 func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]VoterRegisteredEvent, error) {
 	oldRegistry, _ := registryOld.NewRegistry(common.Address{}, nil)
 	parseOld := func(log types.Log, _ uint64) (*registryOld.RegistryVoterRegistered, error) {
@@ -35,36 +37,25 @@ func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]VoterRegis
 		db,
 		from,
 		to,
-		params.Net.Contracts.VoterRegistry,
+		params.Net.Contracts.OldVoterRegistry,
 		common2.EventTopic0.VoterRegisteredOld,
 		parseOld,
 	)
 	if err != nil {
 		return nil, errors.Errorf("error fetching voter registered events: %s", err)
 	}
-	if len(oldEvents) > 0 {
-		events := make([]VoterRegisteredEvent, 0, len(oldEvents))
-		for _, event := range oldEvents {
-			events = append(events, VoterRegisteredEvent{
-				Voter:                   event.Voter,
-				RewardEpochId:           event.RewardEpochId.Uint64(),
-				SigningPolicyAddress:    event.SigningPolicyAddress,
-				SubmitAddress:           event.SubmitAddress,
-				SubmitSignaturesAddress: event.SubmitSignaturesAddress,
-			})
-		}
-		return events, nil
-	}
 
 	newRegistry, _ := registry.NewRegistry(common.Address{}, nil)
 	parseNew := func(log types.Log, _ uint64) (*registry.RegistryVoterRegistered, error) {
 		return newRegistry.ParseVoterRegistered(log)
 	}
-	newEvents, err := QueryEvents(
+	// The new event signature is queried on both addresses: some networks' pre-upgrade registry
+	// already emits the new ABI.
+	newEvents, err := QueryEventsForContracts(
 		db,
 		from,
 		to,
-		params.Net.Contracts.VoterRegistry,
+		[]common.Address{params.Net.Contracts.OldVoterRegistry, params.Net.Contracts.VoterRegistry},
 		common2.EventTopic0.VoterRegistered,
 		parseNew,
 	)
@@ -72,7 +63,16 @@ func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]VoterRegis
 		return nil, errors.Errorf("error fetching voter registered events: %s", err)
 	}
 
-	events := make([]VoterRegisteredEvent, 0, len(newEvents))
+	events := make([]VoterRegisteredEvent, 0, len(oldEvents)+len(newEvents))
+	for _, event := range oldEvents {
+		events = append(events, VoterRegisteredEvent{
+			Voter:                   event.Voter,
+			RewardEpochId:           event.RewardEpochId.Uint64(),
+			SigningPolicyAddress:    event.SigningPolicyAddress,
+			SubmitAddress:           event.SubmitAddress,
+			SubmitSignaturesAddress: event.SubmitSignaturesAddress,
+		})
+	}
 	for _, event := range newEvents {
 		events = append(events, VoterRegisteredEvent{
 			Voter:                   event.Voter,
@@ -86,10 +86,31 @@ func getVoterRegisteredEvents(db *gorm.DB, from uint64, to uint64) ([]VoterRegis
 	return events, nil
 }
 
+// Fetches VoterRegistrationInfo events from indexer. Like the voter registry, the
+// FlareSystemsCalculator was replaced with the reward epoch 417 upgrade and the old contract emits
+// the event with a different signature (rewardEpochId uint24 instead of uint32), so we query both
+// addresses with their respective event signatures.
 func getVoterInfoEvents(db *gorm.DB, from uint64, to uint64) ([]*calculator.CalculatorVoterRegistrationInfo, error) {
-	instance, _ := calculator.NewCalculator(common.Address{}, nil)
-	parse := func(log types.Log, _ uint64) (*calculator.CalculatorVoterRegistrationInfo, error) {
-		return instance.ParseVoterRegistrationInfo(log)
+	oldCalculator, _ := calculatorOld.NewCalculator(common.Address{}, nil)
+	parseOld := func(log types.Log, _ uint64) (*calculatorOld.CalculatorVoterRegistrationInfo, error) {
+		return oldCalculator.ParseVoterRegistrationInfo(log)
+	}
+
+	oldEvents, err := QueryEvents(
+		db,
+		from,
+		to,
+		params.Net.Contracts.OldFlareSystemsCalculator,
+		common2.EventTopic0.VoterRegistrationInfoOld,
+		parseOld,
+	)
+	if err != nil {
+		return nil, errors.Errorf("error fetching events: %s", err)
+	}
+
+	newCalculator, _ := calculator.NewCalculator(common.Address{}, nil)
+	parseNew := func(log types.Log, _ uint64) (*calculator.CalculatorVoterRegistrationInfo, error) {
+		return newCalculator.ParseVoterRegistrationInfo(log)
 	}
 
 	events, err := QueryEvents(
@@ -98,10 +119,24 @@ func getVoterInfoEvents(db *gorm.DB, from uint64, to uint64) ([]*calculator.Calc
 		to,
 		params.Net.Contracts.FlareSystemsCalculator,
 		common2.EventTopic0.VoterRegistrationInfo,
-		parse,
+		parseNew,
 	)
 	if err != nil {
 		return nil, errors.Errorf("error fetching events: %s", err)
+	}
+
+	for _, event := range oldEvents {
+		events = append(events, &calculator.CalculatorVoterRegistrationInfo{
+			Voter:             event.Voter,
+			RewardEpochId:     uint32(event.RewardEpochId.Uint64()),
+			DelegationAddress: event.DelegationAddress,
+			DelegationFeeBIPS: event.DelegationFeeBIPS,
+			WNatWeight:        event.WNatWeight,
+			WNatCappedWeight:  event.WNatCappedWeight,
+			NodeIds:           event.NodeIds,
+			NodeWeights:       event.NodeWeights,
+			Raw:               event.Raw,
+		})
 	}
 
 	return events, nil

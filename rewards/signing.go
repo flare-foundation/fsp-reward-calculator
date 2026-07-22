@@ -118,7 +118,7 @@ func getSigningClaims(
 		remainingWeight -= weight
 
 		if voter, ok := eligibleSigners[sig.Signer]; ok {
-			claims = append(claims, SigningWeightClaimsForVoter(voter, claimAmount)...)
+			claims = append(claims, SigningWeightClaimsForVoter(voter, claimAmount, re.Epoch)...)
 		} else {
 			claims = append(claims, burnClaim(claimAmount))
 		}
@@ -127,7 +127,7 @@ func getSigningClaims(
 	return claims
 }
 
-func SigningWeightClaimsForVoter(voter *fsp.VoterInfo, amount *big.Int) []ty.RewardClaim {
+func SigningWeightClaimsForVoter(voter *fsp.VoterInfo, amount *big.Int, epoch ty2.RewardEpochId) []ty.RewardClaim {
 	var claims []ty.RewardClaim
 
 	stakedWeight := big.NewInt(0)
@@ -135,13 +135,21 @@ func SigningWeightClaimsForVoter(voter *fsp.VoterInfo, amount *big.Int) []ty.Rew
 		stakedWeight.Add(stakedWeight, w)
 	}
 
-	totalWeight := new(big.Int).Add(voter.CappedWeight, stakedWeight)
+	// FIP.16: P-chain stake is up-weighted (5x) relative to capped C-chain delegation when
+	// splitting the earned amount between delegators (WNAT) and stakers (MIRROR). The
+	// node-to-node sub-distribution below stays proportional to raw node weights.
+	effectiveStakedWeight := new(big.Int).Set(stakedWeight)
+	if params.Fip16Active(epoch) {
+		effectiveStakedWeight.Mul(effectiveStakedWeight, params.Fip16StakeWeightMultiplier)
+	}
+
+	totalWeight := new(big.Int).Add(voter.CappedWeight, effectiveStakedWeight)
 	if totalWeight.Cmp(BigZero) == 0 {
 		logger.Fatal("voter totalWeight is zero, this should never happen")
 	}
 
 	stakingAmount := new(big.Int).Div(
-		bigTmp.Mul(amount, stakedWeight),
+		bigTmp.Mul(amount, effectiveStakedWeight),
 		totalWeight,
 	)
 	delegationAmount := new(big.Int).Sub(amount, stakingAmount)

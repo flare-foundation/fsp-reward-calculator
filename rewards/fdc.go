@@ -20,6 +20,8 @@ import (
 type roundReward struct {
 	amount *big.Int
 	burn   *big.Int
+	// fire is the FIP.16 FIRE-pool share of the round's confirmed attestation request fees.
+	fire *big.Int
 }
 
 func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, submitSignatures []payload.Message, finalizations []*fsp.Finalization) ([]ty.RewardClaim, map[ty2.VoterId]bool) {
@@ -83,6 +85,16 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 		roundClaims = append(roundClaims, burnClaim(rewardByRound[round].burn))
 		utils.PrintRoundResults(roundClaims, re.Epoch, round, "fdc-claimback")
 
+		// FIP.16: the FIRE share of the round's confirmed attestation request fees goes to the
+		// FIRE pool as a direct claim (independent of the round's finalization outcome).
+		if rewardByRound[round].fire != nil && rewardByRound[round].fire.Cmp(BigZero) > 0 {
+			roundClaims = append(roundClaims, ty.RewardClaim{
+				Beneficiary: params.Net.FirePoolAddress,
+				Amount:      new(big.Int).Set(rewardByRound[round].fire),
+				Type:        ty.Direct,
+			})
+		}
+
 		if firstSuccessful(finalizationsByRound[round]) == nil {
 			logger.Warn("no successful finalization for round %d, burning round rewards", round)
 			roundClaims = append(roundClaims, burnClaim(rewardByRound[round].amount))
@@ -103,7 +115,7 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 					eligibleVoters = append(eligibleVoters, voter)
 				}
 			}
-			finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
+			finalizationClaims := getFinalizationClaims(re.Epoch, round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
 			logger.Debug("Finalization rewards calculated for round %d: %d", round, len(finalizationClaims))
 			roundClaims = append(roundClaims, finalizationClaims...)
 			utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "fdc-finalz-claims")
@@ -113,13 +125,13 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 			hash := consensusHashByRound[round]
 			consensusSigs := roundSigs[hash]
 
-			signingClaims := generateFdcSigningClaims(finalizationsByRound[round], round, signingReward, bitVotesByRound[round], consensusBitVote, consensusSigs, re.VoterIndex)
+			signingClaims := generateFdcSigningClaims(re.Epoch, finalizationsByRound[round], round, signingReward, bitVotesByRound[round], consensusBitVote, consensusSigs, re.VoterIndex)
 			roundClaims = append(roundClaims, signingClaims...)
 			utils.PrintRoundResults(signingClaims, re.Epoch, round, "fdc-signing-claims")
 
 			offenders := getOffenders(bitVotesByRound[round], consensusSigs, roundSigs[fdc.WrongSignatureIndicatorMessageHash], re.VoterIndex, consensusBitVoteByRound[round])
 
-			penalties := getFdcPenalties(reward, params.Net.Fdc.PenaltyFactor, offenders, re.VoterIndex)
+			penalties := getFdcPenalties(re.Epoch, reward, params.Net.Fdc.PenaltyFactor, offenders, re.VoterIndex)
 			utils.PrintRoundResults(penalties, re.Epoch, round, "fdc-penalties")
 
 			roundClaims = append(roundClaims, penalties...)

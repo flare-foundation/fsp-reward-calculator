@@ -18,6 +18,7 @@ func CalculateResults(
 	feeds []fsp.Feed,
 	voterIndex *fsp.VoterIndex,
 	reveals map[ty.RoundId]RoundReveals,
+	fip16Active bool,
 ) (map[ty.RoundId]RoundResult, error) {
 	var results = map[ty.RoundId]RoundResult{}
 
@@ -50,7 +51,7 @@ func CalculateResults(
 
 		logger.Debug("Calculating median for round %d", round)
 
-		median, err := calculateMedians(feeds, voterIndex, feedValues)
+		median, err := calculateMedians(feeds, voterIndex, feedValues, fip16Active)
 		if err != nil {
 			return nil, err
 		}

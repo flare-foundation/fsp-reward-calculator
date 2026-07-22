@@ -16,8 +16,10 @@ var songbird = Network{
 		Submission:                 common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f"),
 		Relay:                      common.HexToAddress("0xCB86E8Be709001e01897Bf59847406853da8f14b"),
 		OldRelay:                   common.HexToAddress("0x67a916E175a2aF01369294739AA60dDdE1Fad189"),
-		FlareSystemsCalculator:     common.HexToAddress("0x126FAeEc75601dA3354c0b5Cc0b60C85fCbC3A5e"),
-		VoterRegistry:              common.HexToAddress("0x31B9EC65C731c7D973a33Ef3FC83B653f540dC8D"),
+		FlareSystemsCalculator:     common.HexToAddress("0x31a5B8E7ca6dFC7B963f5D029F0884ef19E53A24"),
+		OldFlareSystemsCalculator:  common.HexToAddress("0x126FAeEc75601dA3354c0b5Cc0b60C85fCbC3A5e"),
+		VoterRegistry:              common.HexToAddress("0xd23FAE88c09e6A77dD9eFcc29D6bBC55D2e74310"),
+		OldVoterRegistry:           common.HexToAddress("0x31B9EC65C731c7D973a33Ef3FC83B653f540dC8D"),
 		FastUpdateIncentiveManager: common.HexToAddress("0x596C70Ad6fFFdb9b6158F1Dfd0bc32cc72B82006"),
 		FastUpdater:                common.HexToAddress("0x7D9F73FD9bC4607daCB618FF895585f98BFDD06B"),
 		FdcHub:                     common.HexToAddress("0xCfD4669a505A70c2cE85db8A1c1d14BcDE5a1a06"),
@@ -55,5 +57,13 @@ var songbird = Network{
 		ProtocolId:       200,
 		FinalizationBips: big.NewInt(1000),
 		PenaltyFactor:    big.NewInt(30),
+		// Songbird has no FDC->FIRE split (0 bips).
+		FireFeeSplitBips: big.NewInt(0),
 	},
+
+	// FIP.16 activates on Songbird with reward epoch 417. There is no P-chain staking on Songbird,
+	// so the 5x stake weighting is inert and no FDC->FIRE split applies; the FIRE pool address is
+	// the conventional burn address.
+	Fip16ActivationEpoch: 417,
+	FirePoolAddress:      common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 }

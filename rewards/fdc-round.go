@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fsp-rewards-calculator/common/fdc"
 	"fsp-rewards-calculator/common/fsp"
+	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
 	"fsp-rewards-calculator/logger"
 	"math/big"
@@ -70,9 +71,20 @@ func calculateFdcRoundRewards(
 			}
 		}
 
+		// FIP.16: a share of the confirmed request fees goes to the FIRE pool instead of the FDC
+		// reward pool; the rounding remainder stays distributable.
+		fireFeeAmount := big.NewInt(0)
+		if params.Fip16Active(re.Epoch) {
+			fireFeeAmount.Div(
+				new(big.Int).Mul(feeAmount, params.Net.Fdc.FireFeeSplitBips),
+				bigTotalBips,
+			)
+		}
+
 		rewardPerRound[round] = roundReward{
-			amount: amount.Add(amount, feeAmount),
+			amount: amount.Add(amount, new(big.Int).Sub(feeAmount, fireFeeAmount)),
 			burn:   burnAmount.Add(burnAmount, feeBurnAmount),
+			fire:   fireFeeAmount,
 		}
 	}
 

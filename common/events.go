@@ -1,11 +1,12 @@
 package common
 
 import (
+	"fsp-rewards-calculator/contracts/calculator"
 	"fsp-rewards-calculator/contracts/registryOld"
 	"fsp-rewards-calculator/logger"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
+	calculatorOld "github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fdchub"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fumanager"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/fupdater"
@@ -34,6 +35,7 @@ type EventIds struct {
 	VoterRegistered          string
 	VoterRegisteredOld       string
 	VoterRegistrationInfo    string
+	VoterRegistrationInfoOld string
 
 	FdcAttestationRequest string
 }
@@ -60,6 +62,7 @@ var EventTopic0 = EventIds{
 	VoterRegistered:          eventIDFromMetadata(registry.RegistryMetaData, "VoterRegistered"),
 	VoterRegisteredOld:       eventIDFromMetadata(registryOld.RegistryMetaData, "VoterRegistered"),
 	VoterRegistrationInfo:    eventIDFromMetadata(calculator.CalculatorMetaData, "VoterRegistrationInfo"),
+	VoterRegistrationInfoOld: eventIDFromMetadata(calculatorOld.CalculatorMetaData, "VoterRegistrationInfo"),
 
 	FastUpdateFeeds:          eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeeds"),
 	FastUpdateFeedsSubmitted: eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeedsSubmitted"),

@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"sort"
 
+	"fsp-rewards-calculator/contracts/calculator"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/go-flare-common/pkg/contracts/calculator"
 	"github.com/flare-foundation/go-flare-common/pkg/voters"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
@@ -83,6 +83,13 @@ func GetVoterIndex(db *gorm.DB, epoch ty.RewardEpochId, fromSec, toSec uint64, p
 			NodeWeights:         info.NodeWeights,
 			SigningPolicyWeight: policyWeight.Weight,
 		})
+	}
+
+	// A signing policy always comes with registered voters; an empty index means the registration
+	// events were not found (e.g. wrong contract addresses) and would silently corrupt everything
+	// derived from it, so fail loudly instead.
+	if len(voterInfos) == 0 {
+		return nil, errors.Errorf("no registered voters found for reward epoch %d in window [%d, %d]", epoch, fromSec, toSec)
 	}
 
 	// Sort according to signing policy order

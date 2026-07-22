@@ -93,7 +93,7 @@ func GetRewardEpoch(epoch ty.RewardEpochId, db *gorm.DB) (RewardEpoch, error) {
 		return RewardEpoch{}, errors.Errorf("error fetching reward rewardOffers: %s", err)
 	}
 
-	feeds := getOrderedFeeds(rewardOffers)
+	feeds := getOrderedFeeds(rewardOffers, params.Fip16Active(epoch))
 	orderedVoters := getOrderedVoters(policyEvent)
 
 	policy := policy.NewSigningPolicy(policyEvent, nil)

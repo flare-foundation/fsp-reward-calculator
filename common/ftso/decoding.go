@@ -50,9 +50,15 @@ func DecodeCommit(bytes []byte) (*Commit, error) {
 	}, nil
 }
 
-func DecodeReveal(bytes []byte, expectedFeeds int) (*Reveal, error) {
-	// The message should be long enough to contain the random and at least one feed value
-	if len(bytes) < (common.HashLength + feedValueBytes) {
+func DecodeReveal(bytes []byte, expectedFeeds int, allowRandomOnlyReveal bool) (*Reveal, error) {
+	// The message must contain the 32-byte random. FIP.16: a reveal carrying only the random and
+	// no feed values is accepted (decoded as all-empty feed values); before activation such a
+	// reveal is rejected, reproducing the pre-FIP.16 behaviour.
+	minLength := common.HashLength + feedValueBytes
+	if allowRandomOnlyReveal {
+		minLength = common.HashLength
+	}
+	if len(bytes) < minLength {
 		return nil, errors.New("message too short")
 	}
 
@@ -124,8 +130,9 @@ func ExtractReveals(messages []payload.Message, getRoundEpoch func(ty.RoundId) *
 			continue
 		}
 
-		feeds := getRoundEpoch(round).OrderedFeeds
-		reveal, err := DecodeReveal(msg.Payload, len(feeds))
+		roundEpoch := getRoundEpoch(round)
+		feeds := roundEpoch.OrderedFeeds
+		reveal, err := DecodeReveal(msg.Payload, len(feeds), params.Fip16Active(roundEpoch.Epoch))
 		if err != nil {
 			logger.Debug("error parsing reveal, skipping: %s", err)
 			continue

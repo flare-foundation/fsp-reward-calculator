@@ -51,7 +51,7 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 	}
 	logger.Info("Fast update data fetched")
 
-	results, err := ftso.CalculateResults(re.StartRound, re.EndRound, re.OrderedFeeds, re.VoterIndex, revealsByRound)
+	results, err := ftso.CalculateResults(re.StartRound, re.EndRound, re.OrderedFeeds, re.VoterIndex, revealsByRound, params.Fip16Active(re.Epoch))
 	if err != nil {
 		logger.Fatal("error calculating results: %s", err)
 	}
@@ -105,19 +105,26 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 		logger.Debug("Reward shares for round %d: signing %s, finalization %s, median %s", round, signingReward.String(), finalizationReward.String(), medianReward.String())
 		logger.Debug("Calculating median claims for round %d", round)
 
-		medianClaims := getMedianClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
+		medianClaims, medianRewardedVoters := getMedianClaims(round, re, medianReward, totalRoundReward, results[round].Median[totalRoundReward.Feed.Id])
 
 		utils.PrintRoundResults(medianClaims, re.Epoch, round, "median-claims")
 
-		// Only voters receiving median rewards are eligible for signing and finalization rewards
+		// Only voters receiving median rewards are eligible for signing and finalization rewards.
+		// Once FIP.16 is active a stake-only voter can earn an accuracy reward without producing a
+		// WNAT claim, so the precise rewarded-voter set is used. Before activation eligibility is
+		// derived from the WNAT claims to reproduce historical results byte-for-byte.
 		var eligibleVoters []*fsp.VoterInfo
-		for _, claim := range medianClaims {
-			if claim.Type != ty.WNat || claim.Amount.Cmp(BigZero) <= 0 {
-				continue
-			}
-			voter, ok := re.VoterIndex.ByDelegation[ty2.VoterDelegation(claim.Beneficiary)]
-			if ok {
-				eligibleVoters = append(eligibleVoters, voter)
+		if params.Fip16Active(re.Epoch) {
+			eligibleVoters = medianRewardedVoters
+		} else {
+			for _, claim := range medianClaims {
+				if claim.Type != ty.WNat || claim.Amount.Cmp(BigZero) <= 0 {
+					continue
+				}
+				voter, ok := re.VoterIndex.ByDelegation[ty2.VoterDelegation(claim.Beneficiary)]
+				if ok {
+					eligibleVoters = append(eligibleVoters, voter)
+				}
 			}
 		}
 		logger.Debug("Calculating signing claims for round %d", round)
@@ -130,7 +137,7 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 		if err != nil {
 			logger.Fatal("error selecting finalizers: %s", err)
 		}
-		finalizationClaims := getFinalizationClaims(round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
+		finalizationClaims := getFinalizationClaims(re.Epoch, round, finalizationReward, finalizationsByRound[round], eligibleVoters, finalizers)
 
 		utils.PrintRoundResults(finalizationClaims, re.Epoch, round, "finalz-claims")
 
@@ -140,7 +147,7 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 			dSignerInfos = append(dSignerInfos, re.VoterIndex.BySigning[dSigner])
 		}
 
-		doubleSigningPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
+		doubleSigningPenalties := getPenalties(re.Epoch, totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, dSignerInfos, re.VoterIndex)
 
 		var offenderInfos []*fsp.VoterInfo
 		for _, offender := range revealsByRound[round].RegisteredOffenders {
@@ -149,7 +156,7 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 				offenderInfos = append(offenderInfos, re.VoterIndex.BySubmit[offender])
 			}
 		}
-		revealPenalties := getPenalties(totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
+		revealPenalties := getPenalties(re.Epoch, totalRoundReward.Amount, params.Net.Ftso.PenaltyFactor, offenderInfos, re.VoterIndex)
 
 		logger.Debug("Round: %d, computed median claims: %d, signing claims: %d, finalz claims: %d", round, len(medianClaims), len(signingClaims), len(finalizationClaims))
 
@@ -230,7 +237,8 @@ func getFeedSelectionRandoms(
 	var lastRandom *ftso.RandomResult
 	var lastRandomRound ty2.RoundId
 
-	for round := re.EndRound + 1; round < windowEnd; round++ {
+	// Inclusive: the TS reference scans the full lookahead window (rounds end+1 .. end+offset).
+	for round := re.EndRound + 1; round <= windowEnd; round++ {
 		validReveals := reveals[round].Reveals
 
 		eligibleReveals := map[ty2.VoterSubmit]*ftso.Reveal{}
@@ -264,6 +272,7 @@ func getFeedSelectionRandoms(
 }
 
 func getPenalties(
+	epoch ty2.RewardEpochId,
 	reward *big.Int,
 	penaltyFactor *big.Int,
 	offenders []*fsp.VoterInfo,
@@ -271,12 +280,21 @@ func getPenalties(
 ) []ty.RewardClaim {
 	var penalties []ty.RewardClaim
 	for _, offender := range offenders {
+		// FIP.16: the penalty weight basis follows the median reward distribution weight — the
+		// capped delegation weight before activation, the normalized signing weight after.
+		offenderWeight := offender.CappedWeight
+		totalWeight := voters.TotalCappedWeight
+		if params.Fip16Active(epoch) {
+			offenderWeight = big.NewInt(int64(offender.SigningPolicyWeight))
+			totalWeight = big.NewInt(int64(voters.TotalSigningPolicyWeight))
+		}
+
 		amount := new(big.Int).Div(
-			bigTmp.Mul(offender.CappedWeight, bigTmp.Mul(reward, penaltyFactor)),
-			voters.TotalCappedWeight,
+			bigTmp.Mul(offenderWeight, bigTmp.Mul(reward, penaltyFactor)),
+			totalWeight,
 		)
 
-		claims := SigningWeightClaimsForVoter(offender, amount)
+		claims := SigningWeightClaimsForVoter(offender, amount, epoch)
 		for i := range claims {
 			claims[i].Amount.Neg(claims[i].Amount)
 		}

@@ -13,10 +13,10 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/offers"
 )
 
-func getOrderedFeeds(of RewardOffers) []Feed {
+func getOrderedFeeds(of RewardOffers, fip16Active bool) []Feed {
 	feeds := getInflationFeeds(of.Inflation)
 
-	communityFeeds := getCommunityFeeds(of.Community)
+	communityFeeds := getCommunityFeeds(of.Community, fip16Active)
 	for i := range communityFeeds {
 		found := slices.IndexFunc(feeds, func(j Feed) bool {
 			return communityFeeds[i].Id == j.Id
@@ -29,7 +29,7 @@ func getOrderedFeeds(of RewardOffers) []Feed {
 }
 
 // getCommunityFeeds returns a list of feeds first ordered by total amount of rewards offered, then feed id.
-func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
+func getCommunityFeeds(offers []*offers.OffersRewardsOffered, fip16Active bool) []Feed {
 	feedById := map[FeedId]Feed{}
 	amountPerFeed := map[FeedId]*big.Int{}
 
@@ -51,8 +51,13 @@ func getCommunityFeeds(offers []*offers.OffersRewardsOffered) []Feed {
 
 		if value, ok := amountPerFeed[offer.FeedId]; !ok {
 			amountPerFeed[offer.FeedId] = new(big.Int).Set(offer.Amount)
-		} else {
+		} else if fip16Active {
 			amountPerFeed[offer.FeedId].Add(value, offer.Amount)
+		} else {
+			// Pre-FIP.16: preserve the TS reference's exact accumulation (which double-counts the
+			// running total) so historical feed orders — and therefore Merkle roots — remain
+			// byte-identical: flrValue += flrValue + amount.
+			amountPerFeed[offer.FeedId].Add(value, new(big.Int).Add(value, offer.Amount))
 		}
 	}
 

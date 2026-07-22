@@ -84,7 +84,7 @@ func getOffenders(
 	return offenders
 }
 
-func getFdcPenalties(reward *big.Int, penaltyFactor *big.Int, offenders map[ty2.VoterSigning]bool, voters *fsp.VoterIndex) []ty.RewardClaim {
+func getFdcPenalties(epoch ty2.RewardEpochId, reward *big.Int, penaltyFactor *big.Int, offenders map[ty2.VoterSigning]bool, voters *fsp.VoterIndex) []ty.RewardClaim {
 	var penalties []ty.RewardClaim
 
 	bigTotalSigningWeight := big.NewInt(int64(voters.TotalSigningPolicyWeight))
@@ -97,7 +97,7 @@ func getFdcPenalties(reward *big.Int, penaltyFactor *big.Int, offenders map[ty2.
 				bigTmp.Mul(bigWeight, bigTmp.Mul(reward, penaltyFactor)),
 				bigTotalSigningWeight,
 			)
-			claims := SigningWeightClaimsForVoter(offender, amount)
+			claims := SigningWeightClaimsForVoter(offender, amount, epoch)
 			for i := range claims {
 				claims[i].Amount.Neg(claims[i].Amount)
 			}
