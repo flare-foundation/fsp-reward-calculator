@@ -16,11 +16,12 @@ var coston = Network{
 		Submission:              common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f"),
 		Relay:                   common.HexToAddress("0x051f214D346Cfd97B107BECb87E2B35D1b4287E9"),
 		OldRelay:                common.HexToAddress("0x92a6E1127262106611e1e129BB64B6D8654273F7"),
-		// No post-FIP.16 contract upgrade is deployed on Coston yet; old and new addresses coincide.
-		FlareSystemsCalculator:     common.HexToAddress("0x43CBAB9C953F54533aadAf7ffCD13c30ec05Edc9"),
-		OldFlareSystemsCalculator:  common.HexToAddress("0x43CBAB9C953F54533aadAf7ffCD13c30ec05Edc9"),
-		VoterRegistry:              common.HexToAddress("0xE2c06DF29d175Aa0EcfcD10134eB96f8C94448A3"),
-		OldVoterRegistry:           common.HexToAddress("0xE2c06DF29d175Aa0EcfcD10134eB96f8C94448A3"),
+		// Coston runs the upgraded contracts (calculator upgrade active since reward epoch 5824);
+		// only the current deployment is tracked, so old and new addresses coincide.
+		FlareSystemsCalculator:     common.HexToAddress("0x93FC4822406b1be653540B51e98030BfCA0775d5"),
+		OldFlareSystemsCalculator:  common.HexToAddress("0x93FC4822406b1be653540B51e98030BfCA0775d5"),
+		VoterRegistry:              common.HexToAddress("0x42F4526BFC6f892DB515a832a52eFc9edFADf6c0"),
+		OldVoterRegistry:           common.HexToAddress("0x42F4526BFC6f892DB515a832a52eFc9edFADf6c0"),
 		FastUpdateIncentiveManager: common.HexToAddress("0x8c45666369B174806E1AB78D989ddd79a3267F3b"),
 		FastUpdater:                common.HexToAddress("0xB8336A96b4b8af89f60EA080002214191Bc8293A"),
 		FdcHub:                     common.HexToAddress("0x1c78A073E3BD2aCa4cc327d55FB0cD4f0549B55b"),
