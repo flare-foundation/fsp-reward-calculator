@@ -3,6 +3,12 @@ stages:
   - test
   - report
 
+workflow:
+  rules:
+    - if: '$CI_OPEN_MERGE_REQUESTS && ($CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "webide")'
+      when: never
+    - when: always
+
 variables:
   GOPATH: /go
   GOLANG_VERSION: "1.25.5"
