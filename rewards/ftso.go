@@ -111,8 +111,8 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 
 		// Only voters receiving median rewards are eligible for signing and finalization rewards.
 		// Once FIP.16 is active a stake-only voter can earn an accuracy reward without producing a
-		// WNAT claim, so the precise rewarded-voter set is used. Before activation eligibility is
-		// derived from the WNAT claims to reproduce historical results byte-for-byte.
+		// WNat claim, so the precise rewarded-voter set is used. Before activation eligibility is
+		// derived from the WNat claims to reproduce historical results byte-for-byte.
 		var eligibleVoters []*fsp.VoterInfo
 		if params.Fip16Active(re.Epoch) {
 			eligibleVoters = medianRewardedVoters

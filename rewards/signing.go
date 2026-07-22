@@ -136,7 +136,7 @@ func SigningWeightClaimsForVoter(voter *fsp.VoterInfo, amount *big.Int, epoch ty
 	}
 
 	// FIP.16: P-chain stake is up-weighted (5x) relative to capped C-chain delegation when
-	// splitting the earned amount between delegators (WNAT) and stakers (MIRROR). The
+	// splitting the earned amount between delegators (WNat) and stakers (MIRROR). The
 	// node-to-node sub-distribution below stays proportional to raw node weights.
 	effectiveStakedWeight := new(big.Int).Set(stakedWeight)
 	if params.Fip16Active(epoch) {

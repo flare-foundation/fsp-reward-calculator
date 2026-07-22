@@ -25,7 +25,7 @@ type voterRecord struct {
 // getMedianClaims calculates the median (accuracy) reward claims for the round. It also returns
 // the voters that earned a non-zero median reward — once FIP.16 is active this precise set drives
 // signing/finalization eligibility (a stake-only voter can earn an accuracy reward without
-// producing a WNAT claim).
+// producing a WNat claim).
 func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.Int, rewardOffer FeedReward, medianResult *ftso.Result) ([]ty.RewardClaim, []*fsp.VoterInfo) {
 	var epochClaims []ty.RewardClaim
 
@@ -127,9 +127,9 @@ func getMedianClaims(round ty2.RoundId, re *fsp.RewardEpoch, rewardShare *big.In
 		totalReward.Add(totalReward, reward)
 
 		voter := re.VoterIndex.BySubmit[record.voter]
-		// FIP.16: the accuracy reward is split between delegators (WNAT) and stakers (MIRROR)
+		// FIP.16: the accuracy reward is split between delegators (WNat) and stakers (MIRROR)
 		// exactly like signing/finalization rewards. Before activation it is split into
-		// fee + WNAT (delegation) only.
+		// fee + WNat (delegation) only.
 		if fip16Active {
 			claims = append(claims, SigningWeightClaimsForVoter(voter, reward, re.Epoch)...)
 		} else {
