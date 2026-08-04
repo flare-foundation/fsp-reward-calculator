@@ -76,6 +76,36 @@ The application uses command-line flags to configure its parameters. The followi
     ./fsp-rewards-calculator -n flare -e 123 -v
     ```
 
+## FCC fee accounting
+
+From the reward epoch each network activates it in (Songbird 419, Coston 5877; not yet on Flare), the fees of the
+Flare Confidential Compute contracts are accounted for. Both `FlareTeeManager.TeeInstructionsSent` and
+`Fdc2Hub.AttestationRequested` credit their fee to the `RewardManager` when it is paid, so every wei of them must be
+covered by a claim; until the TEE rewarding logic exists all of it is claimed to the network's FCC fee address as a
+single direct claim.
+
+**The indexer must collect the FCC event logs.** A stock FSP-mode indexer has a hardcoded contract list that excludes
+both FCC contracts, and missing events are indistinguishable from no activity: the calculation would then produce a
+merkle root that leaves the fees unclaimed, with nothing to indicate why. Add two collectors per network:
+
+```toml
+[[indexer.collect_logs]]
+contract_address = "0x…" # FlareTeeManager (diamond)
+topic = "0xf770e69a9fc05b7180797556ec4cedb6108ce2c56ffa76c84aa087efeb5e6963" # TeeInstructionsSent
+
+[[indexer.collect_logs]]
+contract_address = "0x…" # Fdc2Hub (proxy)
+topic = "0x57c4413905bb1b444f93a5eab5a942fae34c0fcaa1c25cc595ce0b990310f5de" # AttestationRequested
+```
+
+The topics are event signature hashes and identical on every network; the addresses are in
+`common/params/<network>.go`. They must be collecting before the first epoch that accounts for them: the events
+cannot be backfilled from a public node, whose `eth_getLogs` is capped far below a useful range.
+
+To confirm an epoch's fees independently of the indexer, compare the sum of all claims against
+`RewardManager.getRewardEpochTotals(<epoch>)` over RPC - the funds credited by `receiveRewards` emit no event and
+so cannot be derived from the indexer database.
+
 ## Logging
 
 - Default log level is `INFO`.
