@@ -4,6 +4,7 @@ import (
 	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
+	"fsp-rewards-calculator/logger"
 	"slices"
 	"time"
 
@@ -145,7 +146,25 @@ func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint6
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
 	}
-	fastUpdatesI, err := getFUIncentiveOfferEvents(db, startSec, endSec)
+	// FastUpdateIncentiveManager.offerIncentive credits getCurrentRewardEpochId() with no compensation for
+	// the epoch boundary, exactly as the FCC contracts do and unlike FdcHub, which rolls forward near the
+	// epoch end. An incentive is therefore attributed the same way FCC fees are: collected over the
+	// epoch's funding window, whose inclusive edges guarantee a superset, then narrowed by the reward
+	// epoch id the event carries itself (below). Collected over the voting round schedule instead, an
+	// incentive offered after the epoch's last round but before the next epoch started funds one epoch on
+	// chain while being counted towards no epoch's fast updates pool at all.
+	incentiveStartSec, incentiveEndSec := startSec, endSec
+	if window, err := RewardEpochFundingWindow(db, epoch); err == nil {
+		// QueryEvents takes an exclusive end, the window's end is inclusive.
+		incentiveStartSec, incentiveEndSec = window.StartSec, window.EndSec+1
+	} else {
+		// The window closes with the next epoch's RewardEpochStarted event, so it is unavailable while an
+		// epoch is still running. That is expected for the epoch after the one being calculated, which is
+		// loaded only to look ahead for secure random numbers and whose incentives are never used.
+		logger.Debug("no funding window for epoch %d, collecting incentive offers over its voting rounds: %s", epoch, err)
+	}
+
+	fastUpdatesI, err := getFUIncentiveOfferEvents(db, incentiveStartSec, incentiveEndSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
 	}
