@@ -1,0 +1,45 @@
+[
+{
+"anonymous": false,
+"inputs": [
+{
+"indexed": true,
+"internalType": "bytes32",
+"name": "instructionId",
+"type": "bytes32"
+},
+{
+"indexed": true,
+"internalType": "bytes32",
+"name": "attestationType",
+"type": "bytes32"
+},
+{
+"indexed": true,
+"internalType": "bytes32",
+"name": "sourceId",
+"type": "bytes32"
+},
+{
+"indexed": false,
+"internalType": "address",
+"name": "proofOwner",
+"type": "address"
+},
+{
+"indexed": false,
+"internalType": "address",
+"name": "claimBackAddress",
+"type": "address"
+},
+{
+"indexed": false,
+"internalType": "uint256",
+"name": "fee",
+"type": "uint256"
+}
+],
+"name": "AttestationRequested",
+"type": "event"
+}
+]

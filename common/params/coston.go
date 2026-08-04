@@ -26,6 +26,8 @@ var coston = Network{
 		FastUpdateIncentiveManager: common.HexToAddress("0x8c45666369B174806E1AB78D989ddd79a3267F3b"),
 		FastUpdater:                common.HexToAddress("0xB8336A96b4b8af89f60EA080002214191Bc8293A"),
 		FdcHub:                     common.HexToAddress("0x1c78A073E3BD2aCa4cc327d55FB0cD4f0549B55b"),
+		FlareTeeManager:            common.HexToAddress("0xc4885998f5D792ed88C5Af7a3AaCBe333f017658"),
+		Fdc2Hub:                    common.HexToAddress("0x064C7B68B0e2BC87e7bE34e89741485Fcb48FA2F"),
 	},
 
 	InitialRewardEpochId: 2466,
@@ -66,4 +68,15 @@ var coston = Network{
 	// FIP.16 does not apply to testnets.
 	Fip16ActivationEpoch: Fip16NotActivated,
 	FirePoolAddress:      common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
+
+	// NOTE: unlike Songbird, 5877 is NOT the deployment epoch. The FCC contracts went live on Coston in
+	// reward epoch 5730; 5877 is simply the epoch from which their fees are accounted for. Fees paid in
+	// between were credited to the RewardManager but are claimed by no epoch (nothing on Coston in
+	// practice). That is accepted on a test network, where the funds are unclaimable anyway. Do not copy
+	// this shape to a production network: there the activation epoch must be the deployment epoch, or
+	// the fees of every epoch in between go unclaimed for real value.
+	FccActivationEpoch: 5877,
+	// Coston has no FCC fee recipient of its own, so the fees are claimed to the dead address - the same
+	// treatment the FIRE pool gets here.
+	FccFeesAddress: common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 }
