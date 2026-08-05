@@ -69,9 +69,7 @@ var songbird = Network{
 	Fip16ActivationEpoch: 417,
 	FirePoolAddress:      common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
 
-	// The FCC contracts were deployed on Songbird part-way through reward epoch 419, and that is also the
-	// epoch their fees are accounted for from. A mid-epoch deployment loses nothing: before the deployment
-	// transaction there are neither FCC events nor receiveRewards credits to account for.
+	// FCC was deployed during epoch 419, so accounting starts in the same epoch; no earlier fees exist.
 	FccActivationEpoch: 419,
 	FccFeesAddress:     common.HexToAddress("0x3390E1aDf46568cCC95c3571424937b042094ac2"),
 }
