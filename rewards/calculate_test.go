@@ -43,8 +43,9 @@ func TestCalculateResults(t *testing.T) {
 // setUpMySqlDb sets up a MySQL database Docker container.
 func setUpMySqlDb(t *testing.T, ctx context.Context) (*gorm.DB, testcontainers.Container) {
 	req := testcontainers.ContainerRequest{
-		Image:        "mysql",
-		ExposedPorts: []string{dbPort},
+		Image:           "mysql:8.4",
+		AlwaysPullImage: true,
+		ExposedPorts:    []string{dbPort},
 		Env: map[string]string{
 			"MYSQL_ROOT_PASSWORD": dbPass,
 			"MYSQL_DATABASE":      "testdb",
@@ -56,7 +57,10 @@ func setUpMySqlDb(t *testing.T, ctx context.Context) (*gorm.DB, testcontainers.C
 				FileMode:          0644,
 			},
 		},
-		WaitingFor: wait.ForLog("MySQL Community Server - GPL"),
+		WaitingFor: wait.ForAll(
+			wait.ForLog("MySQL Community Server - GPL").WithOccurrence(2),
+			wait.ForListeningPort(nat.Port(dbPort)),
+		).WithStartupTimeout(2 * time.Minute),
 	}
 	mysqlC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
