@@ -4,7 +4,6 @@ import (
 	common2 "fsp-rewards-calculator/common"
 	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
-	"fsp-rewards-calculator/logger"
 	"slices"
 	"time"
 
@@ -83,15 +82,18 @@ func GetRewardEpoch(epoch ty.RewardEpochId, db *gorm.DB) (RewardEpoch, error) {
 	}
 
 	epochStartSec := params.Net.Epoch.VotingRoundStartSec(startRound)
-	epochEndSec := params.Net.Epoch.VotingRoundRewardEndSec(endRound)
 
-	if endRound == 0 {
-		epochEndSec = params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch + 1)
-	}
-
-	rewardOffers, err := getRewardOffers(db, epoch, epochStartSec, epochEndSec)
+	rewardOffers, err := getRewardOffers(db, epoch, epochStartSec)
 	if err != nil {
 		return RewardEpoch{}, errors.Errorf("error fetching reward rewardOffers: %s", err)
+	}
+	// An epoch without an end round is loaded only for lookahead; its incentives are not used for the
+	// current calculation, and its funding window is not closed yet.
+	if endRound != 0 {
+		rewardOffers.FastUpdatesI, err = getFUIncentiveOffers(db, epoch)
+		if err != nil {
+			return RewardEpoch{}, errors.Errorf("error fetching fast updates incentive offers: %s", err)
+		}
 	}
 
 	feeds := getOrderedFeeds(rewardOffers, params.Fip16Active(epoch))
@@ -126,7 +128,7 @@ func getOrderedVoters(event *relay.RelaySigningPolicyInitialized) []ty.VoterSign
 	return voters
 }
 
-func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint64) (RewardOffers, error) {
+func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec uint64) (RewardOffers, error) {
 	extraWindow := uint64(6 * 60 * 60)
 	previousStartSec := params.Net.Epoch.ExpectedRewardEpochStartTimeSec(epoch-1) - extraWindow
 
@@ -146,29 +148,6 @@ func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint6
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
 	}
-	// FastUpdateIncentiveManager.offerIncentive credits getCurrentRewardEpochId() with no compensation for
-	// the epoch boundary, exactly as the FCC contracts do and unlike FdcHub, which rolls forward near the
-	// epoch end. An incentive is therefore attributed the same way FCC fees are: collected over the
-	// epoch's funding window, whose inclusive edges guarantee a superset, then narrowed by the reward
-	// epoch id the event carries itself (below). Collected over the voting round schedule instead, an
-	// incentive offered after the epoch's last round but before the next epoch started funds one epoch on
-	// chain while being counted towards no epoch's fast updates pool at all.
-	incentiveStartSec, incentiveEndSec := startSec, endSec
-	if window, err := RewardEpochFundingWindow(db, epoch); err == nil {
-		// QueryEvents takes an exclusive end, the window's end is inclusive.
-		incentiveStartSec, incentiveEndSec = window.StartSec, window.EndSec+1
-	} else {
-		// The window closes with the next epoch's RewardEpochStarted event, so it is unavailable while an
-		// epoch is still running. That is expected for the epoch after the one being calculated, which is
-		// loaded only to look ahead for secure random numbers and whose incentives are never used.
-		logger.Debug("no funding window for epoch %d, collecting incentive offers over its voting rounds: %s", epoch, err)
-	}
-
-	fastUpdatesI, err := getFUIncentiveOfferEvents(db, incentiveStartSec, incentiveEndSec)
-	if err != nil {
-		return RewardOffers{}, errors.Errorf("error fetching fast updates reward offer events: %s", err)
-	}
-
 	fdcInflation, err := getFdcInflationRewardOfferEvents(db, previousStartSec, startSec)
 	if err != nil {
 		return RewardOffers{}, errors.Errorf("error fetching fdc inflation reward offer events: %s", err)
@@ -183,9 +162,6 @@ func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint6
 	fastUpdates = slices.DeleteFunc(fastUpdates, func(offer *fumanager.FUManagerInflationRewardsOffered) bool {
 		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
-	fastUpdatesI = slices.DeleteFunc(fastUpdatesI, func(offer *fumanager.FUManagerIncentiveOffered) bool {
-		return offer.RewardEpochId.Uint64() != uint64(epoch)
-	})
 	fdcInflation = slices.DeleteFunc(fdcInflation, func(offer *fdchub.FdcHubInflationRewardsOffered) bool {
 		return offer.RewardEpochId.Uint64() != uint64(epoch)
 	})
@@ -194,7 +170,21 @@ func getRewardOffers(db *gorm.DB, epoch ty.RewardEpochId, startSec, endSec uint6
 		community,
 		inflation,
 		fastUpdates,
-		fastUpdatesI,
+		nil,
 		fdcInflation,
 	}, nil
+}
+
+func getFUIncentiveOffers(db *gorm.DB, epoch ty.RewardEpochId) ([]*fumanager.FUManagerIncentiveOffered, error) {
+	window, err := RewardEpochFundingWindow(db, epoch)
+	if err != nil {
+		return nil, err
+	}
+	offers, err := getFUIncentiveOfferEvents(db, window.StartSec, window.EndSec+1)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(offers, func(offer *fumanager.FUManagerIncentiveOffered) bool {
+		return offer.RewardEpochId.Uint64() != uint64(epoch)
+	}), nil
 }

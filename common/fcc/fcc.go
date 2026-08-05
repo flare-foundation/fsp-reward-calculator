@@ -211,5 +211,5 @@ func queryFundingWindow[T any](
 	topic0 string,
 	parseEvent func(types.Log, uint64) (T, error),
 ) ([]T, error) {
-	return fsp.QueryEvents(db, window.StartSec, window.EndSec+1, contractAddress, topic0, parseEvent)
+	return fsp.QueryEventsStrict(db, window.StartSec, window.EndSec+1, contractAddress, topic0, parseEvent)
 }
