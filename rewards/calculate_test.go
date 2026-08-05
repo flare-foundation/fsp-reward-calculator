@@ -60,7 +60,7 @@ func setUpMySqlDb(t *testing.T, ctx context.Context) (*gorm.DB, testcontainers.C
 		WaitingFor: wait.ForAll(
 			wait.ForLog("MySQL Community Server - GPL").WithOccurrence(2),
 			wait.ForListeningPort(nat.Port(dbPort)),
-		).WithStartupTimeout(2 * time.Minute),
+		).WithDeadline(2 * time.Minute),
 	}
 	mysqlC, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
