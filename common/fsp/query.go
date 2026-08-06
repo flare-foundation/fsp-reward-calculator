@@ -1,7 +1,6 @@
 package fsp
 
 import (
-	"fsp-rewards-calculator/logger"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -57,18 +56,19 @@ func QueryEventsForContracts[T interface{}](
 	if err != nil {
 		return nil, errors.Errorf("error fetching logs From DB: %s", err)
 	}
+	return parseEventLogs(logs, parseEvent)
+}
 
+func parseEventLogs[T interface{}](logs []database.Log, parseEvent func(types.Log, uint64) (T, error)) ([]T, error) {
 	var parsedEvents []T
 	for _, log := range logs {
 		chainLog, err := events.ConvertDatabaseLogToChainLog(log)
 		if err != nil {
-			logger.Error("error converting database log to chain log: %s", err)
-			continue
+			return nil, errors.Errorf("error converting event at block %d log index %d: %s", log.BlockNumber, log.LogIndex, err)
 		}
 		parsed, err := parseEvent(*chainLog, log.Timestamp)
 		if err != nil {
-			logger.Error("error parsing event, ignoring: %s", err)
-			continue
+			return nil, errors.Errorf("error parsing event at block %d log index %d: %s", log.BlockNumber, log.LogIndex, err)
 		}
 		parsedEvents = append(parsedEvents, parsed)
 	}

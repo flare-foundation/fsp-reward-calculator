@@ -23,6 +23,10 @@ var flare = Network{
 		FastUpdateIncentiveManager: common.HexToAddress("0xd648e8ACA486Ce876D641A0F53ED1F2E9eF4885D"),
 		FastUpdater:                common.HexToAddress("0xdBF71d7840934EB82FA10173103D4e9fd4054dd1"),
 		FdcHub:                     common.HexToAddress("0xc25c749DC27Efb1864Cb3DADa8845B7687eB2d44"),
+		// FCC accounting on Flare is gated off by FccActivationEpoch, so these addresses are not read
+		// yet. Fill both in together with lowering that activation epoch.
+		FlareTeeManager: common.Address{},
+		Fdc2Hub:         common.Address{},
 	},
 
 	InitialRewardEpochId: 183,
@@ -63,4 +67,9 @@ var flare = Network{
 	// FIP.16 activates on Flare with reward epoch 417.
 	Fip16ActivationEpoch: 417,
 	FirePoolAddress:      common.HexToAddress("0x0ce6831DF00A6018c4d316009980DbAa6c44E525"),
+
+	// FCC is not deployed on Flare yet: lower this to the deployment epoch together with filling in the
+	// two contract addresses above. The fee recipient is already known.
+	FccActivationEpoch: FccNotActivated,
+	FccFeesAddress:     common.HexToAddress("0x2168DB7275C49Af8dBEb11c1298d9e3C0e2a3041"),
 }

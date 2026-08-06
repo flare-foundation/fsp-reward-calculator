@@ -2,6 +2,7 @@ package rewards
 
 import (
 	"context"
+	"fsp-rewards-calculator/common/fcc"
 	"fsp-rewards-calculator/common/fdc"
 	"fsp-rewards-calculator/common/fsp"
 	"fsp-rewards-calculator/common/ftso"
@@ -62,6 +63,18 @@ func GetEpochClaims(db *gorm.DB, epoch ty2.RewardEpochId) ([]ty.RewardClaim, map
 
 	epochClaims = append(epochClaims, ftsoClaims...)
 	epochClaims = append(epochClaims, fdcClaims...)
+
+	// FCC fees. Independent of the FDC handling above: different contracts, different events, different
+	// path. Both fee sources are credited to the RewardManager when paid, so every wei must land in a
+	// claim; until the TEE rewarding logic exists they are redirected in full to FccFeesAddress.
+	if params.FccActive(epoch) {
+		logger.Info("Calculating FCC fee claims")
+		fees, err := fcc.GetEpochFees(db, re)
+		if err != nil {
+			logger.Fatal("Error fetching FCC fee events: %s", err)
+		}
+		epochClaims = append(epochClaims, GetFccRewards(fees)...)
+	}
 
 	cond := calcConditions(epoch, re.VoterIndex, ftsoCond, fdcCond)
 

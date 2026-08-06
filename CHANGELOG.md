@@ -10,12 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- ...
+- Account for the fees of the Flare Confidential Compute contracts (`FlareTeeManager.TeeInstructionsSent` and
+  `Fdc2Hub.AttestationRequested`) from reward epoch 419 on Songbird and 5877 on Coston, claiming them in full to the
+  network's FCC fee address.
 
-### Changed
+### Fixed
 
-- ...
--->
+- Attribute Fast Updates incentive offers over the reward epoch's funding window, bounded by the `RewardEpochStarted`
+  events, rather than over its voting round schedule. An incentive offered after the epoch's last voting round but
+  before the next epoch started funds that epoch on chain and was previously counted towards no epoch's Fast Updates
+  pool.
 
 ## [1.1.0] - 2026-07-22
 

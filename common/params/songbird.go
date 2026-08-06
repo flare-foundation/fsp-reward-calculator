@@ -23,6 +23,8 @@ var songbird = Network{
 		FastUpdateIncentiveManager: common.HexToAddress("0x596C70Ad6fFFdb9b6158F1Dfd0bc32cc72B82006"),
 		FastUpdater:                common.HexToAddress("0x7D9F73FD9bC4607daCB618FF895585f98BFDD06B"),
 		FdcHub:                     common.HexToAddress("0xCfD4669a505A70c2cE85db8A1c1d14BcDE5a1a06"),
+		FlareTeeManager:            common.HexToAddress("0x5C2dE0DeFC3FDBbF8e12c12bD0b1629Ed37DC767"),
+		Fdc2Hub:                    common.HexToAddress("0x4234a8f5D255d91d56df53d0cc78c0Cc2B67ACD8"),
 	},
 
 	InitialRewardEpochId: 183,
@@ -66,4 +68,8 @@ var songbird = Network{
 	// the conventional burn address.
 	Fip16ActivationEpoch: 417,
 	FirePoolAddress:      common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
+
+	// FCC was deployed during epoch 419, so accounting starts in the same epoch; no earlier fees exist.
+	FccActivationEpoch: 419,
+	FccFeesAddress:     common.HexToAddress("0x3390E1aDf46568cCC95c3571424937b042094ac2"),
 }

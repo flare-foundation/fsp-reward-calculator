@@ -2,7 +2,9 @@ package common
 
 import (
 	"fsp-rewards-calculator/contracts/calculator"
+	"fsp-rewards-calculator/contracts/fdc2"
 	"fsp-rewards-calculator/contracts/registryOld"
+	"fsp-rewards-calculator/contracts/tee"
 	"fsp-rewards-calculator/logger"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -38,6 +40,9 @@ type EventIds struct {
 	VoterRegistrationInfoOld string
 
 	FdcAttestationRequest string
+
+	TeeInstructionsSent      string
+	Fdc2AttestationRequested string
 }
 
 type FunctionSigs struct {
@@ -68,6 +73,11 @@ var EventTopic0 = EventIds{
 	FastUpdateFeedsSubmitted: eventIDFromMetadata(fupdater.FUpdaterMetaData, "FastUpdateFeedsSubmitted"),
 
 	FdcAttestationRequest: eventIDFromMetadata(fdchub.FdcHubMetaData, "AttestationRequest"),
+
+	// FCC fee events. Fdc2AttestationRequested is the FDC2 hub's AttestationRequested, not to be
+	// confused with the legacy FdcAttestationRequest above.
+	TeeInstructionsSent:      eventIDFromMetadata(tee.TeeManagerMetaData, "TeeInstructionsSent"),
+	Fdc2AttestationRequested: eventIDFromMetadata(fdc2.Fdc2MetaData, "AttestationRequested"),
 }
 
 var FunctionSignatures = FunctionSigs{

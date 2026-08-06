@@ -23,6 +23,12 @@ type Network struct {
 	// FirePoolAddress receives the FIRE share of confirmed FDC attestation request fees once
 	// FIP.16 is active (a burn address on networks without a FIRE pool).
 	FirePoolAddress common.Address
+
+	// FccActivationEpoch is the first reward epoch id (inclusive) for which the fees of the Flare
+	// Confidential Compute contracts are accounted for. Set to FccNotActivated where they are not.
+	FccActivationEpoch uint64
+	// FccFeesAddress receives all FCC fees as a direct claim until the TEE rewarding logic exists.
+	FccFeesAddress common.Address
 }
 
 type ContractAddresses struct {
@@ -39,6 +45,11 @@ type ContractAddresses struct {
 	FastUpdateIncentiveManager common.Address
 	FastUpdater                common.Address
 	FdcHub                     common.Address
+	// FCC (Flare Confidential Compute) contracts. Declared on every network; whether their events
+	// are read is decided solely by FccActivationEpoch. Fdc2Hub is the FDC2 hub and is unrelated to
+	// the legacy FdcHub above: different events, different reward path.
+	FlareTeeManager common.Address
+	Fdc2Hub         common.Address
 }
 
 type Ftso struct {
@@ -81,6 +92,15 @@ var Fip16StakeWeightMultiplier = big.NewInt(5)
 // Fip16Active reports whether FIP.16 vote-power unification applies to the given reward epoch.
 func Fip16Active(epoch ty.RewardEpochId) bool {
 	return uint64(epoch) >= Net.Fip16ActivationEpoch
+}
+
+// FccNotActivated is a sentinel activation epoch meaning "FCC fee accounting not activated yet".
+const FccNotActivated = math.MaxUint64
+
+// FccActive reports whether FCC fee accounting (TEE instruction fees and FDC2 attestation request
+// fees redirected to FccFeesAddress) applies to the given reward epoch.
+func FccActive(epoch ty.RewardEpochId) bool {
+	return uint64(epoch) >= Net.FccActivationEpoch
 }
 
 var Net Network
