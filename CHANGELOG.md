@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Account for the fees of the Flare Confidential Compute contracts (`FlareTeeManager.TeeInstructionsSent` and
   `Fdc2Hub.AttestationRequested`) from reward epoch 419 on Songbird and 5877 on Coston, claiming them in full to the
-  network's FCC fee address. The indexer has to collect both contracts' logs; see the README.
+  network's FCC fee address.
 
 ### Fixed
 
