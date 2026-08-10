@@ -5,8 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!--
 ## [Unreleased]
+
+## [1.2.0] - 2026-08-10
 
 ### Added
 
@@ -20,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   events, rather than over its voting round schedule. An incentive offered after the epoch's last voting round but
   before the next epoch started funds that epoch on chain and was previously counted towards no epoch's Fast Updates
   pool.
+- Fail with an explicit error when an event log used for reward accounting cannot be decoded, instead of silently
+  skipping it and computing rewards from incomplete data.
 
 ## [1.1.0] - 2026-07-22
 
