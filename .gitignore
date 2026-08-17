@@ -25,3 +25,6 @@ config.*.toml
 # misc
 .DS_Store
 
+
+# Local indexer stack settings (RPC keys, db password)
+tools/indexers/.env
