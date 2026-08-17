@@ -125,6 +125,17 @@ services:
   indexer-db:
     image: mysql:9.5.0
     restart: unless-stopped
+    # Tuned for bulk ingest into a database that can always be rebuilt from
+    # chain. The stock 100M redo log stalls the writer during a backfill
+    # ("waiting for a new redo log file"), the 128M buffer pool is far too small
+    # for these tables, and per-commit fsync plus the binary log pay for
+    # durability that is worth nothing here: losing recent rows just means
+    # indexing them again.
+    command:
+      - --innodb-redo-log-capacity=${DB_REDO_LOG_BYTES:-2147483648}
+      - --innodb-buffer-pool-size=${DB_BUFFER_POOL_BYTES:-2147483648}
+      - --innodb-flush-log-at-trx-commit=2
+      - --skip-log-bin
     environment:
       MYSQL_ROOT_PASSWORD: root
       # Only the compose subnet, so the indexers can use root while the
