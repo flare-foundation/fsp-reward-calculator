@@ -39,7 +39,7 @@ func GetFtsoRewards(db *gorm.DB, epochs RewardEpochs, windowEnd ty2.RoundId, sub
 		if first == nil {
 			continue
 		}
-		consensusHashByRound[round] = first.MerkleRoot.EncodedHash()
+		consensusHashByRound[round] = first.MerkleRoot.EncodedHash(re.Epoch)
 	}
 
 	signersByRound = ftso.GetSignersByRound(submitSignatures, consensusHashByRound, re)

@@ -72,4 +72,8 @@ var flare = Network{
 	// two contract addresses above. The fee recipient is already known.
 	FccActivationEpoch: FccNotActivated,
 	FccFeesAddress:     common.HexToAddress("0x2168DB7275C49Af8dBEb11c1298d9e3C0e2a3041"),
+
+	ChainId: 14,
+	// Flare cuts over to Relay v2 with reward epoch 441: set RelayV2 above and lower this then.
+	RelayV2ActivationEpoch: RelayV2NotActivated,
 }

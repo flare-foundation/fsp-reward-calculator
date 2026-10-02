@@ -2,7 +2,9 @@ package fsp
 
 import (
 	"encoding/hex"
+	"fsp-rewards-calculator/common/params"
 	"fsp-rewards-calculator/common/ty"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -39,8 +41,19 @@ type ProtocolMerkleRoot struct {
 	rawEncoded     [protocolMerkleRootBytes]byte
 }
 
-func (p *ProtocolMerkleRoot) EncodedHash() common.Hash {
-	return common.BytesToHash(accounts.TextHash(crypto.Keccak256(p.rawEncoded[:])))
+// EncodedHash returns the digest voters sign for the message under the given reward epoch's Relay.
+func (p *ProtocolMerkleRoot) EncodedHash(epoch ty.RewardEpochId) common.Hash {
+	return common.BytesToHash(messageDigest(p.rawEncoded[:], params.RelayV2Active(epoch)))
+}
+
+// messageDigest is the EIP-191 hash the Relay recovers signers from. Relay v2 binds the source
+// chain into it, keccak256(chainId ‖ message), the Relay before it hashes the message alone.
+func messageDigest(encoded []byte, relayV2 bool) []byte {
+	if relayV2 {
+		chainId := common.BigToHash(new(big.Int).SetUint64(params.Net.ChainId))
+		return accounts.TextHash(crypto.Keccak256(chainId[:], encoded))
+	}
+	return accounts.TextHash(crypto.Keccak256(encoded))
 }
 
 type Finalization struct {

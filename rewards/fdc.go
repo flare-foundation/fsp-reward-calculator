@@ -34,7 +34,7 @@ func GetFdcRewards(db *gorm.DB, re *fsp.RewardEpoch, submit2 []payload.Message, 
 		if first == nil {
 			continue
 		}
-		consensusHashByRound[round] = first.MerkleRoot.EncodedHash()
+		consensusHashByRound[round] = first.MerkleRoot.EncodedHash(re.Epoch)
 	}
 
 	signersByRound := fdc.GetSignersByRound(submitSignatures, consensusHashByRound, re)

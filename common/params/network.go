@@ -29,6 +29,13 @@ type Network struct {
 	FccActivationEpoch uint64
 	// FccFeesAddress receives all FCC fees as a direct claim until the TEE rewarding logic exists.
 	FccFeesAddress common.Address
+
+	// ChainId is bound into the digests Relay v2 verifies: keccak256(chainId ‖ message).
+	ChainId uint64
+	// RelayV2ActivationEpoch is the first reward epoch (inclusive) signed for and finalized on
+	// Contracts.RelayV2. Its policy is seeded into Relay v2 at deployment, so the epoch's
+	// SigningPolicyInitialized event is still emitted by the Relay before it.
+	RelayV2ActivationEpoch uint64
 }
 
 type ContractAddresses struct {
@@ -38,6 +45,7 @@ type ContractAddresses struct {
 	Submission                 common.Address
 	OldRelay                   common.Address
 	Relay                      common.Address
+	RelayV2                    common.Address
 	OldFlareSystemsCalculator  common.Address
 	FlareSystemsCalculator     common.Address
 	OldVoterRegistry           common.Address
@@ -101,6 +109,14 @@ const FccNotActivated = math.MaxUint64
 // fees redirected to FccFeesAddress) applies to the given reward epoch.
 func FccActive(epoch ty.RewardEpochId) bool {
 	return uint64(epoch) >= Net.FccActivationEpoch
+}
+
+// RelayV2NotActivated is a sentinel activation epoch meaning "Relay v2 not activated yet".
+const RelayV2NotActivated = math.MaxUint64
+
+// RelayV2Active reports whether the given reward epoch is signed for and finalized on Relay v2.
+func RelayV2Active(epoch ty.RewardEpochId) bool {
+	return uint64(epoch) >= Net.RelayV2ActivationEpoch
 }
 
 var Net Network

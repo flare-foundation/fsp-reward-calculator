@@ -67,7 +67,7 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 
 	txns, err := fetchTransactionsForContracts(
 		db,
-		[]common2.Address{params.Net.Contracts.Relay, params.Net.Contracts.OldRelay},
+		[]common2.Address{params.Net.Contracts.Relay, params.Net.Contracts.OldRelay, params.Net.Contracts.RelayV2},
 		common.FunctionSignatures.Relay,
 		int64(fromSec),
 		int64(toSec),
@@ -76,11 +76,21 @@ func GetFinalizations(db *gorm.DB, re *RewardEpoch, fromRound ty.RoundId, toRoun
 		return nil, errors.Errorf("error fetching txns From DB: %s", err)
 	}
 
+	// Every round of an epoch is signed for, and finalized on, the epoch's Relay. A call to the other one
+	// verifies under a different digest, and the target, not the receipt, decides: a call to an address
+	// without code succeeds without running any Relay.
+	relayV2 := params.RelayV2Active(re.Epoch)
 	finalizationsByProtocol := map[uint8][]*Finalization{}
 	for _, txn := range txns {
-		finalization, err := DecodeFinalization(txn.Input[8:])
+		if relayV2 != (common2.HexToAddress(txn.ToAddress) == params.Net.Contracts.RelayV2) {
+			continue
+		}
+		finalization, err := DecodeFinalization(txn.Input[8:], relayV2)
 		if err != nil {
 			logger.Debug("error parsing finalization, skipping: %+v", err)
+			continue
+		}
+		if finalization == nil { // a new signing policy, not a protocol message
 			continue
 		}
 
@@ -171,7 +181,7 @@ func fetchTransactionsForContracts(
 		Order("block_number ASC").
 		Order("transaction_index ASC").
 		// Optimisation: select only the necessary columns
-		Select("function_sig", "input", "block_number", "from_address", "status", "timestamp").
+		Select("function_sig", "input", "block_number", "from_address", "to_address", "status", "timestamp").
 		Find(&transactions).Error
 	if err != nil {
 		return nil, err

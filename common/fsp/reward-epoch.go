@@ -55,7 +55,7 @@ func GetRewardEpoch(epoch ty.RewardEpochId, db *gorm.DB) (RewardEpoch, error) {
 		db,
 		searchIntervalStartSec,
 		searchIntervalEndSec,
-		[]common.Address{params.Net.Contracts.Relay, params.Net.Contracts.OldRelay},
+		[]common.Address{params.Net.Contracts.Relay, params.Net.Contracts.OldRelay, params.Net.Contracts.RelayV2},
 		common2.EventTopic0.SigningPolicyInitialized,
 		parsePolicyInitialized,
 	)

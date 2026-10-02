@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support the upgraded Relay on Songbird from reward epoch 437. Signatures and finalizations of those epochs are
+  checked against the source-bound digest, and only `relay()` calls sent to the new Relay count for them. A
+  finalization is also rejected the way the new Relay rejects it: a non-canonical `v` or high `s` in a signature it
+  reads, or on the FTSO protocol a missing random number or one that does not prove against the signed Merkle root.
+
 ## [1.2.0] - 2026-08-10
 
 ### Added

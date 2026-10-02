@@ -65,7 +65,7 @@ func getSigningClaims(
 		)
 		gracePeriod := revealDeadline + params.Net.Ftso.GracePeriodForSignaturesDurationSec
 
-		finalizedHash := successfulFinalization.MerkleRoot.EncodedHash()
+		finalizedHash := successfulFinalization.MerkleRoot.EncodedHash(re.Epoch)
 
 		for _, s := range acceptedSigs[finalizedHash] {
 			if _, ok := doubleSigners[s.Signer]; ok {
