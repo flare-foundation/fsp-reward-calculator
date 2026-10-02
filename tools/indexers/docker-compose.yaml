@@ -17,7 +17,7 @@
 name: fsp-indexers
 
 x-indexer: &indexer
-  image: ghcr.io/flare-foundation/flare-system-c-chain-indexer:v2.0.0-rc.4
+  image: ghcr.io/flare-foundation/flare-system-c-chain-indexer:main
   restart: unless-stopped
   # So a node running on this box can be given as http://host.docker.internal:9650
   extra_hosts:
