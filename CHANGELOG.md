@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-02
+
 ### Added
 
 - Support the upgraded Relay on Songbird from reward epoch 437. Signatures and finalizations of those epochs are
