@@ -75,4 +75,8 @@ var coston = Network{
 	// Coston has no FCC fee recipient of its own, so the fees are claimed to the dead address - the same
 	// treatment the FIRE pool gets here.
 	FccFeesAddress: common.HexToAddress("0x000000000000000000000000000000000000dEaD"),
+
+	ChainId: 16,
+	// Coston cut over to Relay v2 with reward epoch 5991, not configured here yet.
+	RelayV2ActivationEpoch: RelayV2NotActivated,
 }

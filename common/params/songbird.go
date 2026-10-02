@@ -16,6 +16,7 @@ var songbird = Network{
 		Submission:                 common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f"),
 		Relay:                      common.HexToAddress("0xCB86E8Be709001e01897Bf59847406853da8f14b"),
 		OldRelay:                   common.HexToAddress("0x67a916E175a2aF01369294739AA60dDdE1Fad189"),
+		RelayV2:                    common.HexToAddress("0xc1BC89b717Af42AE27497C9FFb996002D3AC5031"),
 		FlareSystemsCalculator:     common.HexToAddress("0x31a5B8E7ca6dFC7B963f5D029F0884ef19E53A24"),
 		OldFlareSystemsCalculator:  common.HexToAddress("0x126FAeEc75601dA3354c0b5Cc0b60C85fCbC3A5e"),
 		VoterRegistry:              common.HexToAddress("0xd23FAE88c09e6A77dD9eFcc29D6bBC55D2e74310"),
@@ -72,4 +73,7 @@ var songbird = Network{
 	// FCC was deployed during epoch 419, so accounting starts in the same epoch; no earlier fees exist.
 	FccActivationEpoch: 419,
 	FccFeesAddress:     common.HexToAddress("0x3390E1aDf46568cCC95c3571424937b042094ac2"),
+
+	ChainId:                19,
+	RelayV2ActivationEpoch: 437,
 }
