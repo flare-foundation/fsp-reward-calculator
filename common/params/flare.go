@@ -16,6 +16,7 @@ var flare = Network{
 		Submission:                 common.HexToAddress("0x2cA6571Daa15ce734Bbd0Bf27D5C9D16787fc33f"),
 		Relay:                      common.HexToAddress("0xCcF30790A93F15e24EB909548a2C58a9b0a7FBd4"),
 		OldRelay:                   common.HexToAddress("0x57a4c3676d08Aa5d15410b5A6A80fBcEF72f3F45"),
+		RelayV2:                    common.HexToAddress("0x5A2Eb0cdB4Aa8253924a488A77EdfD24Bb64407f"),
 		FlareSystemsCalculator:     common.HexToAddress("0xf9cCe0Bd286bb38A9A0cD15fDDC5431F03568Db0"),
 		OldFlareSystemsCalculator:  common.HexToAddress("0x67c4B11c710D35a279A41cff5eb089Fe72748CF8"),
 		VoterRegistry:              common.HexToAddress("0xA480457953Af3583E54DCd630b219353B8FC9Af7"),
@@ -73,7 +74,6 @@ var flare = Network{
 	FccActivationEpoch: FccNotActivated,
 	FccFeesAddress:     common.HexToAddress("0x2168DB7275C49Af8dBEb11c1298d9e3C0e2a3041"),
 
-	ChainId: 14,
-	// Flare cuts over to Relay v2 with reward epoch 441: set RelayV2 above and lower this then.
-	RelayV2ActivationEpoch: RelayV2NotActivated,
+	ChainId:                14,
+	RelayV2ActivationEpoch: 441,
 }
